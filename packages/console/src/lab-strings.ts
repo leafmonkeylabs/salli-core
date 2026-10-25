@@ -44,6 +44,7 @@ export const labStrings = {
       real_return: 'The real return (a placeholder)',
       safe_withdrawal_rate: 'The safe withdrawal rate (a placeholder)',
       surplus_invested: 'The share of your monthly surplus invested: all of it (a placeholder)',
+      drawdown_horizon: 'The years drawn down: to a planning age of 95, or 30 without a date of birth (a placeholder)',
       inflation: 'Inflation: none set, so amounts keep their value (a placeholder)',
       tax: 'Tax: not computed, so amounts tagged with a tax role count before tax',
       tax_rules_carried_forward: 'Your latest tax rules, carried forward to years with none of their own',

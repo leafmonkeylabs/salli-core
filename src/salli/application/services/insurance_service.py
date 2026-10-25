@@ -14,6 +14,7 @@ from typing import Any
 
 from salli.application.services.baseline_service import BaselineService
 from salli.domain.currency import quantize
+from salli.domain.fi.returns import PLANNING_AGE
 from salli.domain.insurance import engine
 from salli.domain.insurance.models import CoverageTarget, Policy
 from salli.domain.money import from_minor, to_minor
@@ -68,6 +69,20 @@ def _to_domain_target(t: dict[str, Any], currency: str) -> CoverageTarget:
     )
 
 
+def _protection_months(baseline: Any, replacement_years: int, benefit_years: int | None) -> int:
+    """How long disability cover replaces income: the chosen benefit period;
+    else to the planning age (the plan's, else the placeholder's) from the
+    date of birth; else `replacement_years`."""
+    if benefit_years is not None:
+        return benefit_years * 12
+    born = baseline.plan.born
+    if born is None:
+        return replacement_years * 12
+    age = baseline.plan.planning_age or PLANNING_AGE
+    as_of = baseline.as_of
+    return max(0, (born.year + age - as_of.year) * 12 + born.month - as_of.month)
+
+
 class InsuranceService:
     def __init__(
         self, uow_factory: Callable[[], Any], baselines: BaselineService | None = None
@@ -76,7 +91,13 @@ class InsuranceService:
         # The figures a needs analysis starts from.
         self._baselines = baselines
 
-    async def _needs(self, user_id: str, replacement_years: int) -> tuple[str, engine.Needs]:
+    async def _needs(
+        self,
+        user_id: str,
+        replacement_years: int,
+        benefit_years: int | None = None,
+        sick_pay: Decimal = ZERO,
+    ) -> tuple[str, engine.Needs]:
         if self._baselines is None:
             raise RuntimeError("InsuranceService needs the baseline for a needs analysis")
         baseline = await self._baselines.build(user_id)
@@ -115,15 +136,24 @@ class InsuranceService:
             replacement_years,
             baseline.net_worth,
             held("liability"),
+            _protection_months(baseline, replacement_years, benefit_years),
+            held("income_protection"),
+            sick_pay,
         )
 
-    async def get_needs(self, user_id: str, replacement_years: int = 10) -> dict[str, Any]:
+    async def get_needs(
+        self,
+        user_id: str,
+        replacement_years: int = 10,
+        benefit_years: int | None = None,
+        sick_pay: Decimal = ZERO,
+    ) -> dict[str, Any]:
         """Life cover, income protection and liability cover, as figures from
         the baseline: income replacement for `replacement_years`, debts and
         the active goals still to fund, less cash, savings and investments; a
         month's spending; and net worth, what a claim could reach. Never a
         product."""
-        currency, result = await self._needs(user_id, replacement_years)
+        currency, result = await self._needs(user_id, replacement_years, benefit_years, sick_pay)
 
         def money(value: Decimal) -> str:
             return str(quantize(value, currency, strict=False))
@@ -142,6 +172,11 @@ class InsuranceService:
             "liability_cover_need": money(result.liability_cover_need),
             "liability_cover_held": money(result.liability_cover_held),
             "liability_cover_gap": money(result.liability_cover_gap),
+            "protection_months": result.protection_months,
+            "sick_pay": money(result.sick_pay),
+            "protection_need": money(result.protection_need),
+            "protection_held": money(result.protection_held),
+            "protection_gap": money(result.protection_gap),
         }
 
     async def add_policy(self, user_id: str, data: dict[str, Any]) -> str:

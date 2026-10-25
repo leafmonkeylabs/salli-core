@@ -455,6 +455,7 @@ class ScenarioRun(BaseModel):
             "real_return",
             "safe_withdrawal_rate",
             "surplus_invested",
+            "drawdown_horizon",
             "inflation",
             "tax",
             "tax_rules_carried_forward",

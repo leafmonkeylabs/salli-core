@@ -6,6 +6,7 @@ coverage-gap report.
 from __future__ import annotations
 
 import datetime
+from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -43,7 +44,7 @@ class TargetRequest(BaseModel):
     target_amount: AmountIn
 
 
-# Policy types ("life", "health", "motor", "property", "liability", "other") and premium
+# Policy types ("life", "health", "income_protection", "motor", "property", "liability", "other") and premium
 # frequencies ("monthly", "quarterly", "yearly") are plain strings: they are
 # stored as given, and nothing refuses others.
 
@@ -160,6 +161,17 @@ class InsuranceNeeds(BaseModel):
     liability_cover_held: Amount
     #: Need − held, never below zero.
     liability_cover_gap: Amount
+    #: The months income is replaced for if you could not work: the chosen
+    #: benefit period, else to your planning age, else replacement_years.
+    protection_months: int
+    #: What your employer would pay while you are off sick, as you declare it.
+    sick_pay: Amount
+    #: Monthly income × protection_months − sick_pay, never below zero.
+    protection_need: Amount
+    #: The active "income_protection" policies' monthly benefit × the months.
+    protection_held: Amount
+    #: Need − held, never below zero.
+    protection_gap: Amount
 
 
 @router.get("/needs")
@@ -167,10 +179,24 @@ async def get_needs(
     user_id: CurrentUser,
     svc: AppServices,
     replacement_years: int = Query(10, ge=0, le=50, description="Years of income to replace."),
+    benefit_years: int | None = Query(
+        None,
+        ge=0,
+        le=70,
+        description="Years a disability benefit would pay; else to your planning age.",
+    ),
+    sick_pay: Decimal = Query(
+        Decimal(0), ge=0, description="What your employer would pay while you are off sick, in all."
+    ),
 ) -> InsuranceNeeds:
     """Life cover from income replacement years, debts and goals less assets;
-    income protection from spending. Policies of type "life" count as held."""
-    return InsuranceNeeds.model_validate(await svc.insurance.get_needs(user_id, replacement_years))
+    income protection from spending; disability cover from income replaced to
+    your planning age (or `benefit_years`) less your sick pay. Policies of
+    type "life" count as held; of type "income_protection", their coverage is
+    a monthly benefit."""
+    return InsuranceNeeds.model_validate(
+        await svc.insurance.get_needs(user_id, replacement_years, benefit_years, sick_pay)
+    )
 
 
 @router.get("/targets")

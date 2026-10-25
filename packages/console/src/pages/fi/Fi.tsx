@@ -79,6 +79,7 @@ function Basis({ assumptions }: { assumptions: FiAssumptions | null | undefined 
         `${f.own}.`
       )}{' '}
       {assumptions.message}
+      {assumptions.cash_yield?.origin === 'placeholder' ? ` ${assumptions.cash_yield.source}` : null}
     </Provenance>
   );
 }
@@ -97,6 +98,17 @@ function Where({ score }: { score: FiScore }) {
       <Rows>
         <Row label={f.fiNumber}>
           <Money amount={score.fi_number} currency={cur} variant="table" withCode />
+          {score.headline_status ? (
+            <span className={score.headline_status === 'placeholder' ? 'placeholder-tag' : undefined} title={score.headline ?? undefined}>
+              {' '}
+              {score.headline_status === 'placeholder' ? (
+                <span className="warn-mark" aria-hidden="true">
+                  !
+                </span>
+              ) : null}{' '}
+              {f.headline[score.headline_status]}
+            </span>
+          ) : null}
         </Row>
         {score.fi_asset_base ? (
           <Row label={f.investedNow}>
@@ -120,6 +132,7 @@ function Where({ score }: { score: FiScore }) {
         <Row label={f.savingsRate}>{rate(score.savings_rate, locale)}</Row>
         <Row label={f.emergency}>{f.months(formatDecimal(score.emergency_fund_months, { locale }))}</Row>
       </Rows>
+      {score.headline ? <Provenance>{score.headline}</Provenance> : null}
       {score.swr ? <Provenance>{f.fiNumberHelp(rate(score.swr, locale))}</Provenance> : null}
       <Basis assumptions={score.assumptions} />
       {score.as_of ? <Provenance>{f.asOf(displayDate(score.as_of, locale))}</Provenance> : null}

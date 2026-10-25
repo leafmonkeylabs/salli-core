@@ -11,11 +11,13 @@ at all. The share of the monthly surplus invested is a share, not a rate: from
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 
 import pytest
 
 import salli.domain.fi.assumptions as assumptions
+from salli.domain.fi import returns as odds_returns
 from salli.domain.fi.assumptions import (
     NAMES,
     PLACEHOLDERS,
@@ -75,7 +77,12 @@ def test_the_placeholders_are_round_neutral_and_say_they_are_placeholders():
 def test_with_nothing_set_placeholders_stand_in_and_say_so():
     applied = resolve(OwnAssumptions())
     assert applied.status == "placeholder"
-    assert applied.placeholders == ("real_return", "safe_withdrawal_rate", "surplus_invested")
+    assert applied.placeholders == (
+        "real_return",
+        "safe_withdrawal_rate",
+        "surplus_invested",
+        "drawdown_horizon",
+    )
     assert applied.real_return.origin == applied.safe_withdrawal_rate.origin == "placeholder"
     assert applied.surplus_invested.origin == "placeholder"
     assert applied.real_return.value == D("0.04")
@@ -86,8 +93,8 @@ def test_with_nothing_set_placeholders_stand_in_and_say_so():
     assert applied.inflation is None
     assert applied.nominal_returns is None
     assert (
-        "placeholder assumptions for the real return, the safe withdrawal rate and the share "
-        "of your monthly surplus invested:"
+        "placeholder assumptions for the real return, the safe withdrawal rate, the share "
+        "of your monthly surplus invested and the years drawn down:"
     ) in applied.message
     assert "today's money" in applied.message
 
@@ -125,10 +132,10 @@ def test_the_users_own_figures_come_first_with_their_sources():
 def test_setting_only_one_figure_leaves_the_others_placeholders():
     applied = resolve(_own(real_return="0.05"))
     assert applied.status == "placeholder"
-    assert applied.placeholders == ("safe_withdrawal_rate", "surplus_invested")
+    assert applied.placeholders == ("safe_withdrawal_rate", "surplus_invested", "drawdown_horizon")
     assert (
-        "for the safe withdrawal rate and the share of your monthly surplus invested:"
-        in applied.message
+        "for the safe withdrawal rate, the share of your monthly surplus invested and the "
+        "years drawn down:" in applied.message
     )
     only_share = resolve(_own(real_return="0.05", safe_withdrawal_rate="0.035"))
     assert only_share.placeholders == ("surplus_invested",)
@@ -219,7 +226,12 @@ def test_the_share_of_the_surplus_is_carried_with_the_other_assumptions():
         "source": PLACEHOLDERS["surplus_invested"].source,
         "note": None,
     }
-    assert shown["placeholders"] == ["real_return", "safe_withdrawal_rate", "surplus_invested"]
+    assert shown["placeholders"] == [
+        "real_return",
+        "safe_withdrawal_rate",
+        "surplus_invested",
+        "drawdown_horizon",
+    ]
     mine = assumptions_dict(resolve(_own(surplus_invested="0.25")))
     assert mine["surplus_invested"] == {
         "value": "0.25",
@@ -340,3 +352,20 @@ def test_without_a_pack_the_cash_yield_is_a_labelled_placeholder():
     applied = resolve(OwnAssumptions())
     assert applied.cash_yield_applied.origin == "placeholder"
     assert assumptions_dict(applied)["cash_yield"]["value"] == "0"
+
+
+def test_the_derived_rate_lasts_to_the_planning_age_and_says_so():
+    born = dt.date(1980, 6, 1)
+    placeholder = odds_returns.drawdown(born, None, "2030-06")
+    assert (placeholder.years, placeholder.origin) == (45, "placeholder")
+    own = odds_returns.drawdown(born, 90, "2030-06")
+    assert (own.years, own.origin) == (40, "user")
+    assert odds_returns.drawdown(None, 90, "2030-06") == odds_returns.NO_BIRTH
+    assert odds_returns.drawdown(born, 50, "2040-01").years == odds_returns.MIN_DRAWDOWN_YEARS
+    longer = resolve(_own(real_return="0.05", volatility="0.12"), drawdown=placeholder)
+    shorter = resolve(_own(real_return="0.05", volatility="0.12"), drawdown=own)
+    assert longer.safe_withdrawal_rate.value < shorter.safe_withdrawal_rate.value
+    assert "45 years drawn down" in longer.safe_withdrawal_rate.source
+    assert "drawdown_horizon" in longer.placeholders
+    assert longer.headline_status == "placeholder"
+    assert "drawdown_horizon" not in shorter.placeholders

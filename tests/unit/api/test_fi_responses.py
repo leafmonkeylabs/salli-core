@@ -177,6 +177,7 @@ async def test_every_fi_figure_says_which_assumptions_it_used(client, fi):
             "real_return",
             "safe_withdrawal_rate",
             "surplus_invested",
+            "drawdown_horizon",
         ]
         assert assumptions["surplus_invested"]["value"] == "1"
         assert assumptions["inflation"] is None

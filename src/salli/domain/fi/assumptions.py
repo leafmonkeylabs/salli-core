@@ -28,8 +28,10 @@ with a `source` and a `note`, and stored as user data:
   your own return, the odds draw with this pair; without either, with the
   pack's (`domain/fi/returns.py`), so mean and volatility never mix sources;
 - `safe_withdrawal_rate`: what the FI number is built on. Without one, the
-  rate the odds' returns sustain over `odds_returns.DRAWDOWN_YEARS` (labelled
-  `derived`; a placeholder while those returns are the placeholder pack's);
+  rate the odds' returns sustain over the person's own drawdown, from the
+  FI month to their planning age (`odds_returns.drawdown`; labelled
+  `derived`; a placeholder while those returns are the placeholder pack's,
+  and the drawdown is named a placeholder while its planning age is);
 - `surplus_invested`: the share, from 0 to 1, of each month's regular
   surplus that goes into investments and grows at the real return; the rest
   stays in cash, which earns an active CMA pack's cash yield or nothing (`baseline.timelines` says what is
@@ -109,7 +111,7 @@ PLACEHOLDERS: dict[str, Placeholder] = {
             )
         ),
         "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over "
-        "30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set "
+        f"{odds_returns.DRAWDOWN_YEARS} years drawn down, on the placeholder pack's returns. Not a recommendation. Set "
         "your own rate, or your own returns, with a source.",
     ),
     "surplus_invested": Placeholder(
@@ -324,6 +326,7 @@ _LABELS = {
     "volatility": "the volatility",
     "safe_withdrawal_rate": "the safe withdrawal rate",
     "surplus_invested": "the share of your monthly surplus invested",
+    "drawdown_horizon": "the years drawn down",
 }
 
 #: The figures that can be placeholders, in the order they are named.
@@ -361,6 +364,8 @@ class FiAssumptions:
         cma_.TAILS,
         "placeholder",
     )
+    #: The years the derived withdrawal rate must last.
+    drawdown: odds_returns.Drawdown = odds_returns.NO_BIRTH
 
     @property
     def cash_yield_applied(self) -> Applied:
@@ -389,11 +394,40 @@ class FiAssumptions:
     @property
     def placeholders(self) -> tuple[str, ...]:
         """Which of the figures used are placeholders."""
-        return tuple(
-            name
-            for name in _PLACEHOLDER_ORDER
-            if cast(Applied, getattr(self, name)).origin == "placeholder"
+        return (
+            *(
+                name
+                for name in _PLACEHOLDER_ORDER
+                if cast(Applied, getattr(self, name)).origin == "placeholder"
+            ),
+            *(
+                ("drawdown_horizon",)
+                if self.safe_withdrawal_rate.origin != "user"
+                and self.drawdown.origin == "placeholder"
+                else ()
+            ),
         )
+
+    @property
+    def headline_status(self) -> Literal["placeholder", "pack", "own"]:
+        """What the FI number and the odds rest on: "placeholder" while any
+        of their inputs is one; else "pack" while the active pack gives any;
+        else "own"."""
+        if self.placeholders or self.odds.origin == "placeholder":
+            return "placeholder"
+        if self.odds.origin == "pack" or self.real_return.source.startswith(_PACK_SAYS):
+            return "pack"
+        return "own"
+
+    @property
+    def headline(self) -> str:
+        """The headline's status in a sentence."""
+        if self.headline_status == "placeholder":
+            names = _listed([_LABELS[n] for n in self.placeholders] or ["the returns"])
+            return f"Rests on placeholders for {names}: not a forecast."
+        if self.headline_status == "pack":
+            return f"Rests on your capital-market assumptions ({self.cma.label})."
+        return "Rests on your own assumptions."
 
     @property
     def status(self) -> Literal["placeholder", "user"]:
@@ -433,16 +467,22 @@ class FiAssumptions:
         return " ".join(parts)
 
 
+_PACK_SAYS = "Your capital-market assumptions"
+
+
 def _yours(figure: OwnFigure) -> Applied:
     return Applied(figure.value, "user", figure.source or _NO_SOURCE, figure.note)
 
 
 def _from_pack(pack: cma_.CmaPack, what: str, figure: str) -> str:
-    return f"Your capital-market assumptions ({pack.label}): {what}. Sources: {figure}"
+    return f"{_PACK_SAYS} ({pack.label}): {what}. Sources: {figure}"
 
 
 def resolve(
-    own: OwnAssumptions, cma: cma_.CmaPack | None = None, expense_ratio: Decimal = Decimal(0)
+    own: OwnAssumptions,
+    cma: cma_.CmaPack | None = None,
+    expense_ratio: Decimal = Decimal(0),
+    drawdown: odds_returns.Drawdown = odds_returns.NO_BIRTH,
 ) -> FiAssumptions:
     """The assumptions that apply: the user's own, then their active
     capital-market assumptions (`cma`: the mix's expected real return, and
@@ -511,11 +551,11 @@ def resolve(
     if own.safe_withdrawal_rate is not None:
         swr = _yours(own.safe_withdrawal_rate)
     else:
-        rate = odds_returns.sustained_rate(odds)
+        rate = odds_returns.sustained_rate(odds, drawdown.years)
         said = (
             f"Derived: the yearly withdrawal {odds_returns.DEFAULT_SUCCESS * 100:.0f}% of "
             f"{odds_returns.DEFAULT_PATHS} simulated return paths sustain over "
-            f"{odds_returns.DRAWDOWN_YEARS} years drawn down"
+            f"{drawdown.years} years drawn down"
         )
         if odds.origin == "placeholder":
             swr = Applied(
@@ -547,6 +587,7 @@ def resolve(
         nominal_return=nominal,
         cma=pack,
         odds=odds,
+        drawdown=drawdown,
     )
 
 
@@ -584,6 +625,8 @@ def assumptions_dict(applied: FiAssumptions) -> dict[str, Any]:
     the scenarios' returns, real and (with the user's inflation) nominal."""
     return {
         "status": applied.status,
+        "headline_status": applied.headline_status,
+        "headline": applied.headline,
         "placeholders": list(applied.placeholders),
         "message": applied.message,
         "real_return": _applied_dict(applied.real_return),
@@ -592,6 +635,11 @@ def assumptions_dict(applied: FiAssumptions) -> dict[str, Any]:
         "inflation": _applied_dict(applied.inflation),
         "nominal_return": _applied_dict(applied.nominal_return),
         "cash_yield": _applied_dict(applied.cash_yield_applied),
+        "drawdown_horizon": {
+            "years": applied.drawdown.years,
+            "origin": applied.drawdown.origin,
+            "source": applied.drawdown.says,
+        },
         "real_returns": scenarios_dict(applied.real_returns),
         "nominal_returns": scenarios_dict(applied.nominal_returns),
         # Only with the user's own pack, so figures on the placeholder are

@@ -1204,7 +1204,7 @@ export type Baseline = {
     /**
      * Placeholders
      */
-    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'inflation'>;
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'drawdown_horizon' | 'inflation'>;
     /**
      * Rule Sets
      */
@@ -4780,6 +4780,28 @@ export type DraftedTransactions = {
 };
 
 /**
+ * DrawdownHorizon
+ *
+ * The years a derived withdrawal rate must last: from the FI month to
+ * the planning age (a labelled placeholder of 95 when unset; 30 years,
+ * labelled, without a date of birth).
+ */
+export type DrawdownHorizon = {
+    /**
+     * Years
+     */
+    years: number;
+    /**
+     * Origin
+     */
+    origin: 'user' | 'placeholder';
+    /**
+     * Source
+     */
+    source: string;
+};
+
+/**
  * DriftClass
  */
 export type DriftClass = {
@@ -5395,7 +5417,15 @@ export type FiAssumptions = {
     /**
      * Placeholders
      */
-    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested'>;
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'drawdown_horizon'>;
+    /**
+     * Headline Status
+     */
+    headline_status?: 'placeholder' | 'pack' | 'own' | null;
+    /**
+     * Headline
+     */
+    headline?: string | null;
     /**
      * Message
      */
@@ -5406,6 +5436,7 @@ export type FiAssumptions = {
     inflation?: FiAssumption | null;
     nominal_return?: FiAssumption | null;
     cash_yield?: FiAssumption | null;
+    drawdown_horizon?: DrawdownHorizon | null;
     real_returns: FiScenarioReturns;
     nominal_returns?: FiScenarioReturns | null;
     cma?: CmaSummary | null;
@@ -5510,6 +5541,14 @@ export type FiOdds = {
      * As Of
      */
     as_of: string;
+    /**
+     * Headline Status
+     */
+    headline_status: 'placeholder' | 'pack' | 'own';
+    /**
+     * Headline
+     */
+    headline: string;
     /**
      * Paths
      */
@@ -5676,6 +5715,10 @@ export type FiPlan = {
         [key: string]: CategoryInflationOut;
     };
     /**
+     * Planning Age
+     */
+    planning_age?: number | null;
+    /**
      * Date Of Birth
      */
     date_of_birth?: string | null;
@@ -5699,6 +5742,10 @@ export type FiPlanIn = {
     category_inflation?: {
         [key: string]: CategoryInflationIn;
     };
+    /**
+     * Planning Age
+     */
+    planning_age?: number | null;
 };
 
 /**
@@ -5743,6 +5790,14 @@ export type FiProjections = {
      * Currency
      */
     currency?: string | null;
+    /**
+     * Headline Status
+     */
+    headline_status?: 'placeholder' | 'pack' | 'own' | null;
+    /**
+     * Headline
+     */
+    headline?: string | null;
     /**
      * Terms
      */
@@ -5904,6 +5959,14 @@ export type FiScore = {
      * Months Observed
      */
     months_observed?: number | null;
+    /**
+     * Headline Status
+     */
+    headline_status?: 'placeholder' | 'pack' | 'own' | null;
+    /**
+     * Headline
+     */
+    headline?: string | null;
     /**
      * Components
      */
@@ -7353,6 +7416,34 @@ export type InsuranceNeeds = {
      * Decimal string in the currency's own precision; never a float.
      */
     liability_cover_gap: string;
+    /**
+     * Protection Months
+     */
+    protection_months: number;
+    /**
+     * Sick Pay
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    sick_pay: string;
+    /**
+     * Protection Need
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    protection_need: string;
+    /**
+     * Protection Held
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    protection_held: string;
+    /**
+     * Protection Gap
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    protection_gap: string;
 };
 
 /**
@@ -8633,6 +8724,10 @@ export type OddsWithdrawalRate = {
      * Applied Years
      */
     applied_years?: number | null;
+    /**
+     * Applied Horizon
+     */
+    applied_horizon?: string | null;
     /**
      * Horizon Derived
      */
@@ -11875,7 +11970,7 @@ export type ScenarioRun = {
     /**
      * Placeholders
      */
-    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'inflation' | 'tax' | 'tax_rules_carried_forward' | 'asset_growth'>;
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'drawdown_horizon' | 'inflation' | 'tax' | 'tax_rules_carried_forward' | 'asset_growth'>;
     versions: ScenarioVersions;
     /**
      * Data As Of
@@ -21384,6 +21479,18 @@ export type InsuranceNeedsData = {
          * Years of income to replace.
          */
         replacement_years?: number;
+        /**
+         * Benefit Years
+         *
+         * Years a disability benefit would pay; else to your planning age.
+         */
+        benefit_years?: number | null;
+        /**
+         * Sick Pay
+         *
+         * What your employer would pay while you are off sick, in all.
+         */
+        sick_pay?: number | string;
     };
     url: '/v1/insurance/needs';
 };

@@ -10351,7 +10351,7 @@
           "experimental"
         ],
         "summary": "Get Needs",
-        "description": "Life cover from income replacement years, debts and goals less assets;\nincome protection from spending. Policies of type \"life\" count as held.",
+        "description": "Life cover from income replacement years, debts and goals less assets;\nincome protection from spending; disability cover from income replaced to\nyour planning age (or `benefit_years`) less your sick pay. Policies of\ntype \"life\" count as held; of type \"income_protection\", their coverage is\na monthly benefit.",
         "operationId": "insurance.needs",
         "security": [
           {
@@ -10372,6 +10372,47 @@
               "title": "Replacement Years"
             },
             "description": "Years of income to replace."
+          },
+          {
+            "name": "benefit_years",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 70,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Years a disability benefit would pay; else to your planning age.",
+              "title": "Benefit Years"
+            },
+            "description": "Years a disability benefit would pay; else to your planning age."
+          },
+          {
+            "name": "sick_pay",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                }
+              ],
+              "description": "What your employer would pay while you are off sick, in all.",
+              "default": "0",
+              "title": "Sick Pay"
+            },
+            "description": "What your employer would pay while you are off sick, in all."
           }
         ],
         "responses": {
@@ -18021,6 +18062,7 @@
                 "real_return",
                 "safe_withdrawal_rate",
                 "surplus_invested",
+                "drawdown_horizon",
                 "inflation"
               ]
             },
@@ -24031,6 +24073,34 @@
         ],
         "title": "DraftedTransactions"
       },
+      "DrawdownHorizon": {
+        "properties": {
+          "years": {
+            "type": "integer",
+            "title": "Years"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "user",
+              "placeholder"
+            ],
+            "title": "Origin"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "years",
+          "origin",
+          "source"
+        ],
+        "title": "DrawdownHorizon",
+        "description": "The years a derived withdrawal rate must last: from the FI month to\nthe planning age (a labelled placeholder of 95 when unset; 30 years,\nlabelled, without a date of birth)."
+      },
       "DriftClass": {
         "properties": {
           "asset_class": {
@@ -25114,11 +25184,39 @@
               "enum": [
                 "real_return",
                 "safe_withdrawal_rate",
-                "surplus_invested"
+                "surplus_invested",
+                "drawdown_horizon"
               ]
             },
             "type": "array",
             "title": "Placeholders"
+          },
+          "headline_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "placeholder",
+                  "pack",
+                  "own"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline Status"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
           },
           "message": {
             "type": "string",
@@ -25157,6 +25255,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/FiAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "drawdown_horizon": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DrawdownHorizon"
               },
               {
                 "type": "null"
@@ -25433,6 +25541,19 @@
             "type": "string",
             "title": "As Of"
           },
+          "headline_status": {
+            "type": "string",
+            "enum": [
+              "placeholder",
+              "pack",
+              "own"
+            ],
+            "title": "Headline Status"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
           "paths": {
             "type": "integer",
             "title": "Paths"
@@ -25544,6 +25665,8 @@
         "required": [
           "currency",
           "as_of",
+          "headline_status",
+          "headline",
           "paths",
           "seed",
           "horizon_years",
@@ -25781,6 +25904,17 @@
             "title": "Category Inflation",
             "default": {}
           },
+          "planning_age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planning Age"
+          },
           "date_of_birth": {
             "anyOf": [
               {
@@ -25829,6 +25963,19 @@
             "maxProperties": 20,
             "title": "Category Inflation",
             "default": {}
+          },
+          "planning_age": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 120.0,
+                "minimum": 50.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planning Age"
           }
         },
         "type": "object",
@@ -25928,6 +26075,33 @@
               }
             ],
             "title": "Currency"
+          },
+          "headline_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "placeholder",
+                  "pack",
+                  "own"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline Status"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
           },
           "terms": {
             "anyOf": [
@@ -26295,6 +26469,33 @@
               }
             ],
             "title": "Months Observed"
+          },
+          "headline_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "placeholder",
+                  "pack",
+                  "own"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline Status"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
           },
           "components": {
             "items": {
@@ -29125,6 +29326,46 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "protection_months": {
+            "type": "integer",
+            "title": "Protection Months"
+          },
+          "sick_pay": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Sick Pay",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "protection_need": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Protection Need",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "protection_held": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Protection Held",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "protection_gap": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Protection Gap",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
@@ -29141,7 +29382,12 @@
           "income_protection_monthly",
           "liability_cover_need",
           "liability_cover_held",
-          "liability_cover_gap"
+          "liability_cover_gap",
+          "protection_months",
+          "sick_pay",
+          "protection_need",
+          "protection_held",
+          "protection_gap"
         ],
         "title": "InsuranceNeeds",
         "description": "A needs analysis from your own figures. Figures only: never a product."
@@ -31359,6 +31605,17 @@
               }
             ],
             "title": "Applied Years"
+          },
+          "applied_horizon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied Horizon"
           },
           "horizon_derived": {
             "type": "string",
@@ -37412,6 +37669,7 @@
                 "real_return",
                 "safe_withdrawal_rate",
                 "surplus_invested",
+                "drawdown_horizon",
                 "inflation",
                 "tax",
                 "tax_rules_carried_forward",

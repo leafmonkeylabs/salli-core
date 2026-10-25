@@ -390,6 +390,8 @@ export const whereStrings = {
     score: 'FI score',
     grade: (grade: string) => grade,
     fiNumber: 'FI number',
+    /** Beside the FI number: what it rests on, from `headline_status`. */
+    headline: { placeholder: 'On placeholders', pack: 'On your pack', own: 'On your own figures' } as Record<string, string>,
     fiNumberHelp: (swr: string) => `Your yearly spending at a withdrawal rate of ${swr}.`,
     investedNow: 'Invested now',
     netWorth: 'Net worth',

@@ -1117,17 +1117,30 @@ def build_mcp_server(
         return report
 
     @mcp.tool(annotations=READS)
-    async def get_coverage_report(replacement_years: int = 10) -> dict[str, Any]:
-        """The user's insurance cover against their targets, uncovered types,
-        policies expiring within 30 days, and `needs`: life cover from
-        `replacement_years` of income, debts and goals less assets, and
-        income protection as a month's spending. Figures, never a product."""
+    async def get_coverage_report(
+        replacement_years: int = 10, benefit_years: int | None = None, sick_pay: str = "0"
+    ) -> dict[str, Any]:
+        """Insurance cover vs targets, gaps, expiries, and `needs` (life,
+        income, disability less `sick_pay`). Figures, never a product."""
         if not 0 <= replacement_years <= 50:
             _fail("invalid_input", "replacement_years is 0 to 50")
+        if benefit_years is not None and not 0 <= benefit_years <= 70:
+            _fail("invalid_input", "benefit_years is 0 to 70")
+        try:
+            declared = Decimal(sick_pay)
+        except InvalidOperation:
+            declared = Decimal(-1)
+        if not declared.is_finite() or declared < 0:
+            _fail("invalid_input", "sick_pay is an amount of zero or more, as a decimal string")
         user_id = _current_user_id()
         today = datetime.date.today().isoformat()
         report = await insurance_svc.get_report(user_id, today)
-        return {**report, "needs": await insurance_svc.get_needs(user_id, replacement_years)}
+        return {
+            **report,
+            "needs": await insurance_svc.get_needs(
+                user_id, replacement_years, benefit_years, declared
+            ),
+        }
 
     @mcp.tool(annotations=READS)
     async def get_investment_policy() -> dict[str, Any]:

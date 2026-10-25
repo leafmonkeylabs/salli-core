@@ -2214,7 +2214,10 @@ export const insuranceReport = <ThrowOnError extends boolean = false>(options?: 
  * Get Needs
  *
  * Life cover from income replacement years, debts and goals less assets;
- * income protection from spending. Policies of type "life" count as held.
+ * income protection from spending; disability cover from income replaced to
+ * your planning age (or `benefit_years`) less your sick pay. Policies of
+ * type "life" count as held; of type "income_protection", their coverage is
+ * a monthly benefit.
  */
 export const insuranceNeeds = <ThrowOnError extends boolean = false>(options?: Options<InsuranceNeedsData, ThrowOnError>): RequestResult<InsuranceNeedsResponses, InsuranceNeedsErrors, ThrowOnError> => (options?.client ?? client).get<InsuranceNeedsResponses, InsuranceNeedsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

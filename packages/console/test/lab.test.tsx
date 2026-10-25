@@ -366,7 +366,8 @@ describe('the baseline', () => {
     const low = visibleAmount(lab.BASELINE.cash.lowest, 'EUR', 'prose', { locale: 'en-US' });
     expect(within(cash).getAllByRole('img')[0]?.getAttribute('aria-label')).toContain(`Lowest: ${low}`);
     const assumptions = region('Assumptions');
-    expect(within(assumptions).getAllByText('Placeholder').length).toBe(lab.BASELINE.assumptions.placeholders.length);
+    // The years drawn down have no row: the withdrawal rate's source names them.
+    expect(within(assumptions).getAllByText('Placeholder').length).toBe(lab.BASELINE.assumptions.placeholders.filter((p) => p !== 'drawdown_horizon').length);
     expect(region('Income and spending')).toBeTruthy();
   });
 });

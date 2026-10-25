@@ -117,7 +117,7 @@ describe('salli whatif', () => {
     `);
     expect(result.stderr).toContain('In today’s money.');
     expect(result.stderr).toContain(
-      'Placeholders: the real return; the safe withdrawal rate; the share of your monthly surplus invested (all of it); inflation',
+      'Placeholders: the real return; the safe withdrawal rate; the share of your monthly surplus invested (all of it); the years drawn down (to a planning age of 95, or 30 years without a date of birth); inflation',
     );
   });
 

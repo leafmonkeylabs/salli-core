@@ -220,7 +220,13 @@ class Baseline(BaseModel):
     #: Which assumptions are placeholders: real_return, safe_withdrawal_rate,
     #: surplus_invested, and inflation when none is set.
     placeholders: list[
-        Literal["real_return", "safe_withdrawal_rate", "surplus_invested", "inflation"]
+        Literal[
+            "real_return",
+            "safe_withdrawal_rate",
+            "surplus_invested",
+            "drawdown_horizon",
+            "inflation",
+        ]
     ]
     #: The active tax rule sets in your tax residency whose year covers the
     #: as-of date.

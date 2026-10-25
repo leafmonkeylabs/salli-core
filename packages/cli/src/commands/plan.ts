@@ -886,7 +886,7 @@ function registerInsurance(program: Command, app: App): void {
     .command('add')
     .argument('<name>', 'e.g. "Life cover"')
     .description('Add a policy')
-    .requiredOption('--type <type>', 'life, health, motor, property, liability, other')
+    .requiredOption('--type <type>', 'life, health, income_protection (cover: the monthly benefit), motor, property, liability, other')
     .requiredOption('--provider <provider>', 'The insurer')
     .requiredOption('--cover <amount>', 'Coverage amount')
     .requiredOption('--premium <amount>', 'Premium amount')
@@ -979,7 +979,7 @@ function registerInsurance(program: Command, app: App): void {
 
   targets
     .command('set')
-    .argument('<type>', 'life, health, motor, property, liability, other')
+    .argument('<type>', 'life, health, income_protection (cover: the monthly benefit), motor, property, liability, other')
     .requiredOption('--amount <amount>', 'The cover you want in total for this type')
     .description('Set the cover you want for a type')
     .action(async (type, opts) => {
@@ -1005,9 +1005,17 @@ function registerInsurance(program: Command, app: App): void {
     .command('needs')
     .description('Experimental: Life cover and income protection, as figures from your money (never a product)')
     .option('--years <n>', 'Years of income to replace', '10')
+    .option('--benefit-years <n>', 'Years a disability benefit would pay (else to your planning age)')
+    .option('--sick-pay <amount>', 'What your employer would pay while you are off sick, in all')
     .action(async (opts) => {
       const api = await app.api();
-      const r = await api.call(insuranceNeeds, { query: { replacement_years: countArg('--years')(opts.years) } });
+      const r = await api.call(insuranceNeeds, {
+        query: {
+          replacement_years: countArg('--years')(opts.years),
+          ...(opts.benefitYears === undefined ? {} : { benefit_years: countArg('--benefit-years')(opts.benefitYears) }),
+          ...(opts.sickPay === undefined ? {} : { sick_pay: amountArg(opts.sickPay, '--sick-pay') }),
+        },
+      });
       app.out.emit(r, {
         human: (d) => {
           const m = (v: string): string => app.out.money(v, d.currency);
@@ -1024,6 +1032,9 @@ function registerInsurance(program: Command, app: App): void {
               ['Liability cover need (net worth)', m(d.liability_cover_need)],
               ['Liability cover held', m(d.liability_cover_held)],
               ['Liability gap', m(d.liability_cover_gap)],
+              [`Disability cover need (${d.protection_months} months, less sick pay)`, m(d.protection_need)],
+              ['Disability cover held', m(d.protection_held)],
+              ['Disability gap', m(d.protection_gap)],
             ]),
           );
         },
