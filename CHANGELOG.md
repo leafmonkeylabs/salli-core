@@ -4,6 +4,10 @@
 
 ### Added
 
+- **The fidelity benchmark and the MCP tool interface are Apache-2.0.**
+  `benchmark/` (questions, key, scorer, judge prompt) and the tool names,
+  schemas and descriptions the MCP server publishes may be run, cited and
+  built against without the AGPL; the server stays AGPL-3.0.
 - **The odds give a range when a pack's correlations are assumptions.** A
   correlation marked `"assumption": true` makes `GET /v1/fi/odds` rerun with
   every correlation moved by 0.2 each way (kept to [-1, 1]) and report the
