@@ -290,7 +290,8 @@ class HoldingInputs:
     closes: Sequence[Close] = ()
     declared_value: Decimal = Decimal(0)
     is_active: bool = True
-    #: How its sales are costed (its own `cost_method`, else fifo).
+    #: How its sales are costed (its own `cost_method`, else the active tax
+    #: rules' `cost_basis`, else fifo).
     cost_method: CostMethod = "fifo"
 
 

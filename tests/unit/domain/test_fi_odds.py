@@ -133,6 +133,28 @@ def test_the_fi_number_is_grossed_up_by_the_withdrawal_role() -> None:
     assert fi.withdrawal_tax(plain)["status"] == "not_computed"
 
 
+def test_withdrawals_are_taxed_beside_guaranteed_income_with_a_tax_role() -> None:
+    """An annuity of 1,000 a month taxed under an income role uses the whole
+    12,000 relief, so the withdrawal is taxed at 20% from its first unit:
+    18,000 − 12,000 = 6,000 to fund, G × 0.8 = 6,000, G = 7,500 (the
+    withdrawal alone, within the relief, would have been 6,000)."""
+    ledger = books()
+    doc = copy.deepcopy(taxed.RULES)
+    doc["roles"] += [
+        {"key": "withdrawal", "kind": "income", "label": "Withdrawals"},
+        {"key": "annuity", "kind": "income", "label": "Annuities"},
+    ]
+    doc["lines"][0]["expr"] = "max(0, role.salary + role.withdrawal + role.annuity - role.pension)"
+    ledger.uow.tax_rule_sets.active[:] = [taxed.rules_row(doc)]
+    stream = {"name": "Annuity", "start": "2031-01", "monthly": "1000", "tax_role": "annuity"}
+    ledger.uow.user_profiles.rows.setdefault(USER, {})["fi_plan"] = {"income_streams": [stream]}
+    baseline = ledger.baseline(AS_OF)
+    assert fi.taxed_income(baseline, "2031-06", {}) == {"annuity": Decimal(12000)}
+    assert fi.gross_up(baseline, Decimal(6000)) == Decimal("6000.00")
+    assert fi.gross_up(baseline, Decimal(6000), {"annuity": Decimal(12000)}) == Decimal("7500.00")
+    assert fi.fi_number(baseline) == Decimal("7500.00") / Decimal("0.04")
+
+
 def test_a_pension_steps_the_number_down_and_comes_into_cash() -> None:
     ledger = books()
     ledger.uow.user_profiles.rows.setdefault(USER, {})["fi_plan"] = {
@@ -202,3 +224,33 @@ def test_investing_against_a_debt_is_a_share_of_paths() -> None:
     mixed = montecarlo.beats(Decimal("0.04"), Decimal("0.15"), 120, Decimal("0.04"), paths=400)
     assert (sure, never) == (Decimal(1), Decimal(0))
     assert Decimal("0.2") < mixed < Decimal("0.8")
+
+
+def test_draws_have_fat_tails_at_the_packs_volatility() -> None:
+    """Student-t draws, scaled to the volatility: a yearly 0.12 is a monthly
+    0.12/√12 ≈ 0.0346 whatever the tails; with 5 degrees of freedom, moves
+    beyond four of those are far more common than a normal's 0.006%."""
+    paths = montecarlo.draws(Decimal(0), Decimal("0.12"), 120, 100, 3)
+    assert paths == montecarlo.draws(Decimal(0), Decimal("0.12"), 120, 100, 3)
+    flat = [float(r) for path in paths for r in path]
+    sd = (sum(r * r for r in flat) / len(flat)) ** 0.5
+    assert 0.032 < sd < 0.037
+    beyond = sum(abs(r) > 4 * 0.0346 for r in flat) / len(flat)
+    assert beyond > 0.001
+    thin = montecarlo.draws(Decimal(0), Decimal("0.12"), 120, 100, 3, Decimal(100))
+    assert sum(abs(float(r)) > 4 * 0.0346 for p in thin for r in p) / len(flat) < beyond
+
+
+def test_a_pack_sets_the_degrees_of_freedom_else_a_placeholder() -> None:
+    tails = {"value": "8", "source": "XA statistics", "date": "2031-05-31"}
+    assert cma.parse(pack(degrees_of_freedom=tails)).tails == Decimal(8)
+    assert cma.parse(pack()).tails == cma.TAILS
+    with pytest.raises(ValueError, match="degrees_of_freedom.value must be from 3 to 100"):
+        cma.parse(pack(degrees_of_freedom={**tails, "value": "2"}))
+    ledger = books()
+    with_pack(ledger, pack(degrees_of_freedom=tails))
+    odds = montecarlo.plan_odds(ledger.baseline(AS_OF), horizon_years=10, paths=20)
+    assert "degrees_of_freedom" not in odds["placeholders"]  # type: ignore[operator]
+    assert odds["cma"]["degrees_of_freedom"] == "8"  # type: ignore[index]
+    plain = montecarlo.plan_odds(books().baseline(AS_OF), horizon_years=10, paths=20)
+    assert "degrees_of_freedom" in plain["placeholders"]  # type: ignore[operator]

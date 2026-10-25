@@ -265,7 +265,7 @@ async def realised_gains(
     fees less the consumed lots' cost, each at its day's rate): (date, gain),
     in date order, each holding replayed by its cost method (its own, else its
     rules', else fifo). What a rule set's `realised_gain` role is filled from."""
-    rules = await _rule_set_method(uow, user_id, end)
+    rules = await rule_set_method(uow, user_id, end)
     holdings = await uow.holdings.list(user_id, active_only=False)
     rows = await uow.holding_transactions.list(user_id)
     gains: list[tuple[str, Decimal]] = []
@@ -292,7 +292,7 @@ def _check(
     return transactions
 
 
-async def _rule_set_method(uow: Any, user_id: str, today: date) -> CostMethod | None:
+async def rule_set_method(uow: Any, user_id: str, today: date) -> CostMethod | None:
     """The `cost_basis` of the active tax rule set in the user's residency
     whose year covers `today`, if it says one."""
     profile: dict[str, Any] = await uow.user_profiles.get(user_id) or {}
@@ -719,7 +719,7 @@ class PortfolioService:
                 _check(
                     rows,
                     holding["currency"],
-                    method or await _rule_set_method(uow, user_id, self._today()) or "fifo",
+                    method or await rule_set_method(uow, user_id, self._today()) or "fifo",
                 )
             base = await uow.user_profiles.base_currency(user_id)
             if ("cost_basis" in data or "current_value" in data) and (
@@ -761,7 +761,7 @@ class PortfolioService:
     async def _method_of(self, uow: Any, user_id: str, holding: dict[str, Any]) -> CostMethod:
         """The holding's own cost method, else its rules', else fifo."""
         own = _cost_method(holding.get("cost_method"))
-        return own or await _rule_set_method(uow, user_id, self._today()) or "fifo"
+        return own or await rule_set_method(uow, user_id, self._today()) or "fifo"
 
     async def _holding_and_base(
         self, user_id: str, holding_id: str
@@ -1041,7 +1041,7 @@ class PortfolioService:
         everything = await uow.holdings.list(user_id, active_only=False)
         recorded = _recorded_rates(rows, {h["id"]: h["currency"] for h in everything})
         market = StoredPriceHistory(uow.holding_prices, user_id)
-        rules_method = await _rule_set_method(uow, user_id, self._today())
+        rules_method = await rule_set_method(uow, user_id, self._today())
         quotes: dict[str, list[Any]] = {}
         tracked: list[_Tracked] = []
         for h in holdings:

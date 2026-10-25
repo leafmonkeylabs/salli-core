@@ -90,6 +90,20 @@ def test_a_sale_at_average_cost_when_the_holding_says_so():
     assert (trade.cost, trade.gain) == (D("601"), D("-1"))
 
 
+def test_a_sale_at_the_rules_cost_basis_when_the_holding_names_none():
+    """The same two buys, the holding naming no method and the active rules
+    saying `cost_basis: average`: the sale is costed at average, 601.00, as
+    the portfolio reads cost it."""
+    ledger = books()
+    rules = copy.deepcopy(GAINS_RULES)
+    rules["cost_basis"] = "average"
+    ledger.uow.tax_rule_sets.active[:] = [taxed.rules_row(rules)]
+    ledger.trade("fund", "buy", "2031-03-01", "10", "200", id_="lot-mar")
+    trade = engine.run(ledger.baseline(AS_OF), scenario(sell(quantity="4"))).changes[0].holding
+    assert trade is not None
+    assert (trade.cost, trade.gain) == (D("601"), D("-1"))
+
+
 def test_a_sale_first_in_first_out_with_fees():
     """Sell 4 units on the as-of date at 150.00 with 2.00 of fees, first in,
     first out: proceeds 4 × 150.00 = 600.00; the lot's cost 1,005.00 × 4/10

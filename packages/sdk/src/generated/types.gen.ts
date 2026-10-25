@@ -2784,6 +2784,10 @@ export type CmaSummary = {
      * Inflation
      */
     inflation?: string | null;
+    /**
+     * Degrees Of Freedom
+     */
+    degrees_of_freedom: string;
 };
 
 /**
@@ -6927,6 +6931,10 @@ export type IncomeStream = {
      * Source
      */
     source?: string | null;
+    /**
+     * Tax Role
+     */
+    tax_role?: string | null;
 };
 
 /**
@@ -6961,6 +6969,10 @@ export type IncomeStreamOut = {
      * Source
      */
     source?: string | null;
+    /**
+     * Tax Role
+     */
+    tax_role?: string | null;
 };
 
 /**

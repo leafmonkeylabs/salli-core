@@ -22,7 +22,7 @@ from collections import defaultdict
 from dataclasses import replace
 from decimal import ROUND_HALF_UP, ROUND_UP, Decimal
 
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from salli.domain.baseline import Baseline, timelines
@@ -30,9 +30,10 @@ from salli.domain.currency import quantum
 from salli.domain.fi.assumptions import Applied
 from salli.domain.scenarios import engine, schema
 from tests.baseline_ledger import Ledger
-from tests.properties.test_baseline import AS_OF, SHARES, ledgers
+from tests.properties.test_baseline import AS_OF, SHARES, ledger_accounts, ledgers
 from tests.properties.test_scenarios import _day, money_changes
 
+ESSENTIAL = {"need": "essential"}
 _SETTINGS = settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
 #: Real returns of at least zero, to the basis point, up to the plausible 15%.
@@ -176,13 +177,37 @@ def test_a_scenario_with_no_changes_is_the_baseline_at_every_share(books: Ledger
         assert result.fi.months_gained in (0, None)
 
 
+def _half_a_unit_short() -> Ledger:
+    """Books whose surplus with a debt's payment, less a payment still
+    scheduled, ends in half the smallest unit (-202.625): rounded half up
+    away from zero, the month's planned part once moved a unit more than the
+    payment freed."""
+    books = ledger_accounts()
+    books.book("2025-10-31", "bank", "equity", "10.00", description="Opening")
+    books.book("2025-10-31", "equity", "loan", "20.00", description="Opening")
+    books.book(
+        "2025-10-31", "euros", "equity", "1.00", currency="EUR", fx="11.40", description="Opening"
+    )
+    for month, food in (("2026-08", ("1.00", "1.00")), ("2026-09", ("1.01",))):
+        books.book(f"{month}-01", "rent", "bank", "9500", description="RENT", tags=ESSENTIAL)
+        for amount in food:
+            books.book(f"{month}-01", "food", "card", amount, description="GROCER")
+        books.book(f"{month}-15", "card", "bank", "1.00", description="CARD PAYMENT")
+        books.book(f"{month}-05", "loan", "bank", "1500", description="LOAN")
+    books.book("2026-09-25", "bank", "pay", "18403.04", description="PAYROLL")
+    books.book("2026-10-01", "rent", "bank", "9500", description="RENT", tags=ESSENTIAL)
+    books.rate("EUR", "11.25", AS_OF.isoformat())
+    return books
+
+
 @_SETTINGS
-@given(ledgers(), st.sampled_from(SHARES), years, st.data())
+@given(ledgers(), st.sampled_from(SHARES), years, st.booleans(), st.integers(500, 30000))
+@example(_half_a_unit_short(), "0", 1, False, 500)
 def test_freed_debt_payments_follow_the_share(
-    books: Ledger, share: str, horizon: int, data: st.DataObject
+    books: Ledger, share: str, horizon: int, add: bool, amount: int
 ):
-    if data.draw(st.booleans()) or not books.uow.debts.rows:
-        books.debt("extra", str(data.draw(st.integers(500, 30000))), "0.045", "300")
+    if add or not books.uow.debts.rows:
+        books.debt("extra", str(amount), "0.045", "300")
     baseline = with_share(books.baseline(AS_OF), share)
     currency = baseline.currency
     unit = quantum(currency)

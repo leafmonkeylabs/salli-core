@@ -3,12 +3,15 @@ The odds of a plan: a seeded Monte Carlo on the baseline's monthly timeline
 (docs/baseline.md#the-odds). Pure, Decimal, in real terms; no model computes
 or chooses any of it.
 
-Each path draws a month's real return for the investments from a normal
-distribution with the portfolio's expected yearly real return over twelve
-and its yearly volatility over √12 (the active capital-market assumptions'
-mix, or the labelled placeholder pack). Draws come from Python's seeded
-generator, each written to nine places as a Decimal, so the same seed gives
-the same figures everywhere.
+Each path draws a month's real return for the investments from a Student-t
+distribution (fatter tails than a normal's: crashes and booms more often)
+with the portfolio's expected yearly real return over twelve and its yearly
+volatility over √12 (the active capital-market assumptions' mix, or the
+labelled placeholder pack), scaled so its volatility is that one; its
+degrees of freedom are the pack's (`degrees_of_freedom`, else the labelled
+placeholder `cma.TAILS`). Draws come from Python's seeded generator, each
+written to nine places as a Decimal, so the same seed gives the same figures
+everywhere.
 
 - **Building up**, to the retirement month: the investments grow at the
   path's returns and take what the timeline moves into them; cash, debts
@@ -16,7 +19,7 @@ the same figures everywhere.
 - **Drawing down**, after it: the asset base is one pool at the path's
   returns, less each month's withdrawal: that month's spending to fund
   (`fi.need`, its phase's less guaranteed income) grossed up for tax on
-  withdrawals. A path succeeds when the pool never falls below zero by the
+  withdrawals beside the taxable guaranteed income paying then. A path succeeds when the pool never falls below zero by the
   horizon.
 - **Odds of reaching**: the share of paths whose asset base reaches that
   month's FI number within the horizon, building up all the way.
@@ -33,6 +36,7 @@ the same figures everywhere.
 
 from __future__ import annotations
 
+import math
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -102,17 +106,28 @@ class Odds:
 
 
 def draws(
-    mean: Decimal, volatility: Decimal, months: int, paths: int, seed: int
+    mean: Decimal,
+    volatility: Decimal,
+    months: int,
+    paths: int,
+    seed: int,
+    tails: Decimal = cma.TAILS,
 ) -> list[list[Decimal]]:
-    """`paths` sequences of `months` monthly real returns (see the module)."""
+    """`paths` sequences of `months` monthly real returns (see the module):
+    a normal over the square root of a chi-squared with `tails` degrees of
+    freedom over `tails`, times √((ν − 2)/ν) for unit variance."""
     rng = random.Random(seed)
     mu = mean / _TWELVE
     sd = volatility / _TWELVE.sqrt()
+    nu = float(tails)
+    scale = math.sqrt((nu - 2) / nu)
+
+    def t() -> float:
+        return rng.gauss(0.0, 1.0) * scale / math.sqrt(rng.gammavariate(nu / 2, 2.0) / nu)
+
     out: list[list[Decimal]] = []
     for _ in range(paths):
-        out.append(
-            [max(_FLOOR, mu + sd * Decimal(f"{rng.gauss(0.0, 1.0):.9f}")) for _ in range(months)]
-        )
+        out.append([max(_FLOOR, mu + sd * Decimal(f"{t():.9f}")) for _ in range(months)])
     return out
 
 
@@ -148,6 +163,7 @@ def run(
     seed: int = DEFAULT_SEED,
     success_level: Decimal = DEFAULT_SUCCESS,
     guardrails: Guardrails | None = None,
+    tails: Decimal = cma.TAILS,
 ) -> Odds:
     """The odds on `timeline` (a monthly timeline at least `horizon_months`
     long) for `paths` paths from `seed` (see the module)."""
@@ -162,10 +178,15 @@ def run(
     levels = {p.month: p.deflator for p in points[1:]}
     # Each month's withdrawal, in today's money, grossed up for tax.
     withdrawals = [
-        fi.gross_up(baseline, fi.need(baseline, p.month, spend, levels) * _TWELVE) / _TWELVE
+        fi.gross_up(
+            baseline,
+            fi.need(baseline, p.month, spend, levels) * _TWELVE,
+            fi.taxed_income(baseline, p.month, levels),
+        )
+        / _TWELVE
         for p in points[: horizon + 1]
     ]
-    returns = draws(mean, volatility, horizon, paths, seed)
+    returns = draws(mean, volatility, horizon, paths, seed, tails)
 
     reached = survived = 0
     by_year: list[list[Decimal]] = [[] for _ in range(horizon // 12 + 1)]
@@ -278,6 +299,7 @@ def beats(
     *,
     paths: int = DEFAULT_PATHS,
     seed: int = DEFAULT_SEED,
+    tails: Decimal = cma.TAILS,
 ) -> Decimal:
     """The share of paths on which money invested for `months` grows by more
     than paying down a debt at `yearly_rate` (real, compounded monthly) saves.
@@ -289,7 +311,8 @@ def beats(
     target = (Decimal(1) + yearly_rate / _TWELVE) ** months
     years, rest = divmod(months, 12)
     wins = 0
-    for path in draws(mean * _TWELVE, volatility * _TWELVE.sqrt(), years + 1, paths, seed):
+    yearly = draws(mean * _TWELVE, volatility * _TWELVE.sqrt(), years + 1, paths, seed, tails)
+    for path in yearly:
         growth = Decimal(1)
         for r in path[:years]:
             growth *= Decimal(1) + r
@@ -345,6 +368,7 @@ def plan_odds(
         seed=seed,
         success_level=success_level,
         guardrails=guardrails,
+        tails=pack.tails,
     )
     currency = baseline.currency
 
@@ -354,7 +378,11 @@ def plan_odds(
     def share(value: Decimal) -> str:
         return f"{value.normalize():f}" if value else "0"
 
-    placeholders = [*baseline.placeholders, *(["volatility"] if pack.placeholder else [])]
+    placeholders = [
+        *baseline.placeholders,
+        *(["volatility"] if pack.placeholder else []),
+        *(["degrees_of_freedom"] if pack.degrees_of_freedom is None else []),
+    ]
     return {
         "currency": currency,
         "as_of": baseline.as_of.isoformat(),

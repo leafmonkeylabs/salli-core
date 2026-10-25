@@ -88,6 +88,9 @@ class CmaSummary(BaseModel):
     #: What cash earns a year after inflation (the placeholder's is never used).
     cash_yield: str
     inflation: str | None = None
+    #: The Student-t degrees of freedom the odds draw returns with (the
+    #: lower, the fatter the tails); a placeholder when the pack gives none.
+    degrees_of_freedom: str
 
 
 class FiAssumptions(BaseModel):
@@ -791,6 +794,9 @@ class IncomeStream(BaseModel):
     #: Paid once in its start month, in the same terms.
     lump_sum: AmountIn = Decimal(0)
     source: Annotated[str | None, Field(max_length=500)] = None
+    #: The income role of your tax rules it is taxed under: withdrawals in
+    #: retirement are taxed beside it.
+    tax_role: Annotated[str | None, Field(max_length=500)] = None
 
 
 class SpendingPhase(BaseModel):
@@ -814,6 +820,7 @@ class IncomeStreamOut(BaseModel):
     indexed: bool
     lump_sum: str
     source: str | None = None
+    tax_role: str | None = None
 
 
 class SpendingPhaseOut(BaseModel):

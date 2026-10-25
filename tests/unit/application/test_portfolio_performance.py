@@ -19,7 +19,7 @@ TODAY = date(2026, 10, 9)
 TAX_YEAR = ("2025-04-01", "2026-03-31")
 
 
-def _service(base: str = "LKR", rates: dict[tuple[str, str], str] | None = None):
+def _service(base: str = "NOK", rates: dict[tuple[str, str], str] | None = None):
     uow = FakeRecordsUoW(base)
     fx = Rates(rates)
     return PortfolioService(lambda: uow, fx=fx, today=lambda: TODAY), uow, fx
@@ -37,7 +37,7 @@ async def _add(svc: PortfolioService, holding_id: str, **fields) -> None:
 
 async def test_a_tax_years_gains_and_income():
     svc, _, _ = _service()
-    h = await _holding(svc, "JKH")
+    h = await _holding(svc, "NRD")
     await _add(svc, h, kind="buy", date="2025-01-10", quantity="100", price="200", fees="50")
     await _add(svc, h, kind="sell", date="2025-06-01", quantity="40", price="250", fees="20")
     await _add(svc, h, kind="sell", date="2026-05-01", quantity="10", price="260")
@@ -49,7 +49,7 @@ async def test_a_tax_years_gains_and_income():
     assert (report["start"], report["end"], report["days"]) == ("2025-04-01", "2026-03-31", 365)
     year = report["portfolio"]
     # Only the June sale: 40 × 250 − 20 − 40 × (20050 / 100) = 1960.
-    assert (year["realised_gain"], year["currency"]) == ("1960.00", "LKR")
+    assert (year["realised_gain"], year["currency"]) == ("1960.00", "NOK")
     # Only the August dividend.
     assert (year["dividends"], year["withholding_tax"], year["net_income"]) == (
         "300.00",
@@ -87,7 +87,7 @@ async def test_wikipedias_example_4_through_the_service():
 
 
 async def test_a_foreign_holding_in_both_currencies():
-    svc, _, fx = _service("LKR", {("USD", "LKR"): "310"})
+    svc, _, fx = _service("NOK", {("USD", "NOK"): "310"})
     h = await _holding(svc, "VOO", "USD")
     await _add(svc, h, kind="buy", date="2026-01-05", quantity="2", price="100", fx_rate="300")
     await svc.set_price(USER, {"symbol": "VOO", "close": "110", "date": "2026-09-30"})
@@ -96,15 +96,15 @@ async def test_a_foreign_holding_in_both_currencies():
     [holding] = report["holdings"]
     assert (holding["native"]["currency"], holding["native"]["total_return"]) == ("USD", "20.00")
     # 220 USD at 310 is 68,200 rupees, for 60,000 paid.
-    assert (holding["base"]["currency"], holding["base"]["total_return"]) == ("LKR", "8200.00")
+    assert (holding["base"]["currency"], holding["base"]["total_return"]) == ("NOK", "8200.00")
     assert holding["native"]["twr"] == "0.100000"
     assert holding["base"]["twr"] == "0.136667"
-    assert fx.asked == [("USD", "LKR", "2026-09-30")]
+    assert fx.asked == [("USD", "NOK", "2026-09-30")]
     assert holding["notes"] == []
 
 
 async def test_a_missing_rate_is_carried_at_cost_and_said():
-    svc, _, _ = _service("LKR")
+    svc, _, _ = _service("NOK")
     h = await _holding(svc, "VOO", "USD")
     await _add(svc, h, kind="buy", date="2026-01-05", quantity="2", price="100", fx_rate="300")
     await svc.set_price(USER, {"symbol": "VOO", "close": "110", "date": "2026-09-30"})
@@ -113,7 +113,7 @@ async def test_a_missing_rate_is_carried_at_cost_and_said():
     [holding] = report["holdings"]
     assert holding["base"]["total_return"] == "0.00"
     assert holding["notes"] == [
-        "No USD→LKR rate for 2026-09-30: VOO's value in LKR is carried at what it cost"
+        "No USD→NOK rate for 2026-09-30: VOO's value in NOK is carried at what it cost"
     ]
 
 
@@ -180,7 +180,7 @@ async def test_from_the_first_day_there_is_is_from_inception():
 
 
 async def test_rates_for_many_days_are_looked_up_once_each():
-    svc, _, fx = _service("LKR", {("USD", "LKR"): "300"})
+    svc, _, fx = _service("NOK", {("USD", "NOK"): "300"})
     h = await _holding(svc, "VOO", "USD")
     await _add(svc, h, kind="buy", date="2026-01-05", quantity="1", price="100", fx_rate="290")
     for day in range(1, 21):
@@ -192,7 +192,7 @@ async def test_rates_for_many_days_are_looked_up_once_each():
     assert report is not None
     # Each day another holding's money moved, VOO is valued at that day's
     # close, at that day's rate: twenty days, each asked for once.
-    assert sorted(fx.asked) == [("USD", "LKR", f"2026-02-{d:02d}") for d in range(1, 21)]
+    assert sorted(fx.asked) == [("USD", "NOK", f"2026-02-{d:02d}") for d in range(1, 21)]
 
 
 async def test_a_holding_is_annualised_over_its_own_time():
@@ -234,7 +234,7 @@ async def test_risk_figures_month_by_month_against_a_benchmark_or_a_cash_yield()
         ("2026-02-28", "105"),
         ("2026-03-31", "105"),
     ):
-        await svc.set_price(USER, {"symbol": "IDX", "close": close, "date": day, "currency": "LKR"})
+        await svc.set_price(USER, {"symbol": "IDX", "close": close, "date": day, "currency": "NOK"})
 
     report = await svc.get_performance(USER, "2026-01-01", "2026-03-31", benchmark="IDX")
     assert report is not None
