@@ -33,6 +33,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
+from salli.application.acting import acting_as, as_system, system_path
 from salli.application.ports import Delivery, Notification, Notifier
 from salli.application.services.insights_service import InsightsService
 from salli.application.services.reminder_service import ReminderService
@@ -387,6 +388,7 @@ class NotificationService:
 
     # ── Sending ──────────────────────────────────────────────────────────────
 
+    @system_path("jobs")
     async def due(self, now: dt.datetime | None = None) -> list[DueDigest]:
         """Everyone opted in whose digest's hour it is now."""
         now = now or self._now()
@@ -421,14 +423,16 @@ class NotificationService:
         if not self.sender_enabled:
             return counts
         now = now or self._now()
-        async with self._uow_factory() as uow:
-            await uow.notifications.record_run(now)
+        with as_system("jobs"):
+            async with self._uow_factory() as uow:
+                await uow.notifications.record_run(now)
         if due is None:
             due = await self.due(now)
         counts["due"] = len(due)
         for digest in due:
             try:
-                outcome = await self._deliver(digest, now)
+                with acting_as(digest.user_id):
+                    outcome = await self._deliver(digest, now)
             except Exception as exc:  # noqa: BLE001 — one person's failure must not stop the rest
                 # The type only: an exception's text may quote the person's data.
                 _log.warning(
@@ -494,6 +498,7 @@ class NotificationService:
             )
         return outcome.value
 
+    @system_path("jobs")
     async def last_run(self) -> dt.datetime | None:
         """When `send_due` last ran with a notifier enabled."""
         async with self._uow_factory() as uow:
@@ -590,8 +595,9 @@ class NotificationService:
         if not self.push_enabled:
             return counts
         now = now or self._now()
-        async with self._uow_factory() as uow:
-            people = await uow.notifications.device_users()
+        with as_system("jobs"):
+            async with self._uow_factory() as uow:
+                people = await uow.notifications.device_users()
         counts["people"] = len(people)
         for person in people:
             user_id = str(person["user_id"])
@@ -601,7 +607,8 @@ class NotificationService:
                 zone = timing.zone("UTC")
             local = now.astimezone(zone)
             try:
-                outcome = await self._push(user_id, local, now)
+                with acting_as(user_id):
+                    outcome = await self._push(user_id, local, now)
             except Exception as exc:  # noqa: BLE001 — one person's failure must not stop the rest
                 _log.warning("push_failed user=%s error=%s", user_id, type(exc).__name__)
                 outcome = "failed"

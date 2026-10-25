@@ -56,6 +56,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from salli.application import totp
+from salli.application.acting import system_path
 from salli.application.ports import PasswordHasher
 from salli.domain.currency import normalize_currency
 
@@ -263,6 +264,7 @@ class LoginService:
 
     # ── Accounts ────────────────────────────────────────────────────────────
 
+    @system_path("members")
     async def create_account(
         self,
         email: str,
@@ -313,6 +315,7 @@ class LoginService:
 
     # ── Invitations ─────────────────────────────────────────────────────────
 
+    @system_path("members")
     async def invite(self, email: str, *, base_currency: str | None = None) -> str:
         """A single-use invitation for `email`, good for INVITATION_TTL: the
         token, seen this once (only its hash is kept). The owner passes the
@@ -339,11 +342,13 @@ class LoginService:
                 )
         return token
 
+    @system_path("sign-in")
     async def invitation(self, token: str) -> dict[str, Any] | None:
         """{email, base_currency} of a good invitation, or None."""
         async with self._uow_factory() as uow:
             return await uow.logins.get_invitation(_sha256(token), self._clock())
 
+    @system_path("sign-in")
     async def accept_invitation(
         self, token: str, password: str, *, totp_secret: str = "", code: str = ""
     ) -> dict[str, Any]:
@@ -394,16 +399,19 @@ class LoginService:
                 login.pop(secret, None)
         return login
 
+    @system_path("members")
     async def owner(self) -> dict[str, Any] | None:
         async with self._uow_factory() as uow:
             return await uow.logins.owner()
 
+    @system_path("members")
     async def list_logins(self) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
             return await uow.logins.list()
 
     # ── Signing in ──────────────────────────────────────────────────────────
 
+    @system_path("sign-in")
     async def authenticate(
         self,
         email: str,
@@ -543,6 +551,7 @@ class LoginService:
 
     # ── Sessions ────────────────────────────────────────────────────────────
 
+    @system_path("sign-in")
     async def sign_in(
         self,
         email: str,
@@ -572,6 +581,7 @@ class LoginService:
             expires_at=expires_at,
         )
 
+    @system_path("sign-in")
     async def verify_session(self, token: str) -> VerifiedSession | None:
         """Whose session this is, or None if it is unknown, ended or expired."""
         if not is_session_token(token):
@@ -620,6 +630,7 @@ class LoginService:
             raise SignInRefused()
         return await self._set_password(user_id, login["email"], new, keep_session=keep_session)
 
+    @system_path("members")
     async def reset_password(
         self, email: str, new: str, *, clear_totp: bool = False
     ) -> dict[str, Any]:

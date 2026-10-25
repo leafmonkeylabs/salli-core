@@ -17,6 +17,7 @@ from collections import OrderedDict
 from collections.abc import AsyncIterator
 from typing import Any
 
+from salli.application.acting import system_path
 from salli.domain.ai_models import DEFAULT_MODEL
 from salli.domain.llm import LLMError
 
@@ -635,6 +636,7 @@ class AgentService:
         async with self._uow_factory() as uow:
             return await uow.audit_log.list(user_id, limit=limit)
 
+    @system_path("audit-chain")
     async def verify_audit_chain(self) -> dict[str, Any]:
         """Whether the instance's audit trail is as it was written: its hash
         chain checked from the first row (`domain/audit_chain.verify`)."""

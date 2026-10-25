@@ -40,6 +40,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from salli.application.acting import act_as
 from salli.application.services.login_service import SignInRefused, SignInThrottled
 from salli.application.services.mcp_oauth_service import (
     CONSOLE_CLIENT_ID,
@@ -367,6 +368,8 @@ async def _signed_in(
         except SignInThrottled as exc:
             return _Refusal(str(exc), status.HTTP_429_TOO_MANY_REQUESTS)
         caller = who.user_id
+    # Signed in: the rest of the request acts for them (application/acting.py).
+    act_as(caller)
     if not await svc.profile.ensure_user(caller, None, may_create=False):
         return _Refusal("This account is not a member of this Salli instance.", 403)
     return caller

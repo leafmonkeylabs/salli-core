@@ -18,6 +18,7 @@ import typer
 from rich.markup import escape
 from rich.table import Table
 
+from salli.application.acting import acting_as
 from salli.interfaces.cli.support import console, emit, services
 
 jobs_app = typer.Typer(help="Scheduled work across every user (for cron)", no_args_is_help=True)
@@ -37,7 +38,8 @@ def run_advisor() -> None:
         due: list[dict[str, Any]] = await svc.advisor.due_users()
         for user in due:
             try:
-                await svc.advisor.run_advisor(user["user_id"], None, trigger="scheduled")
+                with acting_as(user["user_id"]):
+                    await svc.advisor.run_advisor(user["user_id"], None, trigger="scheduled")
                 ran.append(user["user_id"])
             except UsageLimitReached:
                 refused.append(user["user_id"])

@@ -4,7 +4,7 @@
 This is the operator's command line, run where the server runs, with the
 database at hand: setting up an instance, serving the API, migrating, adding
 members and resetting their passwords, the server's own secrets, checking
-health, the owner's opt-in usage counts, and the scheduled jobs that act on every user.
+health, the owner's opt-in usage counts, support sessions on a person's books, and the scheduled jobs that act on every user.
 Enabled extensions add their own command groups (`ExtensionSpec.cli_groups`).
 
 What a person does with their own finances is not here. That is the `salli`
@@ -29,6 +29,7 @@ from salli.interfaces.cli.jobs import jobs_app
 from salli.interfaces.cli.setup import members_app, secrets_app, serve, setup
 from salli.interfaces.cli.stats import stats
 from salli.interfaces.cli.support import console, emit, json_mode, with_json_option
+from salli.interfaces.cli.support_access import support_app
 
 app = typer.Typer(
     name="salli-server",
@@ -48,6 +49,7 @@ app.add_typer(members_app, name="members")
 app.add_typer(secrets_app, name="secrets")
 app.add_typer(jobs_app, name="jobs")
 app.add_typer(audit_app, name="audit")
+app.add_typer(support_app, name="support")
 
 
 # ── audit ─────────────────────────────────────────────────────────────────────

@@ -5,6 +5,8 @@
  * console in each browser tab (OAuth sign-ins through Salli's sign-in page,
  * which takes the same password), and two-step sign-in, a code from an
  * authenticator app after the password. AI connections are under `salli mcp`.
+ * salli support-access: every time the server's operator could read your
+ * books, and ending one.
  */
 import type { Command } from '@commander-js/extra-typings';
 import {
@@ -12,6 +14,8 @@ import {
   authPasswordChange,
   authSignInsList,
   authSignInsRevoke,
+  authSupportAccessEnd,
+  authSupportAccessList,
   authTotpBegin,
   authTotpConfirm,
   authTotpDisable,
@@ -129,6 +133,63 @@ Examples:
       if (!(await confirmAction(app, opts.yes, `Sign out ${what}?`))) return;
       await api.call(authSignInsRevoke, { path: { sign_in_id: signIn.id } });
       app.out.done({ id: signIn.id, revoked: true }, `Signed out ${what}.`);
+    });
+}
+
+/** salli support-access: the operator's support sessions on your books. */
+export function registerSupportAccess(program: Command, app: App): void {
+  const support = program
+    .command('support-access')
+    .description("When the server's operator could read your books, and why")
+    .addHelpText(
+      'after',
+      `
+The operator of this server can read your books only through a support
+session: opened on the server for a reason, read-only, for at most four
+hours, with every read listed here. You may end an open one.
+
+Examples:
+  $ salli support-access
+  $ salli support-access end 3fa85f64`,
+    );
+
+  support
+    .command('list', { isDefault: true })
+    .alias('ls')
+    .description('Every support session on your books, newest first')
+    .action(async () => {
+      const api = await app.api();
+      const list = await api.call(authSupportAccessList);
+      app.out.emit(list, {
+        human: (d) => {
+          if (!d.length) return app.out.note('No one has had support access to your books.');
+          const c = app.out.colors;
+          const locale = app.out.locale;
+          app.out.line(
+            app.out.table(d, [
+              { header: 'ID', get: (s) => s.id.slice(0, 8), style: (t) => c.dim(t) },
+              { header: 'REASON', get: (s) => singleLine(s.reason), shrink: true },
+              { header: 'OPENED', get: (s) => displayDate(s.opened_at, locale) },
+              { header: 'STATE', get: (s) => (s.open ? 'open' : `ended (${s.ended_by ?? 'expiry'})`) },
+              { header: 'READS', get: (s) => String(s.reads.length) },
+            ]),
+          );
+        },
+      });
+    });
+
+  support
+    .command('end')
+    .argument('<id>', 'Support session id (or its start)')
+    .description('End an open support session now')
+    .option('-y, --yes', 'Do not ask for confirmation')
+    .action(async (query, opts) => {
+      const api = await app.api();
+      const open = (await api.call(authSupportAccessList)).filter((s) => s.open);
+      const session = resolveById(open, query, 'open support session');
+      if (!(await confirmAction(app, opts.yes, `End the support session "${singleLine(session.reason)}"?`))) return;
+      await api.call(authSupportAccessEnd, { path: { session_id: session.id } });
+      app.out.done({ id: session.id, ended: true }, 'Ended the support session.');
     });
 }
 

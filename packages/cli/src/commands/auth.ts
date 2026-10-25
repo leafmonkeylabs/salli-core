@@ -16,6 +16,7 @@ const SIGN_IN_METHODS: Record<AuthIdentity['method'], string> = {
   oauth: 'an OAuth sign-in',
   pat: 'a personal access token',
   dev: 'development sign-in (any token is a user id)',
+  support: "the operator's support session (read-only)",
 };
 
 function describeExpiry(expiresAt: number | undefined, now: Date): string | undefined {

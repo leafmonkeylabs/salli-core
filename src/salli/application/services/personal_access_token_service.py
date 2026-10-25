@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from salli.application.acting import system_path
 from salli.application.permissions import unknown_permissions
 
 PREFIX = "salli_pat_"
@@ -100,6 +101,7 @@ class PersonalAccessTokenService:
                 )
             return revoked
 
+    @system_path("sign-in")
     async def verify(self, token: str) -> VerifiedToken | None:
         """Whose a token is and what it may do, or None if it is unknown,
         revoked or expired."""

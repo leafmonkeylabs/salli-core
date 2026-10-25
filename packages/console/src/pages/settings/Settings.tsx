@@ -2,7 +2,8 @@
  * Settings, as C1 builds them: the profile (what the API lets a person
  * change: name, base currency while it can change, tax residency, time
  * zone), every sign-in with a way to end each (`GET`/`DELETE
- * /v1/auth/sign-ins`), turning on two-step sign-in (`/v1/auth/totp`, behind
+ * /v1/auth/sign-ins`), the operator's support sessions on the books beside
+ * them (`/v1/auth/support-access`, an open one ended here), turning on two-step sign-in (`/v1/auth/totp`, behind
  * the step-up; its secret and recovery codes shown once, with `<Secret>`,
  * and turned off only with `salli totp disable`, which takes the password
  * the console never asks for), what this device shows, and the panels extensions
@@ -14,6 +15,8 @@ import {
   authMe,
   authSignInsList,
   authSignInsRevoke,
+  authSupportAccessEnd,
+  authSupportAccessList,
   authTotpBegin,
   authTotpConfirm,
   notificationsPreferencesUpdate,
@@ -22,6 +25,7 @@ import {
   type Profile,
   type ProfileIdentityRequest,
   type SignIn,
+  type SupportSession,
   type TotpEnabled,
   type TotpEnrolment,
 } from '@leafmonkeylabs/salli-sdk';
@@ -156,6 +160,60 @@ function describe(signIn: SignIn): string {
   return detail ? `${kind} · ${detail}` : kind;
 }
 
+/** The operator's support sessions on the books: past and open, each read counted. */
+function SupportAccess() {
+  const { locale } = usePreferences();
+  const query = useRead('auth.supportAccess.list', authSupportAccessList);
+  const end = useWrite<string, void>(
+    'auth.supportAccess.end',
+    async (api, id) => {
+      await api.call(authSupportAccessEnd, { path: { session_id: id } });
+    },
+    { invalidate: ['auth.supportAccess.list'] },
+  );
+  const when = (value: string): string => displayMoment(value, locale);
+  return (
+    <>
+      <h3 className="subhead">{s.supportAccess}</h3>
+      <p className="section-help">{s.supportAccessHelp}</p>
+      {query.isError ? <ProblemView error={query.error} compact onRetry={() => void query.refetch()} /> : null}
+      {query.data && query.data.length === 0 ? <Empty>{s.noSupportAccess}</Empty> : null}
+      {query.data && query.data.length ? (
+        <Table<SupportSession>
+          caption={s.supportAccess}
+          captionHidden
+          rows={query.data}
+          rowKey={(row) => row.id}
+          columns={[
+            { key: 'reason', header: s.supportReason, label: s.supportReason, render: (row) => row.reason },
+            { key: 'opened', header: s.started, label: s.started, render: (row) => when(row.opened_at) },
+            {
+              key: 'state',
+              header: s.supportState,
+              label: s.supportState,
+              render: (row) => (row.open ? s.supportOpenUntil(when(row.expires_at)) : s.supportEnded[row.ended_by ?? 'expiry']),
+            },
+            { key: 'reads', header: s.supportReads, label: s.supportReads, render: (row) => String(row.reads.length) },
+            {
+              key: 'end',
+              header: <span className="sr-only">{s.supportEnd}</span>,
+              label: '',
+              align: 'end',
+              render: (row) =>
+                row.open ? (
+                  <Button variant="tertiary" isPending={end.isPending} onPress={() => end.mutate(row.id)}>
+                    {s.supportEnd}
+                  </Button>
+                ) : null,
+            },
+          ]}
+        />
+      ) : null}
+      {end.isError ? <ProblemView error={end.error} compact /> : null}
+    </>
+  );
+}
+
 function SignInsSection() {
   const session = useSession();
   const { locale } = usePreferences();
@@ -232,6 +290,7 @@ function SignInsSection() {
           ) : null}
         </p>
         {revoke.isError && !revoke.stepUpPending ? <ProblemView error={revoke.error} compact /> : null}
+        <SupportAccess />
       </Panel>
       <Confirm
         isOpen={ending !== null}

@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Literal
 
+from salli.application.acting import system_path
 from salli.application.services.tax_rule_service import (
     PROVENANCE,
     Applied,
@@ -502,6 +503,7 @@ class TaxService:
             "differences": differences,
         }
 
+    @system_path("jobs")
     async def recompute_stored(self, *, apply: bool) -> list[dict[str, Any]]:
         """Re-run every user's newest computation for each jurisdiction and
         year with the rules active for it now, against the ledger as it is now

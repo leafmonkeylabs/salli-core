@@ -246,7 +246,7 @@ way.
 
 | Setting | In compose | |
 |---|---|---|
-| `DATABASE_URL` | `postgresql+asyncpg://salli@postgres:5432/salli` | The database. It may leave the password out. |
+| `DATABASE_URL` | `postgresql+asyncpg://salli_app@postgres:5432/salli` | The database, as a role that is no superuser and has no BYPASSRLS ([the database role](#the-database-role)). It may leave the password out. |
 | `DATABASE_PASSWORD` | from the secrets volume | The database password, when `DATABASE_URL` has none. |
 | `SALLI_SECRETS_DIR` | `/var/lib/salli/secrets` | A directory of secrets, one file per setting, named in lower case (`mcp_signing_secret`). A variable of the same name wins over its file. |
 | `SALLI_STORAGE_DIR` | `/var/lib/salli/files` | Where uploaded files are kept. Default outside the image: `~/.salli/storage`. |
@@ -254,6 +254,40 @@ way.
 | `MCP_SIGNING_SECRET` | generated | Signs pending approvals on the consent page. |
 | `CRON_SECRET` | generated | Lets a scheduler call `/v1/advisor/cron/run-due`, `/v1/bank-connections/cron/sync-due` and `/v1/notifications/cron/send-due`. |
 | `SALLI_INSECURE_DEV_AUTH` | off | Development only: any bearer token is taken as a user id. Honoured only with `ENVIRONMENT=development`. |
+
+### The database role
+
+Every table holding a person's data has row-level security: Postgres itself
+shows and accepts a row only for the person the transaction acts for, under
+Salli's own filtering by person ([security.md](security.md#row-level-security)).
+A superuser, or a role with `BYPASSRLS`, passes every policy, so Salli must
+connect as a role that is neither. It may own the tables (they are `FORCE`d,
+so their owner is held to the policies too) and so run the migrations.
+
+With compose this is done for you: the `database-role` service makes the role
+`salli_app` (with the database password from the secrets) and gives it the
+database and Salli's tables on every start, and Salli connects as it; the
+`salli` role Postgres was created with stays the superuser, for backups and
+your own maintenance. An install from before this release moves to it at its
+next `docker compose up -d`.
+
+Running Salli another way, make the role yourself, as a superuser, and put it
+in `DATABASE_URL`:
+
+```sql
+CREATE ROLE salli_app LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '…';
+CREATE DATABASE salli OWNER salli_app;
+```
+
+For an existing database, also give the role what Salli made as another one:
+`ALTER DATABASE salli OWNER TO salli_app`, `ALTER SCHEMA public OWNER TO
+salli_app`, then `ALTER TABLE … OWNER TO salli_app` for each table in
+`public` and `ALTER ROUTINE … OWNER TO salli_app` for each function there
+(compose.yaml's `database-role` service lists the statements). The migration
+that turns row-level security on (core_0051) is safe on any database: while
+Salli still connects as a superuser or a table owner with `BYPASSRLS`, the
+policies are in place and change nothing, and `salli-server doctor` warns
+(`Row-level security`) until the role is changed.
 
 To rotate the BYOK key, add a new version to the file in the secrets volume
 (`2:<new key>,1:<old key>`) and restart. New secrets are sealed with the new
@@ -571,6 +605,16 @@ restore, as above, onto the new version.
 - **Wrong passwords and unknown emails** get the same answer, in about the
   same time.
 - **CORS** trusts no web origin unless `ALLOWED_ORIGINS` names it.
+- **Members are kept apart twice.** Salli filters every query by person, and
+  Postgres's row-level security refuses another person's rows to a
+  transaction acting for one, as long as Salli's role is no superuser
+  ([the database role](#the-database-role)).
+- **Support access** is the only way an operator reads a member's books
+  through Salli: `salli-server support open <email> --reason "<ticket>"`
+  gives a read-only token for 60 minutes (`--minutes`, at most 240); the
+  member sees it, its reason and every read (`salli support-access`, the
+  console's Settings, Sign-ins) and may end it. Each step is in the audit
+  log ([security.md](security.md#support-access)).
 - **AI connectors** never hold `tax:activate`, and their tokens are refused by
   the REST API. Only you, at your own terminal or with your own password, can
   make a tax rule set the one Salli computes with: in the console, with the

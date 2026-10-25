@@ -83,6 +83,9 @@ def run_env(context: Any, metadata: MetaData, version_table: str) -> None:
             # second waits here, then finds nothing left to do. Released when
             # the transaction ends.
             connection.execute(text("select pg_advisory_xact_lock(:key)"), {"key": MIGRATION_LOCK})
+            # A migration changes every person's rows: the system path that
+            # row-level security lets through (application/acting.py).
+            connection.execute(text("select set_config('salli.scope', 'system', true)"))
             context.run_migrations()
 
     async def run_async() -> None:

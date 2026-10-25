@@ -1966,6 +1966,42 @@ class AccessGrantRepository(ABC):
         ...
 
 
+class SupportSessionRepository(ABC):
+    """The operator's read-only support sessions on a person's books."""
+
+    @abstractmethod
+    async def open(
+        self,
+        user_id: str,
+        reason: str,
+        token_hash: str,
+        opened_at: datetime,
+        expires_at: datetime,
+    ) -> dict[str, Any]: ...
+
+    @abstractmethod
+    async def by_token(self, token_hash: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def list(self, user_id: str | None = None) -> list[dict[str, Any]]:
+        """One person's sessions, or everyone's, newest first; each with
+        `reads`, the reads made under it."""
+        ...
+
+    @abstractmethod
+    async def end(
+        self, session_id: str, by: str, at: datetime, user_id: str | None = None
+    ) -> dict[str, Any] | None:
+        """End an open session (the person's own, given `user_id`); it, or
+        None when there is no such open one."""
+        ...
+
+    @abstractmethod
+    async def lapsed(self, now: datetime) -> list[dict[str, Any]]:
+        """Open sessions whose time is up, not yet recorded as ended."""
+        ...
+
+
 class PersonalAccessTokenRepository(ABC):
     """Long-lived tokens for scripts and CI, stored hashed."""
 

@@ -2039,6 +2039,33 @@ class PersonalAccessTokenORM(Base):
     )
 
 
+class SupportSessionORM(Base):
+    """A time-boxed, read-only look at one person's books by the instance's
+    operator (`salli-server support open`), for a reason given: the token
+    is stored as its SHA-256 hash and shown once. Ended by the person
+    (`DELETE /v1/auth/support-access/{id}`), by the operator, or by its
+    time (`ended_by`: person, operator, expiry); each step, and every read
+    under it, is in the audit log."""
+
+    __tablename__ = "support_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ended_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "ended_by IS NULL OR ended_by IN ('person', 'operator', 'expiry')",
+            name="ck_support_sessions_ended_by",
+        ),
+    )
+
+
 # ── Sign-in: Salli's own accounts ────────────────────────────────────────────
 
 

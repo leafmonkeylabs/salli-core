@@ -38,7 +38,7 @@ gaps we know about. What personal data Salli keeps and who else sees it is in
 | The open web | Pages an agent searches or a person asks Salli to fetch | Requests to a person's URL go only to public addresses over HTTPS, with size and time limits (`adapters/net/guard.py`, `adapters/net/fetch.py`). An agent that reads a planted instruction still can't activate a tax rule set. |
 | Bank feed | A SimpleFIN bridge | Read-only; the pasted setup URL is vetted like any other; the access URL is sealed with AES-GCM bound to its row (`adapters/banks/simplefin.py`, `bank_connection_service.py`). |
 | Exchange rates | Frankfurter, then ExchangeRate-API | Currency codes and a date only; no rate is invented (`adapters/fx/`). |
-| Operator | Whoever runs the server | Trusted with everything: the database, the files and the secrets. There is no sign-up: the owner adds members (`salli-server members`). `salli-server doctor` prints no secrets. |
+| Operator | Whoever runs the server | Trusted with the host: the database, the files and the secrets. Through Salli, the operator reads a member's books only in a [support session](#support-access): read-only, time-boxed, audited and shown to the member. There is no sign-up: the owner adds members (`salli-server members`). `salli-server doctor` prints no secrets. |
 | Supply chain | Dependencies, actions, base images, registries | See the controls below. |
 
 ## Controls
@@ -58,6 +58,8 @@ common criteria, C confidentiality, PI processing integrity, P privacy.
 | Step-up | Activating tax rules, exporting everything and deleting the account need a password checked in the last five minutes in the console and the app; AI connectors never can activate | `application/permissions.py`, `interfaces/api/deps.py`, `routers/onboarding.py` | CC6.1, CC6.3 |
 | Scoped tokens | A personal access token holds only the permissions it was made with, and no sign-in can mint one more capable than itself | `application/permissions.py`, `personal_access_token_service.py` | CC6.3 |
 | MCP scopes | An AI connection reads (`mcp:read`); every tool that isn't read-only needs its part's scope (`mcp:ledger`, `mcp:planning`, `mcp:documents` or `mcp:settings`; `mcp:write`, from before the parts, holds all four), checked in one place, and is refused and does nothing without it. The consent page offers each part unticked; only the Salli app's own AI holds all by default, as the app asks the person before each change. Grants from before the scopes only read | `interfaces/api/mcp_server.py`, `mcp_oauth_service.py`, `routers/mcp_consent_page.py` | CC6.3 |
+| Row-level security | Every table holding a person's data shows and accepts a row only for the person the transaction acts for (`salli.user_id`, set at the start of each transaction from the signed-in person); a transaction acting for no one sees nothing; the few paths that must act across people do so by name, each with its reason, and no other (below); the tables are `FORCE`d and Salli's role is no superuser, and `salli-server doctor` warns otherwise. A test fails on a new table without a policy | `migrations/versions/core_0051_row_security.py`, `application/acting.py`, `adapters/db/session.py`, `tests/integration/test_row_security.py` | CC6.1, C1.1 |
+| Support access | The operator reads a member's books only in a support session: opened on the server for a reason, read-only (GET on the books alone), 60 minutes unless said, at most 240; its opening, every read and its end are in the audit chain; the member lists them and may end one | `application/services/support_access_service.py`, `interfaces/api/deps.py`, `interfaces/cli/support_access.py` | CC6.1, CC6.3, CC7.2 |
 | Accounts and sign-ins | No sign-up; the owner adds members and resets passwords; a person lists and ends every sign-in (`/v1/auth/sign-ins`) and AI connection (`/v1/mcp/connections`) | `interfaces/cli/setup.py`, `interfaces/api/routers/auth.py`, `routers/mcp_oauth.py` | CC6.2 |
 | Sealed secrets | AI keys, ChatGPT sign-ins, bank feed URLs and authenticator secrets sealed with AES-GCM, bound to their user and row; versioned keys for rotation; without a key Salli refuses to store one rather than keep it in plain text | `adapters/crypto/keyring.py` | CC6.1, C1.1 |
 | Web hardening | CSP with Trusted Types, `frame-ancestors 'none'`, `no-referrer`, `Cache-Control: no-store` on API responses, HSTS where the public URL is HTTPS; MCP serves only requests addressed to the public URL's host (DNS rebinding); forwarded addresses believed only from the bundled proxy; production refuses to start without the Postgres checkpointer; the image pinned to a release in `compose.yaml` | `interfaces/api/console.py`, `interfaces/api/mcp_server.py`, `interfaces/api/main.py`, `compose.yaml` | CC6.6 |
@@ -80,6 +82,58 @@ common criteria, C confidentiality, PI processing integrity, P privacy.
 | **Not yet:** complete audit trail | Changes a person makes through the API, and sign-ins, are not in the audit log | | CC7.2 |
 | **Not yet:** signed artefacts | Images carry provenance but no signature; the macOS and Windows binaries are not code-signed | `RELEASING.md` | CC8.1 |
 | **Not yet:** penetration test | No external test or audit has been done | | CC4.1 |
+
+## Row-level security
+
+Salli filters every query by person; Postgres checks it again. Each
+transaction says whom it acts for: a request for its signed-in person (the
+API's `get_principal`, the MCP gate, a page once its password is checked), a
+scheduled job for each person in turn. The policies (core_0051) show and
+accept a row only when its person is that one, or when the transaction is on
+one of the system paths, which `application/acting.py` (`SYSTEM_PATHS`)
+lists with their reasons and `as_system` holds to, a test failing on any
+other:
+
+| Path | Why it acts across people |
+|---|---|
+| `migrations` | A migration changes every person's rows |
+| `sign-in` | A session, token, grant, code or invitation is looked up before anyone is known |
+| `members` | The operator's `setup`, `members` and `doctor` list and add people |
+| `member-lookup` | Sharing finds a member by email, and shows each side of a grant the other's email |
+| `audit-chain` | The audit log is one hash chain for the instance: a row extends the last one, whoever's |
+| `erasure` | Erasing an account pseudonymises its audit rows, and its refused sign-ins' (no one's) |
+| `usage` | The instance's usage counts count everyone |
+| `jobs` | Scheduled work finds who is due across everyone, then acts for each in turn |
+| `support` | The operator opens, lists and ends support sessions |
+
+Tables that hold no one's data (registered applications, instance settings,
+invitations, the sign-in throttle) have no policy. The conversations
+LangGraph keeps (its checkpoint tables, written on its own connection) are
+kept apart by Salli's filtering alone, under thread ids that start with the
+person's id.
+
+## Support access
+
+The operator of a server can read everything on the host; through Salli,
+they read a member's books only this way, and the member sees it:
+
+- `salli-server support open <member email> --reason "<ticket or why>"
+  [--minutes 60]` opens a session (60 minutes unless said, at most 240) and
+  shows its token once. With it, the `salli` CLI (`SALLI_TOKEN`) reads the
+  member's books, the reads the books' routes allow (GET only, never
+  sign-ins, tokens, keys, documents, imports or the export); anything else is
+  refused.
+- Opening it (with the reason), every read made under it (the path, before
+  it is answered) and its end (by the member, by the operator with
+  `salli-server support close`, or by its time) are rows in the audit log's
+  hash chain, under the member.
+- The member lists every session, open and past, with its reason and reads
+  (`GET /v1/auth/support-access`, `salli support-access`, the console's
+  Settings, Sign-ins) and ends an open one (`DELETE
+  /v1/auth/support-access/{id}`, `salli support-access end`).
+- Nothing else gives the operator a member's data through Salli: no route,
+  command or token reads another person's books without the member's own
+  grant (`salli access`) or a support session.
 
 ## Accepted advisories
 
