@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # a relay that forwards Expo push messages. Core never holds Apple's or
     # Google's keys. Unset: no push is sent.
     salli_push_relay_url: str | None = None
+    # Signs each post to the relay (an HMAC bearer the relay checks). Needed
+    # with a relay URL: without it no push is sent.
+    salli_push_relay_secret: str = ""
 
     # MCP server — lets external AI clients (Claude, ChatGPT, etc.) connect to a
     # user's Salli account via OAuth 2.1 + Dynamic Client Registration.
@@ -80,11 +83,13 @@ class Settings(BaseSettings):
     mcp_art_ttl_seconds: int = 1800
     mcp_auth_code_ttl_seconds: int = 120
     mcp_access_token_ttl_seconds: int = 3600
-    mcp_refresh_token_ttl_seconds: int = 60 * 60 * 24 * 30
+    mcp_refresh_token_ttl_seconds: int = 60 * 60 * 24 * 14
 
     # Sign-in sessions (`POST /v1/auth/sessions`) last this long from the
-    # moment they start, however much they are used.
-    salli_session_ttl_days: int = 30
+    # moment they start, however much they are used, and end sooner when
+    # unused for the idle time.
+    salli_session_ttl_hours: int = Field(default=12, ge=1, le=24 * 30)
+    salli_session_idle_minutes: int = Field(default=120, ge=5, le=24 * 60)
 
     # The console: the household's pages in a browser, at
     # {salli_public_url}/console (docs/design/console.md). Off: no /console

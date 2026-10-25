@@ -213,7 +213,7 @@ async def test_the_app_s_sign_in_is_listed_and_has_no_absolute_end(salli):
     # No absolute end, as the console's 12 hours: only its refresh token's,
     # which moves on with every refresh.
     ends = datetime.fromisoformat(rows[0]["expires_at"])
-    assert ends - datetime.now(UTC) > timedelta(days=29)
+    assert ends - datetime.now(UTC) > timedelta(days=13)
     async with salli.engine.begin() as conn:
         seeded = (
             await conn.execute(

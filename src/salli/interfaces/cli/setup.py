@@ -13,11 +13,15 @@ failure, or to add what a later version needs.
 2. Migrate the database.
 3. Create the owner's account — their email and password, kept in the
    currency they choose — unless the instance has an owner already.
-4. Seed the owner's starter chart of accounts.
+4. Ask the owner to turn on two-step sign-in. Until they do, adding and
+   inviting members is refused, and `salli-server doctor` says so; lost
+   authenticators are recovered with `members reset-password --clear-totp`.
+5. Seed the owner's starter chart of accounts.
 
 There is no sign-up: everyone else is added by the owner (`salli-server
 members add`), and the owner resets anyone's password here (`salli-server
-members reset-password`). Nothing here prints a secret or a password.
+members reset-password`). Nothing here prints a secret or a password, except the owner's own
+authenticator key and recovery codes while they set up two-step sign-in.
 """
 
 from __future__ import annotations
@@ -178,6 +182,49 @@ def _create_account(
         raise typer.Exit(1) from exc
 
 
+def _owner_two_step(owner: dict[str, Any]) -> None:
+    """Ask the owner to turn on two-step sign-in, at a terminal; say how otherwise."""
+    from salli.application.services.login_service import CodeRefused
+
+    if owner.get("totp_enabled_at") is not None:
+        console.print("[green]✓[/green] Two-step sign-in is on")
+        return
+    logins = services().logins
+    if not logins.two_step_available or not sys.stdin.isatty():
+        console.print(
+            "[yellow]Turn on two-step sign-in[/yellow] (salli totp enable, after salli "
+            "login): until then, adding and inviting members is refused."
+        )
+        return
+    enrolment = asyncio.run(logins.begin_totp(str(owner["user_id"])))
+    console.print("Two-step sign-in: add this key to your authenticator app.")
+    console.print(f"  {enrolment.uri}", soft_wrap=True)
+    console.print(f"  (or type the key: {enrolment.secret})")
+    for _ in range(3):
+        code = typer.prompt("The six-digit code it shows")
+        try:
+            codes = asyncio.run(logins.confirm_totp(str(owner["user_id"]), code))
+        except CodeRefused:
+            console.print("[red]That code doesn't match.[/red]")
+            continue
+        console.print("[green]✓[/green] Two-step sign-in is on. Recovery codes, each good once:")
+        console.print("  " + "  ".join(codes))
+        return
+    raise typer.Exit(1)
+
+
+def require_owner_two_step() -> None:
+    """Exit 1 unless the owner has two-step sign-in on: the owner-only
+    commands that let someone in need it."""
+    owner = asyncio.run(services().logins.owner())
+    if owner is not None and owner.get("totp_enabled_at") is None:
+        console.print(
+            "[red]Turn on two-step sign-in for the owner first[/red] (salli totp enable). "
+            "Lost the authenticator? salli-server members reset-password <email> --clear-totp."
+        )
+        raise typer.Exit(1)
+
+
 # ── Commands ─────────────────────────────────────────────────────────────────
 
 
@@ -247,7 +294,10 @@ def setup(
         f"[green]✓[/green] Owner account ready ({escape(str(owner['email']))}, in {base_currency})"
     )
 
-    # 4. Starter ledger.
+    # 4. Two-step sign-in.
+    _owner_two_step(owner)
+
+    # 5. Starter ledger.
     result = asyncio.run(
         svc.onboarding.complete(
             user_id,
@@ -314,6 +364,7 @@ def members_add(
     ),
 ):
     """Let someone else (a partner, a household member) use this instance."""
+    require_owner_two_step()
     password = read_password(password_stdin, "A password for them (at least 12 characters)")
     login = _create_account(email, password, currency=currency, owner=False)
     if emit({"user_id": login["user_id"], "email": login["email"]}):
@@ -334,6 +385,7 @@ def members_invite(
     from salli.application.services.login_service import INVITATION_TTL, LoginExists
     from salli.config import get_settings
 
+    require_owner_two_step()
     try:
         token = asyncio.run(services().logins.invite(email, base_currency=currency))
     except (LoginExists, ValueError) as exc:

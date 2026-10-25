@@ -92,6 +92,11 @@ async def test_an_invitation_is_good_once_and_stored_as_its_hash(salli):
     assert again.status_code == 404
     actions = await _rows(salli, "select action from audit_logs order by created_at")
     assert [a for (a,) in actions] == ["member.invite", "member.join", "sign_in"]
+    # The log outlives an erased account: nothing in it names the invitee.
+    [(params,)] = await _rows(
+        salli, "select params::text from audit_logs where action = 'member.invite'"
+    )
+    assert "ola" not in params.lower() and hashlib.sha256(token.encode()).hexdigest() in params
 
 
 async def test_an_expired_or_unknown_link_does_nothing(salli):
