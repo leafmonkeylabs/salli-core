@@ -98,6 +98,9 @@ jobs:
           src/salli/interfaces/api/console.py src/salli/interfaces/api/routers/meta.py
           src/salli/application/services/mcp_oauth_service.py
           src/salli/interfaces/api/routers/mcp_oauth.py
+      - name: Install hledger for the plain-text export check
+        # bean-check comes with the Python dependencies.
+        run: sudo apt-get update && sudo apt-get install -y hledger
       - name: Tests
         # Includes the contract tests: the OpenAPI document matches the app, and
         # salli-core carries no billing vocabulary. In parallel, one worker a
@@ -105,6 +108,9 @@ jobs:
         # of its own (tests/integration/pg.py), and a parametrized test whose
         # values are random names its ids, so every worker collects the same.
         run: uv run pytest -q -n auto
+        env:
+          # tests/unit/domain/test_plaintext_export_tools.py fails, not skips.
+          SALLI_REQUIRE_PLAINTEXT_TOOLS: "1"
 
   cli:
     # The TypeScript packages (packages/): the SDK, the `salli` command line

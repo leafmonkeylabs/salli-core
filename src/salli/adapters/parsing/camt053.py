@@ -68,9 +68,26 @@ def extract_from_camt053(data: bytes) -> Extraction:
         ).strip()
         if account and account not in result.accounts:
             result.accounts.append(account)
+        for balance in statement.iterfind("{*}Bal"):
+            _balance(balance, account, result)
         for number, entry in enumerate(statement.iterfind("{*}Ntry"), 1):
             _add(entry, number, account_currency, account, result)
     return result
+
+
+#: Balance types: the booked opening and closing balance (OPBD, CLBD); a
+#: previous closing balance (PRCD) opens a statement that has no OPBD.
+_BALANCE_KINDS = {"OPBD": "opening", "PRCD": "opening", "CLBD": "closing"}
+
+
+def _balance(balance: ET.Element, account: str, result: Extraction) -> None:
+    code = (balance.findtext("{*}Tp/{*}CdOrPrtry/{*}Cd") or "").strip().upper()
+    amount = (balance.findtext("{*}Amt") or "").strip()
+    indicator = (balance.findtext("{*}CdtDbtInd") or "").strip().upper()
+    if code not in _BALANCE_KINDS or not _AMOUNT.fullmatch(amount):
+        return
+    value = Decimal(amount)
+    result.note_balance(account, _BALANCE_KINDS[code], -value if indicator == "DBIT" else value)
 
 
 def _refuse_dtd(data: bytes) -> None:

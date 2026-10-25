@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from salli.adapters.db.access_grants import SQLAccessGrantRepository
 from salli.adapters.db.decisions import SQLDecisionRepository, SQLPrincipleRepository
 from salli.adapters.db.notifications import SQLNotificationRepository
+from salli.adapters.db.reconciliations import SQLReconciliationRepository
 from salli.adapters.db.repositories import (
     SQLAdvisoryRepository,
     SQLAgentDocumentRepository,
@@ -84,6 +85,7 @@ from salli.application.ports import (
     PolicyRepository,
     PortfolioRepository,
     PrincipleRepository,
+    ReconciliationRepository,
     RecurringSubscriptionRepository,
     ReminderRepository,
     RuleRepository,
@@ -120,6 +122,7 @@ class UnitOfWork:
     tax_returns: TaxReturnRepository
     tax_rule_sets: TaxRuleSetRepository
     statements: StatementRepository
+    reconciliations: ReconciliationRepository
     reminders: ReminderRepository
     agent_documents: AgentDocumentRepository
     agent_sessions: AgentSessionRepository
@@ -168,6 +171,7 @@ class UnitOfWork:
         self.tax_returns = SQLTaxReturnRepository(self._session)
         self.tax_rule_sets = SQLTaxRuleSetRepository(self._session)
         self.statements = SQLStatementRepository(self._session)
+        self.reconciliations = SQLReconciliationRepository(self._session)
         self.reminders = SQLReminderRepository(self._session)
         self.agent_documents = SQLAgentDocumentRepository(self._session)
         self.agent_sessions = SQLAgentSessionRepository(self._session)

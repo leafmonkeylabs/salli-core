@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from salli.domain.currency import quantize
+from salli.domain.money import to_minor
 
 
 class Direction(int, Enum):
@@ -264,15 +265,35 @@ class JournalEntry(BaseModel):
     #: For a reversal: the entry it reverses.
     reverses: str | None = None
     postings: list[Posting] = Field(min_length=2)
+    #: The owner's base currency, when the caller knows it: the entry then
+    #: balances as the ledger keeps it, each posting's base value in that
+    #: currency's minor units (what core_0001's trigger adds up), which is
+    #: what a multi-currency entry balances in once its rounding is posted
+    #: (`ledger.fx_rounding`). Not stored.
+    base_currency: str | None = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
     def must_balance(self) -> JournalEntry:
+        if self.base_currency is not None:
+            net = base_minor_net(self.postings, self.base_currency)
+            if net != 0:
+                raise ValueError(
+                    f"Journal entry is unbalanced: net base amount = {net} minor units of "
+                    f"{self.base_currency} (must be exactly zero)"
+                )
+            return self
         total = sum((p.base_signed for p in self.postings), Decimal(0))
         if total != Decimal(0):
             raise ValueError(
                 f"Journal entry is unbalanced: net base amount = {total} (must be exactly zero)"
             )
         return self
+
+
+def base_minor_net(postings: list[Posting], base_currency: str) -> int:
+    """The entry's net in `base_currency`'s minor units, each posting's base
+    value rounded as the ledger stores it."""
+    return sum(p.direction.value * to_minor(p.amount * p.fx_rate, base_currency) for p in postings)
 
 
 class StoredJournalEntry(JournalEntry):
@@ -290,3 +311,10 @@ class StoredJournalEntry(JournalEntry):
     #: Its place in the user's hash chain (domain/accounting/chain.py).
     seq: int | None = None
     hash: str | None = None
+
+    @model_validator(mode="after")
+    def must_balance(self) -> StoredJournalEntry:
+        # Stored, so balanced as the ledger keeps it (core_0001's trigger),
+        # which a multi-currency entry with its rounding posted is only in
+        # minor units, never exactly as amount × rate.
+        return self

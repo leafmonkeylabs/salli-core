@@ -25,6 +25,7 @@ NOTE = {
     "description": None,
     "created_at": "2025-04-05T10:00:00+00:00",
     "updated_at": "2025-04-05T10:00:00+00:00",
+    "retain_until": None,
 }
 
 UPLOAD = {

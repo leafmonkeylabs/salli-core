@@ -453,6 +453,46 @@ class DecisionRepository(ABC):
         ...
 
 
+class ReconciliationRepository(ABC):
+    """Statements with the bank's balances, the cleared flag on postings, and
+    completed reconciliations. Amounts in minor units of the account's
+    currency."""
+
+    @abstractmethod
+    async def add_statement(self, user_id: str, record: dict[str, Any]) -> str:
+        """A statement typed in from the bank's: account_id, period_start,
+        period_end, opening_balance_minor, closing_balance_minor, bank."""
+        ...
+
+    @abstractmethod
+    async def statements(
+        self, user_id: str, statement_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """The user's statements that carry the bank's balances (and an
+        account), newest period first, each with its `reconciliation` (None
+        until completed); only `statement_id` when given."""
+        ...
+
+    @abstractmethod
+    async def postings(
+        self, user_id: str, account_id: str, from_date: str, to_date: str
+    ) -> list[dict[str, Any]]:
+        """The postings on the account dated in the period, with their entry's
+        date and description and their `cleared` flag."""
+        ...
+
+    @abstractmethod
+    async def set_cleared(self, user_id: str, posting_ids: list[str], cleared: bool) -> None:
+        """Set the cleared flag on the user's own postings named."""
+        ...
+
+    @abstractmethod
+    async def complete(self, user_id: str, record: dict[str, Any]) -> None:
+        """Record a completed reconciliation: statement_id,
+        cleared_total_minor, difference_minor (0), completed_by."""
+        ...
+
+
 class StatementRepository(ABC):
     """Imported statements and their parsed transactions. A parsed transaction
     read back carries its statement's `account_id` ("" when it has none)."""
@@ -469,10 +509,13 @@ class StatementRepository(ABC):
         storage_key: str = "",
         account_id: str | None = None,
         kind: str = "import",
+        balances_minor: tuple[int, int] | None = None,
     ) -> None:
         """Store the statement and its transactions, and fill in each
         transaction's new `id` and `statement_id`. `kind` is "import" (a file
-        or a feed) or "drafts" (a batch of drafted transactions)."""
+        or a feed) or "drafts" (a batch of drafted transactions).
+        `balances_minor`: the bank's opening and closing balance, for
+        reconciling."""
         ...
 
     @abstractmethod
@@ -937,6 +980,17 @@ class AgentDocumentRepository(ABC):
     @abstractmethod
     async def delete(self, user_id: str, doc_id: str) -> None:
         """Hard-delete a document."""
+        ...
+
+    @abstractmethod
+    async def cited_by_entry(self, user_id: str, doc_id: str) -> bool:
+        """Whether one of the user's journal entries cites the document."""
+        ...
+
+    @abstractmethod
+    async def filed_return_citing(self, user_id: str, doc_id: str) -> date | None:
+        """The latest filing date of a filed tax return whose period holds an
+        entry citing the document, or None."""
         ...
 
     @abstractmethod

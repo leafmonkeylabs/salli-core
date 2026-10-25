@@ -48,6 +48,8 @@ def _profile_row() -> dict[str, Any]:
         "tax_ids": [],
         "time_zone": "Europe/Lisbon",
         "lock_date": "2025-12-31",
+        "books_start": None,
+        "document_retention_years": None,
     }
 
 

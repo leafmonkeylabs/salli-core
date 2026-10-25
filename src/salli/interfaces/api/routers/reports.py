@@ -5,6 +5,8 @@ export of any of the three.
 
 from __future__ import annotations
 
+import datetime as dt
+
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -12,6 +14,7 @@ from pydantic import BaseModel
 from salli.interfaces.api.contract import Amount, CurrencyCode
 from salli.interfaces.api.deps import AppServices, CurrentUser
 from salli.interfaces.api.routers.fi import Goal, money
+from salli.interfaces.api.routers.ledger import UnrealisedFx
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -46,8 +49,14 @@ class BalanceSheet(BaseModel):
     total_equity: Amount
     #: total_assets − total_liabilities.
     net_worth: Amount
+    #: The day it is as of.
+    as_of: str
+    #: Foreign-currency accounts' unrealised exchange gain against their
+    #: historical cost (already in net worth, which counts them at the day's
+    #: rate); computed, not posted.
+    unrealised_fx: UnrealisedFx
     #: What was left out, and why (an account in a currency with no published
-    #: rate for today).
+    #: rate for the day, a day before the books start).
     notes: list[str]
 
 
@@ -77,8 +86,13 @@ class GoalProgressReport(BaseModel):
 
 
 @router.get("/balance-sheet")
-async def get_balance_sheet(user_id: CurrentUser, svc: AppServices) -> BalanceSheet:
-    return BalanceSheet.model_validate(await svc.reports.get_balance_sheet(user_id))
+async def get_balance_sheet(
+    user_id: CurrentUser, svc: AppServices, as_of: dt.date | None = None
+) -> BalanceSheet:
+    """What is owned and owed as of a day (today unless given)."""
+    return BalanceSheet.model_validate(
+        await svc.reports.get_balance_sheet(user_id, as_of.isoformat() if as_of else None)
+    )
 
 
 @router.get("/net-worth")

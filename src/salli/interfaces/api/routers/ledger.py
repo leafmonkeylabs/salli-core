@@ -53,6 +53,75 @@ class IncomeStatement(BaseModel):
     net_income: Amount
     #: Every account with activity, income first, then by code.
     lines: list[IncomeStatementLine]
+    #: The change in unrealised exchange gains not posted, over the period
+    #: (computed, not in the totals); null when a rate is missing.
+    unrealised_fx: Amount | None = None
+    #: What the figures leave out: days before the books start, missing rates.
+    notes: list[str] = []
+
+
+class UnrealisedFxLine(BaseModel):
+    account_id: str
+    code: str
+    name: str
+    #: The account's own currency; `balance` is in it.
+    account_currency: CurrencyCode
+    balance: Amount
+    #: The as-of day's rate into the base currency.
+    rate: Decimal
+    #: What the balance cost: the base amounts its postings were booked at.
+    cost: Amount
+    #: The balance at the as-of rate.
+    value: Amount
+    #: value − cost: a gain, or a loss when negative.
+    gain: Amount
+
+
+class UnrealisedFx(BaseModel):
+    """Foreign-currency asset and liability accounts revalued at a day's
+    rate against their historical cost: computed, not posted, unless a
+    revaluation was posted at a period's end (`ledger.fxRevaluation.post`)."""
+
+    as_of: str
+    #: The base currency; every figure but a line's `balance` is in it.
+    currency: CurrencyCode
+    #: The gain across the accounts (a loss negative).
+    total: Amount
+    #: What revaluations posted up to `as_of` booked of it.
+    posted: Amount
+    #: total − posted.
+    unposted: Amount
+    lines: list[UnrealisedFxLine]
+    #: Accounts left out for want of a rate.
+    notes: list[str]
+
+
+class FxRevaluationRequest(BaseModel):
+    #: A month's last day, before today.
+    as_of: dt.date
+
+
+class FxRevaluationPosted(BaseModel):
+    #: The entry posted; null when nothing was left to post.
+    entry_id: str | None
+
+
+@router.get("/unrealised-fx")
+async def unrealised_fx(user_id: CurrentUser, svc: AppServices, as_of: dt.date) -> UnrealisedFx:
+    """Unrealised exchange gains and losses as of a day: computed, nothing
+    is posted."""
+    return UnrealisedFx.model_validate(await svc.ledger.unrealised_fx(user_id, as_of.isoformat()))
+
+
+@router.post("/fx-revaluation")
+async def post_fx_revaluation(
+    body: FxRevaluationRequest, user_id: CurrentUser, svc: AppServices
+) -> FxRevaluationPosted:
+    """Post the unrealised exchange gain or loss not yet booked at a
+    period's end: to the `unrealised_fx` income account against the
+    `fx_revaluation` equity adjustment, dated that day. Only when asked."""
+    entry_id = await svc.ledger.post_fx_revaluation(user_id, body.as_of.isoformat())
+    return FxRevaluationPosted(entry_id=entry_id)
 
 
 @router.get("/trial-balance")
@@ -118,6 +187,11 @@ async def income_statement(
         return sum((Decimal(line.amount) for line in lines if line.type == kind), Decimal(0))
 
     income, expenses = total("income"), total("expense")
+    before = (dt.date.fromisoformat(from_date) - dt.timedelta(days=1)).isoformat()
+    opening = await svc.ledger.unrealised_fx(user_id, before)
+    closing = await svc.ledger.unrealised_fx(user_id, to_date)
+    rate_notes = list(dict.fromkeys([*opening["notes"], *closing["notes"]]))
+    change = Decimal(closing["unposted"]) - Decimal(opening["unposted"])
     return IncomeStatement(
         from_date=from_date,
         to_date=to_date,
@@ -128,6 +202,8 @@ async def income_statement(
         total_expenses=str(quantize(expenses, currency)),
         net_income=str(quantize(income - expenses, currency)),
         lines=lines,
+        unrealised_fx=None if rate_notes else str(quantize(change, currency)),
+        notes=[*await svc.ledger.books_note(user_id, from_date), *rate_notes],
     )
 
 

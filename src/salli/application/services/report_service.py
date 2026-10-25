@@ -9,6 +9,7 @@ into downloadable CSV bytes via the pure domain/reports/csv_export helper.
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Any
 
@@ -23,15 +24,16 @@ class ReportService:
         self._fi = fi_svc
         self._baselines = baselines
 
-    async def get_balance_sheet(self, user_id: str) -> dict[str, Any]:
-        """What is owned and owed today as the baseline counts it
+    async def get_balance_sheet(self, user_id: str, as_of: str | None = None) -> dict[str, Any]:
+        """What is owned and owed on a day (today unless `as_of`) as the baseline counts it
         (`BaselineService.worth`), so its net worth is every other read's:
         each asset and liability account at today's published rate (one
         without a rate is left out, and said in `notes`), a debt the ledger
         doesn't hold at its declared principal, and the totals with each
         account judged on its own sign. Equity as the trial balance keeps it, with
         the income and expenses not yet closed as current-year earnings."""
-        [now] = await self._baselines.worth(user_id, [self._baselines.today()])
+        day = dt.date.fromisoformat(as_of) if as_of else self._baselines.today()
+        [now] = await self._baselines.worth(user_id, [day])
         currency = now.currency
 
         def money(amount: Decimal) -> str:
@@ -56,7 +58,8 @@ class ReportService:
         ]
 
         accounts = await self._ledger.list_accounts(user_id)
-        balances = await self._ledger.get_trial_balance(user_id)
+        balances = await self._ledger.get_trial_balance(user_id, to_date=day.isoformat())
+        unrealised = await self._ledger.unrealised_fx(user_id, day.isoformat())
         equity: list[dict[str, Any]] = []
         total_equity = Decimal(0)
         for acc in accounts:
@@ -96,7 +99,13 @@ class ReportService:
             "total_liabilities": money(now.total_liabilities),
             "total_equity": money(total_equity),
             "net_worth": money(now.net_worth),
-            "notes": list(now.notes),
+            "as_of": day.isoformat(),
+            "unrealised_fx": unrealised,
+            "notes": [
+                *now.notes,
+                *unrealised["notes"],
+                *await self._ledger.books_note(user_id, day.isoformat()),
+            ],
         }
 
     async def get_net_worth_statement(self, user_id: str) -> dict[str, Any]:

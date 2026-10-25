@@ -1,6 +1,6 @@
 /**
- * salli ledger trial-balance | income-statement | lock | unlock | close-year |
- * retained-earnings | verify, and salli tags list
+ * salli ledger trial-balance | income-statement | unrealised-fx | revalue | lock | unlock |
+ * close-year | retained-earnings | verify, and salli tags list
  */
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
@@ -8,8 +8,10 @@ import {
   ledgerCloseYear,
   ledgerIncomeStatement,
   ledgerLockDateSet,
+  ledgerFxRevaluationPost,
   ledgerRetainedEarningsSet,
   ledgerTrialBalance,
+  ledgerUnrealisedFx,
   ledgerVerify,
   tagsList,
 } from '@leafmonkeylabs/salli-sdk';
@@ -122,6 +124,45 @@ export function registerLedger(program: Command, app: App): void {
           text.push(`${c.bold(padEnd('Net income', nameWidth))}  ${c.bold(out.signed(padStart(net, amountWidth), statement.net_income))}`);
           out.line(text.join('\n'));
         },
+      });
+    });
+
+  ledger
+    .command('unrealised-fx')
+    .description('Foreign-currency accounts revalued at a day’s rate against what they cost: computed, not posted')
+    .option('--as-of <date>', 'The day (default: today)', 'today')
+    .action(async (opts) => {
+      const api = await app.api();
+      const fx = await api.call(ledgerUnrealisedFx, { query: { as_of: parseDate(opts.asOf, app.runtime.now(), '--as-of') } });
+      app.out.emit(fx, {
+        records: (d) => d.lines.map((l) => ({ ...l, currency: d.currency })),
+        human: (d) => {
+          const out = app.out;
+          if (d.lines.length)
+            out.line(
+              out.table(d.lines, [
+                { header: 'ACCOUNT', get: (l) => singleLine(`${l.code} ${l.name}`), shrink: true },
+                { header: 'BALANCE', get: (l) => out.amount(l.balance, l.account_currency), align: 'right' },
+                { header: `COST (${d.currency})`, get: (l) => out.amount(l.cost, d.currency), align: 'right' },
+                { header: `VALUE (${d.currency})`, get: (l) => out.amount(l.value, d.currency), align: 'right' },
+                { header: 'GAIN', get: (l) => out.amount(l.gain, d.currency), align: 'right' },
+              ]),
+            );
+          out.line(`Unrealised ${out.amount(d.total, d.currency)} · posted ${out.amount(d.posted, d.currency)} · not posted ${out.amount(d.unposted, d.currency)}`);
+          for (const note of d.notes) out.warn(note);
+        },
+      });
+    });
+
+  ledger
+    .command('revalue')
+    .argument('<date>', 'A month’s last day, before today')
+    .description('Post the unrealised exchange gain or loss not yet booked, at a period’s end')
+    .action(async (date) => {
+      const api = await app.api();
+      const posted = await api.call(ledgerFxRevaluationPost, { body: { as_of: parseDate(date, app.runtime.now(), '<date>') } });
+      app.out.emit(posted, {
+        human: (d) => (d.entry_id ? app.out.success(`Posted the revaluation (entry ${d.entry_id.slice(0, 8)}).`) : app.out.note('Nothing left to post.')),
       });
     });
 

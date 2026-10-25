@@ -45,6 +45,7 @@ from salli.application.services.parsing_service import ParsingService
 from salli.application.services.personal_access_token_service import PersonalAccessTokenService
 from salli.application.services.portfolio_service import PortfolioService
 from salli.application.services.principle_service import PrincipleService
+from salli.application.services.reconciliation_service import ReconciliationService
 from salli.application.services.reminder_service import ReminderService
 from salli.application.services.report_service import ReportService
 from salli.application.services.rules_service import RulesService
@@ -91,6 +92,7 @@ class Services:
     subscription: SubscriptionService
     insurance: InsuranceService
     reports: ReportService
+    reconciliation: ReconciliationService
     data_portability: DataPortabilityService
     mcp_oauth: McpOAuthService
     llm_credentials: LlmCredentialService
@@ -323,6 +325,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         subscription=subscription,
         insurance=insurance,
         reports=reports,
+        reconciliation=ReconciliationService(uow_factory),
         data_portability=data_portability,
         mcp_oauth=mcp_oauth,
         llm_credentials=llm_credentials,

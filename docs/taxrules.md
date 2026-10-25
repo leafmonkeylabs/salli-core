@@ -418,10 +418,18 @@ accounts whose `tax_role` is that role's key, dated within `year.start` to
   never guessed, when there is no rate); each total is then rounded to the
   currency's minor units.
 
+A role with the key `realised_gain` is filled from the user's holdings
+instead: each sale dated in the year adds the gain it realised in the base
+currency (proceeds less fees less the cost of the lots it consumed, first in
+first out unless lots were named, each at its own day's rate; a loss
+negative), so a rule set can tax capital gains like any other role. While an
+account carries `realised_gain` as its `tax_role`, the ledger's postings
+count instead, so a gain is never counted twice.
+
 Then the engine computes every line. Limits for now: an account counts
-towards one role (its `tax_role`); amounts come only from the ledger and the
-user's answers (no portfolio lots, so no capital gains yet); and conversion is
-always at each entry date's rate, never an annual average.
+towards one role (its `tax_role`); amounts come only from the ledger, the
+holdings' sales and the user's answers; and conversion is always at each
+entry date's rate, never an annual average.
 
 An account's `tax_role` must be a role one of the user's own rule sets
 declares now: in a version that matches the schema and hasn't been superseded

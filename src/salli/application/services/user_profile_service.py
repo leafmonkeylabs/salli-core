@@ -6,6 +6,7 @@ balances and income (rather than the old empty-accounts-only flow).
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 from collections.abc import Callable
 from decimal import Decimal
@@ -256,6 +257,13 @@ class UserProfileService:
             fields["date_of_birth"] = datetime.date.fromisoformat(data["date_of_birth"])
         if "dependents_count" in data:
             fields["dependents_count"] = int(data["dependents_count"])
+        if data.get("books_start"):
+            fields["books_start"] = await self._books_start(user_id, str(data["books_start"]))
+        if data.get("document_retention_years") is not None:
+            years = int(data["document_retention_years"])
+            if not 1 <= years <= 100:
+                raise ValueError("A retention period is 1 to 100 years")
+            fields["document_retention_years"] = years
         tax_changes = {key: data[key] for key in _TAX_IDENTITY_FIELDS if key in data}
         if not fields and not tax_changes:
             return
@@ -357,6 +365,20 @@ class UserProfileService:
         cache[code] = new_id
         return new_id
 
+    async def _books_start(self, user_id: str, day: str) -> datetime.date:
+        """The day the books start, checked: nothing may be booked before it,
+        or the books would hold entries from before they start."""
+        start = datetime.date.fromisoformat(day)
+        before = await self._ledger.get_entries(
+            user_id, to_date=(start - datetime.timedelta(days=1)).isoformat()
+        )
+        if before:
+            raise ValueError(
+                f"The books hold entries from {before[0].entry_date}, before {day}: "
+                "they can start no later than their first entry"
+            )
+        return start
+
     async def declare_opening_balances(
         self, user_id: str, balances: list[dict[str, Any]]
     ) -> list[str]:
@@ -368,7 +390,15 @@ class UserProfileService:
         An asset without an `asset_role` is opened as "other": a brokerage
         account or a car booked as cash would be counted as money to spend.
         """
-        today = datetime.date.today().isoformat()
+        # On the day the books start; the first declaration starts them today
+        # when the person hasn't said when.
+        async with self._uow_factory() as uow:
+            today = ((await uow.user_profiles.get(user_id)) or {}).get("books_start")
+        if today is None:
+            today = datetime.date.today().isoformat()
+            if any(Decimal(str(b["amount"])) for b in balances):
+                with contextlib.suppress(ValueError):  # entries before today: left unset
+                    await self.update_identity(user_id, {"books_start": today})
         base = await self._ledger.base_currency(user_id)
         existing = await self._ledger.list_accounts(user_id)
         cache = {a.code: a.id for a in existing}

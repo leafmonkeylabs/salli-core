@@ -568,6 +568,7 @@ def build_mcp_server(
     services: Any, issuer_url: str, allowed_origins: Sequence[str] = ()
 ) -> FastMCP:
     ledger_svc = services.ledger
+    reconciliation_svc = services.reconciliation
     tax_svc = services.tax
     profile_svc = services.profile
     budget_svc = services.budget
@@ -707,6 +708,22 @@ def build_mcp_server(
             "is_stale": latest is None
             or (today - datetime.date.fromisoformat(latest)).days > STALE_AFTER_DAYS,
         }
+
+    @mcp.tool(annotations=READS)
+    async def get_reconciliation(statement_id: str | None = None) -> dict[str, Any]:
+        """Bank reconciliation. Without statement_id: the statements that
+        carry the bank's opening and closing balances, and whether each is
+        reconciled. With one: its account's postings in the period (cleared
+        or not), the cleared total and the difference from the closing
+        balance, in the account's currency. Quote Salli's difference; never
+        add up postings. Clearing and completing are the person's, in Salli."""
+        user_id = _current_user_id()
+        if statement_id is None:
+            return {"statements": await reconciliation_svc.list_statements(user_id)}
+        status = await reconciliation_svc.status(user_id, statement_id)
+        if status is None:
+            _fail("not_found", f"Statement not found: {statement_id}")
+        return status
 
     @mcp.tool(annotations=READS)
     async def search_entries(

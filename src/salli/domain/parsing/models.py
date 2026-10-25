@@ -50,6 +50,10 @@ class RawRow:
     #: Where the row came from ("ofx", "csv", "feed:simplefin"...). An id is
     #: only compared with ids from the same kind of source.
     ref_source: str = ""
+    #: The amount in the owner's base currency, when the bank gives it (a
+    #: foreign-currency account's statement often does): the rate posted is
+    #: then derived from it rather than looked up.
+    base_amount: Decimal | None = None
 
 
 @dataclass
@@ -80,6 +84,11 @@ class ParsedTransaction:
     # The statement's account, when it has one: the money side of this row
     # (debited for money in, credited for money out).
     account_id: str = ""
+    # The other side split across accounts: [{"account_id", "amount" (a
+    # decimal string, in the row's currency), "category", "need"}], adding up
+    # to the row's amount. Empty: one other side, debit_account_id or
+    # credit_account_id.
+    splits: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
 
 
 @dataclass

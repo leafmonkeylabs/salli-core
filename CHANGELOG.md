@@ -4,6 +4,43 @@
 
 ### Added
 
+- **Bank reconciliation.** A statement with the bank's opening and closing
+  balance (an MT940 or camt.053 import carries them; any other is typed in)
+  is reconciled by clearing the postings it shows; it completes only at a
+  difference of zero and records who completed it and when. `salli reconcile
+  list|add|show|clear|complete`, `/v1/reconciliation/*`, the MCP read
+  `get_reconciliation` ([docs/books.md](docs/books.md)). Clearing is the one
+  change a closed month's posting still takes (core_0038).
+
+- **Where the books start.** `books_start` on the profile (`salli profile set
+  --books-start`): opening balances are posted on it, and a balance sheet or
+  income statement for a time before it says so.
+
+- **Currencies balance exactly.** A multi-currency entry's rounding in the
+  base currency (a minor unit a posting at most) is posted to an
+  `fx_rounding` account, opened when first needed. Unrealised exchange gains
+  and losses are computed as of a day (`salli ledger unrealised-fx`, the
+  balance sheet's `unrealised_fx` and its `as_of`, the income statement's
+  `unrealised_fx`), and posted only when asked at a month's end (`salli
+  ledger revalue`).
+
+- **Imports: the bank's base amount and splits.** A drafted or fed row may
+  carry its amount in the base currency, and the rate posted is derived from
+  it; a transaction is split across accounts in review (`salli statements
+  categorize <id> --split account:amount`).
+
+- **Document retention.** A retention period on the profile (`salli profile
+  set --retention-years`) keeps each document saved from then on until its
+  `retain_until`; a document an entry cites is not deleted while no retention
+  period has passed, and one cited by an entry in a filed tax return's
+  period is kept for the period from the return's filing.
+
+- **Capital gains for tax rules.** A rule set's `realised_gain` role is filled
+  from the holdings' sales in its year.
+
+- **The plain-text exports are checked by their tools.** CI runs the
+  Beancount and hledger exports through `bean-check` and `hledger check`.
+
 - **Filed years, a year-end close, and who posted what.** A return record
   keeps what was filed: each version of a year's return (draft, filed,
   amended with a reason), with a snapshot of its computation and the

@@ -74,6 +74,15 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/ledger/trial-balance"): "ledger.trialBalance",
     ("GET", "/ledger/income-statement"): "ledger.incomeStatement",
     ("PUT", "/ledger/lock-date"): "ledger.lockDate.set",
+    ("GET", "/ledger/unrealised-fx"): "ledger.unrealisedFx",
+    ("POST", "/ledger/fx-revaluation"): "ledger.fxRevaluation.post",
+    ("GET", "/reconciliation/statements"): "reconciliation.statements.list",
+    ("POST", "/reconciliation/statements"): "reconciliation.statements.add",
+    ("GET", "/reconciliation/statements/{statement_id}"): "reconciliation.statements.get",
+    ("POST", "/reconciliation/statements/{statement_id}/clear"): "reconciliation.statements.clear",
+    ("POST", "/reconciliation/statements/{statement_id}/complete"): (
+        "reconciliation.statements.complete"
+    ),
     ("POST", "/ledger/year-end-close"): "ledger.closeYear",
     ("PUT", "/ledger/retained-earnings"): "ledger.retainedEarnings.set",
     ("GET", "/ledger/verify"): "ledger.verify",

@@ -70,6 +70,16 @@ async def test_the_balance_sheet_is_what_the_baseline_owns_and_owes_today(client
         "total_liabilities": "5200.00",
         "total_equity": "30300.50",
         "net_worth": "26300.50",
+        "as_of": TODAY.isoformat(),
+        "unrealised_fx": {
+            "as_of": TODAY.isoformat(),
+            "currency": "LKR",
+            "total": "0.00",
+            "posted": "0.00",
+            "unposted": "0.00",
+            "lines": [],
+            "notes": [],
+        },
         "notes": [],
     }
 

@@ -52,6 +52,16 @@ def mock_services():
     svc.ledger = AsyncMock()
     # Routers that report amounts say which currency they are in.
     svc.ledger.base_currency.return_value = "LKR"
+    svc.ledger.books_note.return_value = []
+    svc.ledger.unrealised_fx.side_effect = lambda _user, as_of: {
+        "as_of": as_of,
+        "currency": "LKR",
+        "total": "0.00",
+        "posted": "0.00",
+        "unposted": "0.00",
+        "lines": [],
+        "notes": [],
+    }
     svc.tax = AsyncMock()
     svc.agent = AsyncMock()
     svc.fi = AsyncMock()

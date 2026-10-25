@@ -179,3 +179,39 @@ async def test_entries_record_their_author_and_the_chain_finds_a_change(uow_fact
     check = await ledger.verify_chain("ana")
     assert check["ok"] is False and check["checked"] == 1
     assert check["first_break"]["seq"] == 2 and check["first_break"]["reason"] == "content"
+
+
+async def test_a_document_behind_a_filed_return_is_kept_from_the_filing(uow_factory, rules):
+    from salli.application.services.document_service import DocumentRetained, DocumentService
+
+    class _Storage:
+        async def upload(self, user_id: str, key: str, data: bytes) -> str:
+            return f"{user_id}/{key}"
+
+    async with uow_factory() as uow:
+        await uow.user_profiles.upsert(A, {"document_retention_years": 1})
+    day = [datetime.date(2031, 6, 30)]
+    docs = DocumentService(uow_factory, _Storage(), today=lambda: day[0])  # type: ignore[arg-type]
+    await _activate(rules, remitland())
+    await _book(uow_factory, A, local="1000.000")
+    receipt = (await docs.save_file(A, "payslip.pdf", b"%PDF"))["id"]
+    ledger = LedgerService(uow_factory, today=lambda: LATER)
+    codes = {a.code: a.id for a in await ledger.list_accounts(A)}
+    legs = [
+        {"account_id": codes["1000"], "direction": Direction.DEBIT, "amount": Decimal("5")},
+        {"account_id": codes["4000"], "direction": Direction.CREDIT, "amount": Decimal("5")},
+    ]
+    await ledger.add_entry(A, "2031-06-30", "Bonus", "manual", legs, external_ref=receipt)
+    tax = TaxService(uow_factory, rules, clock=lambda: LATER)
+    computation = await tax.compute_tax(A, country="XG", year="2031/32")
+    await ledger.set_lock_date(A, "2032-03-31")
+    await tax.record_return(
+        A, computation["id"], "filed", reference="XG-9", filed_on=datetime.date(2032, 6, 1)
+    )
+
+    # Its own retention ended 2032-06-30; the return's runs from its filing.
+    day[0] = datetime.date(2032, 7, 1)
+    with pytest.raises(DocumentRetained, match="2033-06-01"):
+        await docs.delete_document(A, receipt)
+    day[0] = datetime.date(2033, 6, 1)
+    await docs.delete_document(A, receipt)
