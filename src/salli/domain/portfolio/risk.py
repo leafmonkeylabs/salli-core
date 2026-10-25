@@ -9,6 +9,15 @@ returns (performance.report over each calendar month). Pure.
                  a cash yield the person gives (their assumptions' cash
                  yield, say), else the benchmark's own yearly return
 
+  tracking_error the standard deviation of the monthly differences from a
+                 benchmark × √12
+
+A blended benchmark weights several recorded series (`blend`): the person's
+investment policy targets give the weights, each class measured against a
+series they name. Net of fees, the yearly return less the holdings'
+weighted expense ratio (prices of a fund that already nets its costs are
+then counted twice, so the figure is labelled as the person's own ratio).
+
 A benchmark is a series of closes the person records for any symbol (an index
 they follow): its monthly returns come from its last close on or before each
 month's end. Nothing is fetched. Fewer than two monthly returns give no
@@ -96,3 +105,24 @@ def series_returns(
                 return None
             returns.append(after / before - 1)
     return returns
+
+
+def tracking_error(own: Sequence[Decimal], bench: Sequence[Decimal]) -> Decimal | None:
+    """The monthly differences' standard deviation × √12; None under two
+    months or when the series differ in length."""
+    n = len(own)
+    if n < 2 or len(bench) != n:
+        return None
+    with localcontext(RATE):
+        diffs = [a - b for a, b in zip(own, bench, strict=True)]
+        mean = sum(diffs, Decimal(0)) / n
+        variance = sum(((d - mean) ** 2 for d in diffs), Decimal(0)) / (n - 1)
+        return variance.sqrt() * _TWELVE.sqrt()
+
+
+def blend(series: Sequence[tuple[Decimal, Sequence[Decimal]]]) -> list[Decimal]:
+    """Monthly returns weighted across series, `(weight, returns)` with the
+    weights summing to 1 and the series of one length."""
+    months = len(series[0][1])
+    with localcontext(RATE):
+        return [sum((w * r[k] for w, r in series), Decimal(0)) for k in range(months)]

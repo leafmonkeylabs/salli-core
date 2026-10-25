@@ -59,6 +59,7 @@ from salli.domain.portfolio.lots import (
     validate,
 )
 from salli.domain.portfolio.models import Holding
+from salli.domain.portfolio.policy import check_allocation
 from salli.domain.portfolio.returns import RATE, annualised
 from salli.domain.portfolio.valuation import Close, Pricing, Valuation
 
@@ -311,6 +312,36 @@ async def rule_set_method(uow: Any, user_id: str, today: date) -> CostMethod | N
     return None
 
 
+async def rule_set_terms(uow: Any, user_id: str, today: date) -> tuple[int | None, int | None]:
+    """The active tax rules' `long_term_after_months` and `wash_sale_days`
+    (the rule set in the user's residency whose year covers `today`), each
+    None when they declare none."""
+    profile: dict[str, Any] = await uow.user_profiles.get(user_id) or {}
+    residency = profile.get("tax_residency")
+    if not residency:
+        return None, None
+    for row in await uow.tax_rule_sets.active_versions(user_id):
+        version: dict[str, Any] = row.get("version") or {}
+        content: dict[str, Any] = version.get("content") or {}
+        year: dict[str, Any] = content.get("year") or {}
+        if row.get("country") != residency:
+            continue
+        if str(year.get("start", "")) <= today.isoformat() <= str(year.get("end", "")):
+            return content.get("long_term_after_months"), content.get("wash_sale_days")
+    return None, None
+
+
+def _held(opened: date, until: date, months: int | None) -> str | None:
+    """`long` when held more than `months` months to `until`, else `short`;
+    None without a line."""
+    if months is None:
+        return None
+    held = (until.year - opened.year) * 12 + until.month - opened.month
+    if until.day < opened.day:
+        held -= 1
+    return "long" if held >= months and until > opened else "short"
+
+
 def _cost_method(value: object) -> CostMethod | None:
     if value is None:
         return None
@@ -329,6 +360,12 @@ def _expense_ratio(value: object) -> Decimal | None:
 
 
 # ── Views ─────────────────────────────────────────────────────────────────────
+
+
+def _allocation(value: object) -> dict[str, str] | None:
+    """A look-through allocation as stored: class → share as a string."""
+    checked = check_allocation(value)
+    return None if checked is None else {k: plain(v) for k, v in checked.items()}
 
 
 def _money(value: Decimal, currency: str) -> str:
@@ -585,6 +622,7 @@ def _holding_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, Any]
             if holding.get("expense_ratio") is not None
             else None
         ),
+        "allocation": holding.get("allocation"),
         "created_at": holding.get("created_at"),
         "updated_at": holding.get("updated_at"),
         "tracking": valued["tracking"],
@@ -663,6 +701,7 @@ class PortfolioService:
                 holding["account_id"] = data["account_id"]
             holding["cost_method"] = _cost_method(data.get("cost_method"))
             holding["expense_ratio"] = _expense_ratio(data.get("expense_ratio"))
+            holding["allocation"] = _allocation(data.get("allocation"))
             return await uow.holdings.save(user_id, holding)
 
     async def list_holdings(self, user_id: str, active_only: bool = True) -> list[dict[str, Any]]:
@@ -711,6 +750,8 @@ class PortfolioService:
                 updates["account_id"] = data["account_id"] or None
             if "expense_ratio" in data:
                 updates["expense_ratio"] = _expense_ratio(data["expense_ratio"])
+            if "allocation" in data:
+                updates["allocation"] = _allocation(data["allocation"])
             if "cost_method" in data:
                 # None returns it to its rules' method, else first in, first out.
                 method = _cost_method(data["cost_method"])
@@ -912,8 +953,20 @@ class PortfolioService:
             base = await uow.user_profiles.base_currency(user_id)
             rows = await uow.holding_transactions.list(user_id, holding_id)
             method = await self._method_of(uow, user_id, holding)
+            today = self._today()
+            long_after, wash_days = await rule_set_terms(uow, user_id, today)
         currency = holding["currency"]
-        book = replay(history(rows, currency), method=method)
+        transactions = history(rows, currency)
+        book = replay(transactions, method=method)
+        buys = [tx.on for tx in transactions if tx.kind is Kind.BUY]
+
+        def washed(sale_on: date, gain: Decimal) -> bool | None:
+            if wash_days is None:
+                return None
+            return gain < 0 and any(
+                abs((on - sale_on).days) <= wash_days and on != sale_on for on in buys
+            )
+
         position = book.position
         with localcontext(EXACT):
             lots = [
@@ -929,6 +982,9 @@ class PortfolioService:
                         _per_unit(lot.cost / lot.quantity) if lot.quantity > 0 else None
                     ),
                     "is_open": lot.is_open,
+                    "holding_period": _held(lot.opened_on, today, long_after)
+                    if lot.is_open
+                    else None,
                 }
                 for lot in book.lots
             ]
@@ -946,10 +1002,12 @@ class PortfolioService:
                 "fees_base": _money(sale.fees_base, base),
                 "cost_base": _money(sale.cost_base, base),
                 "gain_base": _money(sale.gain_base, base),
+                "wash_sale": washed(sale.on, sale.gain_base),
                 "consumed": [
                     {
                         "lot_id": c.lot_id,
                         "opened_on": c.opened_on.isoformat(),
+                        "holding_period": _held(c.opened_on, sale.on, long_after),
                         "quantity": plain(c.quantity),
                         "cost": _money(c.cost, currency),
                         "cost_base": _money(c.cost_base, base),
@@ -964,6 +1022,8 @@ class PortfolioService:
             "currency": currency,
             "base_currency": base,
             "cost_method": method,
+            "long_term_after_months": long_after,
+            "wash_sale_days": wash_days,
             "quantity": plain(position.quantity),
             "cost": _money(position.cost, currency),
             "cost_base": _money(position.cost_base, base),
@@ -1152,6 +1212,7 @@ class PortfolioService:
         holding_id: str | None = None,
         benchmark: str | None = None,
         cash_yield: Decimal | None = None,
+        blend: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         """Gains, income and returns from `start` to `end` inclusive (a tax
         year, say): per holding in its own currency and the base one, and for
@@ -1185,8 +1246,29 @@ class PortfolioService:
                 if cash_yield is None and not benchmark
                 else None
             )
+            blend_rows: dict[str, list[dict[str, Any]]] = {}
+            weights: dict[str, Decimal] = {}
+            if blend:
+                versions = await uow.investment_policies.list(user_id)
+                if not versions:
+                    raise ValueError(
+                        "A blended benchmark takes its weights from your investment policy: adopt one first"
+                    )
+                targets = {
+                    t["asset_class"]: Decimal(t["target"])
+                    for t in versions[-1]["content"]["targets"]
+                }
+                unknown = sorted(set(blend) - set(targets))
+                if unknown:
+                    raise ValueError(f"Not classes of your investment policy: {', '.join(unknown)}")
+                weights = {c: targets[c] for c in blend}
+                for asset_class, symbol in blend.items():
+                    blend_rows[asset_class] = await uow.holding_prices.list(
+                        user_id, symbol_key(symbol), None, None
+                    )
 
         measured = [t for t in tracked if t.tracked]
+        notes: list[str] = []
         first = _date(start) if start else None
         if first == date.min:
             # Nothing can precede the first day there is: from the start.
@@ -1247,8 +1329,54 @@ class PortfolioService:
         else:
             hurdle, hurdle_source = None, None
         own = risk.figures(monthly, hurdle)
+        blended: list[Decimal] | None = None
+        if blend:
+            parts = [
+                (
+                    weights[c],
+                    risk.series_returns(
+                        [(_date(r["price_date"]), Decimal(r["close"])) for r in rows], windows
+                    ),
+                )
+                for c, rows in blend_rows.items()
+            ]
+            covered = sum((w for w, _ in parts), Decimal(0))
+            if any(r is None for _, r in parts) or covered <= 0:
+                notes.append(
+                    "No blended benchmark: each series needs a recorded close on or before "
+                    "the start of every month in the period"
+                )
+            else:
+                blended = risk.blend([(w / covered, cast(list[Decimal], r)) for w, r in parts])
+                if covered != 1:
+                    notes.append(
+                        "The blended benchmark's weights are your policy's targets for the "
+                        f"classes named, scaled to add up to 1 (they cover {plain(covered)})"
+                    )
+        blend_figures = risk.figures(blended, None) if blended else None
+        against = blended if blended is not None else bench
+        own_months = monthly[-len(against) :] if against else monthly
+        tracking = risk.tracking_error(own_months, against) if against else None
+        # Valued only when a holding has a ratio: nothing to weigh otherwise.
+        costed = [t for t in tracked if t.holding["is_active"] and t.holding.get("expense_ratio")]
+        weighted: str | None = None
+        if costed:
+            valuations_now = await self._value_now(base, costed)
+            weighted = cast(
+                str | None,
+                engine.running_costs(
+                    [
+                        (
+                            t.holding["symbol"],
+                            v.value_base if v is not None else Decimal(0),
+                            _expense_ratio(t.holding.get("expense_ratio")),
+                        )
+                        for t, v in zip(costed, valuations_now, strict=True)
+                    ],
+                    quantum(base),
+                )["weighted_expense_ratio"],
+            )
 
-        notes: list[str] = []
         declared = [t for t in tracked if not t.tracked]
         if benchmark and bench is None:
             notes.append(
@@ -1306,6 +1434,30 @@ class PortfolioService:
                     if benchmark and bench_figures
                     else None
                 ),
+                "blended_benchmark": (
+                    {
+                        "weights": {c: plain(w) for c, w in weights.items()},
+                        "series": {c: symbol_key(sym) for c, sym in (blend or {}).items()},
+                        "yearly_return": _rate_view(blend_figures.yearly_return),
+                        "volatility": _rate_view(blend_figures.volatility),
+                        "max_drawdown": _rate_view(blend_figures.max_drawdown),
+                    }
+                    if blend_figures
+                    else None
+                ),
+                "tracking_error": _rate_view(tracking),
+                "tracking_against": None
+                if tracking is None
+                else ("blended_benchmark" if blended is not None else "benchmark"),
+                "net_of_fees": {
+                    "expense_ratio": weighted,
+                    "yearly_return": None
+                    if own.yearly_return is None or weighted is None
+                    else _rate_view(own.yearly_return - Decimal(weighted)),
+                    "says": "The yearly return less your holdings' weighted expense ratio, "
+                    "your own figures; a fund whose prices already net its costs is then "
+                    "counted twice.",
+                },
             },
             "notes": notes,
         }

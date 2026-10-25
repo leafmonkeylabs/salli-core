@@ -266,6 +266,12 @@ class RuleSet(Model):
     #: holding says otherwise: first in, first out (named lots allowed) or
     #: the average cost. None: first in, first out.
     cost_basis: Literal["fifo", "average"] | None = None
+    #: A holding's lot held longer than this many months is held long term;
+    #: None: these rules draw no line.
+    long_term_after_months: Annotated[int, Field(ge=1, le=600)] | None = None
+    #: A sale at a loss with a buy of the same holding within this many days
+    #: either side is flagged; None: these rules declare no such window.
+    wash_sale_days: Annotated[int, Field(ge=1, le=365)] | None = None
     examples: Annotated[list[Example], Field(max_length=200)] = Field(default_factory=list[Example])
 
     def provisional_values(self) -> list[dict[str, str]]:

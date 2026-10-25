@@ -3,16 +3,25 @@ Risk capacity: how much loss a household's finances can take, beside how much
 the person says they can stomach (tolerance, engine.py). Pure: figures in,
 a profile out.
 
-Four measures from the baseline, each worth 0-25 points:
+Five measures, each worth 0-25 points:
   • Emergency months  — cash and savings ÷ average monthly spending
   • Income stability  — how much monthly income varies (its coefficient of
                         variation over the months observed; three at least)
   • Horizon           — years until the money is needed
   • Debt service      — scheduled debt payments ÷ monthly income
+  • Dependents        — the people who rely on the income (the questionnaire)
 A measure that can't be had is left out and named, and the score is scaled
-over the rest. The profile is the lower of tolerance and capacity. It gates
-nothing: it is shown beside allocation checks, and an investment policy whose
-equity target is above the profile's band is flagged.
+over the rest. The profile is the lower of tolerance and capacity.
+
+Need (`required_return`) is the third part: the yearly real return the
+asset base and the monthly saving need to reach the FI number within the
+horizon, and the category that return asks for (`need_category`). It is
+shown beside the profile, never folded into it: a need above the profile
+says the plan asks more than the person can or will take.
+
+The profile gates the investment policy: a version whose equity target is
+above the profile's band is adopted only with an override and its reason,
+stored with it (`portfolio/policy.py`).
 """
 
 from __future__ import annotations
@@ -75,9 +84,12 @@ def compute(
     income_variation: Decimal | None,
     horizon_years: int | None,
     debt_service: Decimal | None,
+    dependents: int | None = None,
 ) -> RiskCapacity:
     breakdown: dict[str, int] = {}
     missing: list[str] = []
+    if dependents is not None:
+        breakdown["dependents"] = 25 if dependents <= 0 else 15 if dependents <= 2 else 5
     if emergency_months is None:
         missing.append("emergency_months")
     else:
@@ -115,3 +127,58 @@ def profile(tolerance: RiskCategory | None, capacity: RiskCategory) -> RiskCateg
     if tolerance is None:
         return capacity
     return min(tolerance, capacity, key=_ORDER.__getitem__)
+
+
+#: The most real return a year each profile is described as reaching for:
+#: part of Salli's method, not a forecast or any market's figure.
+NEED_BANDS: dict[RiskCategory, Decimal] = {
+    "conservative": Decimal("0.02"),
+    "balanced": Decimal("0.045"),
+    "aggressive": Decimal("0.20"),
+}
+
+
+def _grown(start: Decimal, monthly: Decimal, rate: Decimal, months: int) -> Decimal:
+    value = start
+    step = Decimal(1) + rate / 12
+    for _ in range(months):
+        value = value * step + monthly
+    return value
+
+
+def required_return(
+    start: Decimal, monthly: Decimal, target: Decimal, years: int
+) -> Decimal | None:
+    """The yearly real return (to four places, from -0.05 to 0.20) at which
+    `start` plus `monthly` saved reaches `target` in `years`; None when even
+    0.20 does not, or there is no target or horizon."""
+    if target <= 0 or years <= 0:
+        return None
+    months = years * 12
+    low, high = Decimal("-0.05"), Decimal("0.20")
+    if _grown(start, monthly, low, months) >= target:
+        return low
+    if _grown(start, monthly, high, months) < target:
+        return None
+    while high - low > Decimal("0.0001"):
+        mid = (low + high) / 2
+        if _grown(start, monthly, mid, months) >= target:
+            high = mid
+        else:
+            low = mid
+    return high.quantize(Decimal("0.0001"))
+
+
+def need_category(required: Decimal | None) -> RiskCategory:
+    """The least profile whose band covers the required return; aggressive
+    when none does."""
+    if required is None:
+        return "aggressive"
+    for category, ceiling in NEED_BANDS.items():
+        if required <= ceiling:
+            return category
+    return "aggressive"
+
+
+def above(a: RiskCategory, b: RiskCategory) -> bool:
+    return _ORDER[a] > _ORDER[b]

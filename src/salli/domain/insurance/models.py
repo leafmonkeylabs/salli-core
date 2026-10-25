@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal
 
-PolicyType = Literal["life", "health", "motor", "property", "other"]
+PolicyType = Literal["life", "health", "motor", "property", "liability", "other"]
 PremiumFrequency = Literal["monthly", "quarterly", "yearly"]
 
 
@@ -49,6 +49,8 @@ class CoverageGapLine:
     target_amount: Decimal
     actual_coverage: Decimal
     gap: Decimal  # target - actual; positive means under-covered
+    #: "target": the amount the user typed; "needs": the needs analysis's.
+    basis: Literal["target", "needs"] = "target"
 
 
 @dataclass(frozen=True)

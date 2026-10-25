@@ -11,7 +11,10 @@ behaviour) — there is no universal "correct" coverage amount to assume otherwi
 
 `needs` is a needs analysis from the person's own figures: life cover from
 income replacement years, debts and goals less assets; income protection from
-spending. Figures only: it names no product and no provider.
+spending; liability cover from what a claim against the person could reach,
+their net worth. Figures only: it names no product and no provider. Where
+the person typed no target for life or liability cover, the report's gap
+line for it comes from the needs analysis (`basis` "needs").
 """
 
 from __future__ import annotations
@@ -35,6 +38,7 @@ def compute_report(
     targets: list[CoverageTarget],
     today: str,
     expiry_warning_days: int = 30,
+    needed: Needs | None = None,
 ) -> CoverageGapReport:
     coverage_by_type: dict[str, Decimal] = {}
     for p in policies:
@@ -58,6 +62,18 @@ def compute_report(
         )
         if actual == Decimal(0):
             missing_types.append(target.policy_type)
+    if needed is not None:
+        typed = {t.policy_type for t in targets}
+        for kind, amount in (
+            ("life", needed.life_cover_need),
+            ("liability", needed.liability_cover_need),
+        ):
+            if kind in typed or amount <= 0:
+                continue
+            actual = coverage_by_type.get(kind, Decimal(0))
+            lines.append(CoverageGapLine(kind, amount, actual, amount - actual, "needs"))
+            if actual == Decimal(0):
+                missing_types.append(kind)
 
     today_date = date.fromisoformat(today)
     expiring_soon: list[ExpiryAlert] = []
@@ -102,6 +118,11 @@ class Needs:
     life_cover_gap: Decimal
     #: A month's spending: what an income-protection benefit would replace.
     income_protection_monthly: Decimal
+    #: Net worth, never below zero: what a claim against the person could reach.
+    liability_cover_need: Decimal = Decimal(0)
+    #: The active liability policies' cover, and need − held (never below zero).
+    liability_cover_held: Decimal = Decimal(0)
+    liability_cover_gap: Decimal = Decimal(0)
 
 
 def needs(
@@ -112,6 +133,8 @@ def needs(
     assets: Decimal,
     life_cover_held: Decimal,
     replacement_years: int,
+    net_worth: Decimal = Decimal(0),
+    liability_cover_held: Decimal = Decimal(0),
 ) -> Needs:
     """Life cover from replacing income for `replacement_years`, paying off
     debts and funding goals, less what is already there; income protection
@@ -128,4 +151,7 @@ def needs(
         life_cover_held=life_cover_held,
         life_cover_gap=max(need - life_cover_held, Decimal(0)),
         income_protection_monthly=max(monthly_expenses, Decimal(0)),
+        liability_cover_need=max(net_worth, Decimal(0)),
+        liability_cover_held=liability_cover_held,
+        liability_cover_gap=max(max(net_worth, Decimal(0)) - liability_cover_held, Decimal(0)),
     )

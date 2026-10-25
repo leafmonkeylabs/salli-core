@@ -76,11 +76,7 @@ class InsuranceService:
         # The figures a needs analysis starts from.
         self._baselines = baselines
 
-    async def get_needs(self, user_id: str, replacement_years: int = 10) -> dict[str, Any]:
-        """Life cover and income protection, as figures from the baseline:
-        income replacement for `replacement_years`, debts and the active
-        goals still to fund, less cash, savings and investments; and a
-        month's spending. Never a product."""
+    async def _needs(self, user_id: str, replacement_years: int) -> tuple[str, engine.Needs]:
         if self._baselines is None:
             raise RuntimeError("InsuranceService needs the baseline for a needs analysis")
         baseline = await self._baselines.build(user_id)
@@ -97,24 +93,37 @@ class InsuranceService:
             ),
             ZERO,
         )
-        held = sum(
-            (
-                from_minor(p["coverage_amount_minor"], currency)
-                for p in policies
-                if p["policy_type"] == "life"
-            ),
-            ZERO,
-        )
+
+        def held(kind: str) -> Decimal:
+            return sum(
+                (
+                    from_minor(p["coverage_amount_minor"], currency)
+                    for p in policies
+                    if p["policy_type"] == kind
+                ),
+                ZERO,
+            )
+
         investments = sum((b.owned for b in baseline.balances if b.role == "investment"), ZERO)
-        result = engine.needs(
+        return currency, engine.needs(
             baseline.flows.income,
             baseline.flows.expenses,
             baseline.total_liabilities,
             to_fund,
             baseline.liquid + investments,
-            held,
+            held("life"),
             replacement_years,
+            baseline.net_worth,
+            held("liability"),
         )
+
+    async def get_needs(self, user_id: str, replacement_years: int = 10) -> dict[str, Any]:
+        """Life cover, income protection and liability cover, as figures from
+        the baseline: income replacement for `replacement_years`, debts and
+        the active goals still to fund, less cash, savings and investments; a
+        month's spending; and net worth, what a claim could reach. Never a
+        product."""
+        currency, result = await self._needs(user_id, replacement_years)
 
         def money(value: Decimal) -> str:
             return str(quantize(value, currency, strict=False))
@@ -130,6 +139,9 @@ class InsuranceService:
             "life_cover_held": money(result.life_cover_held),
             "life_cover_gap": money(result.life_cover_gap),
             "income_protection_monthly": money(result.income_protection_monthly),
+            "liability_cover_need": money(result.liability_cover_need),
+            "liability_cover_held": money(result.liability_cover_held),
+            "liability_cover_gap": money(result.liability_cover_gap),
         }
 
     async def add_policy(self, user_id: str, data: dict[str, Any]) -> str:
@@ -212,19 +224,23 @@ class InsuranceService:
             policies = await uow.policies.list(user_id, active_only=True)
             targets = await uow.insurance_targets.list(user_id)
 
+        # Life and liability cover without a typed target: the needs analysis's.
+        needed = None if self._baselines is None else (await self._needs(user_id, 10))[1]
         report = engine.compute_report(
             [_to_domain_policy(p, currency) for p in policies],
             [_to_domain_target(t, currency) for t in targets],
             today,
+            needed=needed,
         )
         return {
             "currency": currency,
             "lines": [
                 {
                     "policy_type": line.policy_type,
-                    "target_amount": str(quantize(line.target_amount, currency)),
-                    "actual_coverage": str(quantize(line.actual_coverage, currency)),
-                    "gap": str(quantize(line.gap, currency)),
+                    "target_amount": str(quantize(line.target_amount, currency, strict=False)),
+                    "actual_coverage": str(quantize(line.actual_coverage, currency, strict=False)),
+                    "gap": str(quantize(line.gap, currency, strict=False)),
+                    "basis": line.basis,
                 }
                 for line in report.lines
             ],

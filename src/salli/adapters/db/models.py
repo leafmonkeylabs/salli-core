@@ -1471,6 +1471,9 @@ class HoldingORM(Base):
     cost_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # The user's figure for its yearly running cost, a fraction of its value.
     expense_ratio: Mapped[Decimal | None] = mapped_column(Numeric(10, 6), nullable=True)
+    # A fund's look-through: asset class → share as a decimal string,
+    # summing to 1 (core_0042); NULL, its own asset class.
+    allocation: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

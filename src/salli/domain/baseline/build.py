@@ -46,6 +46,7 @@ from salli.domain.baseline.models import (
     Balance,
     Baseline,
     BaselineDebt,
+    BaselineHolding,
     BaselineInputs,
     BaselineTax,
     DeclaredDebt,
@@ -62,6 +63,22 @@ from salli.domain.taxrules.inputs import role_postings
 
 #: How far back a card must have paid for things to count as cash.
 _CARD_DAYS = 90
+
+
+def expense_ratio(inputs: BaselineInputs, held: Sequence[BaselineHolding]) -> Decimal:
+    """The active holdings' expense ratios weighted by their value in the
+    base currency, over those that have one (as the portfolio summary's
+    running costs are); 0 without any."""
+    ratios = {h.holding_id: h.expense_ratio for h in inputs.holdings if h.expense_ratio is not None}
+    valued = [
+        (h.value_base, ratios[h.holding_id])
+        for h in held
+        if h.is_active and h.holding_id in ratios and h.value_base is not None and h.value_base > 0
+    ]
+    total = sum((v for v, _ in valued), Decimal(0))
+    if total <= 0:
+        return Decimal(0)
+    return (sum((v * r for v, r in valued), Decimal(0)) / total).quantize(Decimal("0.000001"))
 
 
 def _native_amounts(
@@ -358,7 +375,7 @@ def build(inputs: BaselineInputs) -> Baseline:
         rates=rates,
         flows=flows,
         debts=tuple(debts),
-        assumptions=resolve(inputs.own_assumptions, inputs.cma),
+        assumptions=resolve(inputs.own_assumptions, inputs.cma, expense_ratio(inputs, held)),
         plan=inputs.plan,
         recurring=tuple(found),
         covered_by=tuple(covering),

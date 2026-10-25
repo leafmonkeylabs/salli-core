@@ -1,8 +1,12 @@
 """
 Risk profiling domain models — pure, frozen dataclasses. No I/O.
 
-Mirrors the tax/fi domains: a structured input (`RiskQuestionnaireAnswers`) and a
-fully-recorded output (`RiskProfile`) produced by the pure `engine.compute` function.
+A structured input (`RiskQuestionnaireAnswers`) and a fully recorded output
+(`RiskProfile`, the tolerance) produced by the pure `engine.compute`. The
+questionnaire keeps three things apart: tolerance (attitude to loss, scored),
+capacity (what the finances can take: the horizon, income stability and
+dependents asked here, with the baseline's figures, `capacity.py`) and
+experience, recorded but never scored: knowing markets is not wanting risk.
 """
 
 from __future__ import annotations
@@ -18,18 +22,28 @@ RiskCategory = Literal["conservative", "balanced", "aggressive"]
 
 @dataclass(frozen=True)
 class RiskQuestionnaireAnswers:
-    """Standard risk-tolerance dimensions: horizon, loss reaction, income stability,
-    experience, and dependents (a higher dependents count pulls toward caution)."""
+    """The tolerance items (`drawdown_reaction` and the 1-5 items of
+    `engine.ITEMS`, each optional but the first), the capacity items
+    (horizon, income stability, dependents) and experience (not scored)."""
 
     time_horizon_years: int
     drawdown_reaction: DrawdownReaction
     income_stability: IncomeStability
     investment_experience: InvestmentExperience
     dependents_count: int = 0
+    #: Tolerance items on a 1-5 scale (`engine.ITEMS`); None: not answered.
+    loss_tolerance: int | None = None
+    certainty: int | None = None
+    volatility_comfort: int | None = None
+    self_rating: int | None = None
+    loss_focus: int | None = None
+    past_behaviour: int | None = None
 
 
 @dataclass(frozen=True)
 class RiskProfile:
-    score: int  # 0..100
+    """The tolerance: attitude only."""
+
+    score: int  # 0..100, over the items answered
     category: RiskCategory
-    breakdown: dict[str, int] = field(default_factory=dict[str, int])  # per-dimension points
+    breakdown: dict[str, int] = field(default_factory=dict[str, int])  # per-item points, 0-4

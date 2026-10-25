@@ -66,6 +66,7 @@ const ASSUMPTIONS = {
   'real-return': { key: 'real_return', label: 'Real return' },
   'nominal-return': { key: 'nominal_return', label: 'Nominal return' },
   inflation: { key: 'inflation', label: 'Inflation' },
+  volatility: { key: 'volatility', label: 'Volatility' },
   swr: { key: 'safe_withdrawal_rate', label: 'Safe withdrawal rate' },
   'surplus-invested': { key: 'surplus_invested', label: 'Surplus invested' },
 } as const;
@@ -194,15 +195,17 @@ function registerFi(program: Command, app: App): void {
         human: (r) => {
           const out = app.out;
           const a = r.applied;
-          const rows = ASSUMPTION_NAMES.map((name) => ({ name, ...ASSUMPTIONS[name], applied: a[ASSUMPTIONS[name].key] }));
-          const from = (origin: string): string => (origin === 'user' ? 'you' : 'placeholder');
+          // The volatility is the odds' (`salli fi odds`), so only yours is listed here.
+          const applied = a as unknown as Record<string, FiAssumptions['real_return'] | null | undefined>;
+          const rows = ASSUMPTION_NAMES.map((name) => ({ name, ...ASSUMPTIONS[name], applied: applied[ASSUMPTIONS[name].key] ?? r.own[ASSUMPTIONS[name].key] ?? null }));
+          const from = (origin: string | undefined): string => (origin === 'user' || origin === undefined ? 'you' : origin === 'derived' ? 'derived' : 'placeholder');
           out.line(`${out.heading('FI assumptions')} ${out.colors.dim('real terms: after inflation, in today’s money')}`);
           out.line(
             out.table(rows, [
               { header: 'ASSUMPTION', get: (n) => n.label },
               { header: 'APPLIED', get: (n) => (n.applied ? out.percent(n.applied.value, 2) : 'not set'), align: 'right' },
-              { header: 'FROM', get: (n) => (n.applied ? from(n.applied.origin) : ''), style: (t) => (t === 'placeholder' ? out.colors.yellow(t) : t) },
-              { header: 'SOURCE', get: (n) => (n.applied ? singleLine(n.applied.source) : ''), shrink: true },
+              { header: 'FROM', get: (n) => (n.applied ? from('origin' in n.applied ? n.applied.origin : undefined) : ''), style: (t) => (t === 'placeholder' ? out.colors.yellow(t) : t) },
+              { header: 'SOURCE', get: (n) => (n.applied ? singleLine(n.applied.source ?? 'no source given') : ''), shrink: true },
             ]),
           );
           out.line(

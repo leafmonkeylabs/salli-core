@@ -170,7 +170,7 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Ask the AI | `salli ask "how much did I spend on groceries?"`, or `salli chat` |
 | Ask about a document | `salli ask "what is this charge?" --attach receipt.pdf` |
 | Budgets, debts | `salli budgets summary <id>`, `salli debts payoff-plan` |
-| Investments | `salli portfolio`, `salli portfolio transactions add VTI buy --quantity 10 --price 240`, `salli portfolio performance`, `salli ips set --target equity:0.6:0.05 --target bond:0.4`, `salli ips drift` |
+| Investments | `salli portfolio`, `salli portfolio transactions add VTI buy --quantity 10 --price 240`, `salli portfolio performance`, `salli ips set --target equity:0.6:0.05 --target fixed_income:0.4`, `salli ips drift`, `salli portfolio performance --blend equity:IDX --blend fixed_income:BIDX` |
 | Financial independence | `salli fi score`, `salli fi projections`, `salli fi assumptions` |
 | Work through a common decision | `salli decide --list`, `salli decide afford-it` (asks, compares, and records if you want), `salli decide emergency-fund --set target_months=6 --set set_aside=200,500`, `salli decide rent-or-buy` (when buying draws level, and the house-price growth at which the answer turns) |
 | What a change would do | `salli whatif --buy 2400@2026-11-01`, `salli whatif --loan 18000@6.9%x48 --buy 18000`; before tax, with your own active tax rules: `salli whatif --income +1000/month --tax-role salary`; a home, counted at its value less selling costs: `salli whatif --asset 450000 --selling-costs 3% --loan 360000@4.2%x300` |

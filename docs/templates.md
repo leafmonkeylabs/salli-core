@@ -36,6 +36,13 @@ it.
 | `emergency-fund` | how many months of spending you want your cash to cover; one to four amounts you could set aside each month; from when, and for how long | **As things are**, and **Set aside each amount**: kept in cash out of your monthly surplus rather than invested. With the months your cash covers now, and when it would cover your target. |
 | `rent-or-buy` | the price, when you would buy, your deposit, the account; one to three mortgages, each a rate and a term; buying costs, owning costs a month and selling costs (0 is an answer to each); your rent (one of your recurring payments, or an amount); how fast you expect the rent and the home's value to grow beyond inflation | **Keep renting**: your rent goes on, stated as a recurring cost rising at the rent's growth. **Buy** (once per mortgage): the home bought from cash, the mortgage, buying and owning costs, and the rent stopped. With the month buying draws level with renting, and the house-price growth at which the answer turns ([below](#rent-or-buy)). |
 
+Debt or invest's start carries `odds`: the share of the Monte Carlo's
+paths on which investing grows by more than paying down the debt saves, the
+debt's rate brought after inflation with yours (or your pack's), and the
+returns from the [odds' one source](baseline.md#the-odds). Without any
+inflation the rate is before inflation and the returns after it, so the
+odds are not computed (`status` `not_computed`) and the start says why.
+
 Every template also asks how many years the long-run figures run (20 unless
 you say).
 

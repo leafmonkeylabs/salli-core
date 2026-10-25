@@ -100,3 +100,16 @@ def test_insurance_needs_are_figures_from_income_debts_goals_and_assets():
         ).life_cover_need
         == 0
     )
+
+
+def test_tracking_error_and_a_blended_benchmark():
+    from salli.domain.portfolio import risk as r
+
+    own = [Decimal("0.02"), Decimal("0.01"), Decimal("-0.01")]
+    same = r.tracking_error(own, own)
+    assert same == 0
+    assert r.tracking_error(own, own[:2]) is None
+    blended = r.blend([(Decimal("0.6"), [Decimal("0.05")] * 2), (Decimal("0.4"), [Decimal(0)] * 2)])
+    assert blended == [Decimal("0.030"), Decimal("0.030")]
+    error = r.tracking_error(own, [Decimal(0)] * 3)
+    assert error is not None and error > 0

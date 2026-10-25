@@ -111,8 +111,9 @@ async def test_the_baseline_these_start_from(baseline):
     )
     assert dict(base.cash.unscheduled)["2027-02"] == Decimal("-250.97")
     # Was 247 months (2047-05): surplus invested at the placeholder 100%
-    # (tests/golden/test_household_fi.py works through it).
-    assert (base.fi.months, base.fi.month) == (187, "2042-05")
+    # (tests/golden/test_household_fi.py works through it); then 187
+    # (2042-05), before the plan-consistency pass.
+    assert (base.fi.months, base.fi.month) == (214, "2044-08")
 
 
 async def test_with_none_of_the_surplus_invested_the_baseline_is_the_cash_only_one(cash_only):
@@ -127,7 +128,7 @@ async def test_with_none_of_the_surplus_invested_the_baseline_is_the_cash_only_o
         Decimal("15740.01"),
         "2026-10-18",
     )
-    assert (base.fi.months, base.fi.month) == (247, "2047-05")
+    assert (base.fi.months, base.fi.month) == (294, "2051-04")  # was 247 (2047-05)
 
 
 async def test_the_emergency_fund_and_safe_to_spend_count_cash_alone(baseline, cash_only):
@@ -193,15 +194,17 @@ async def test_a_one_off_purchase(baseline):
     assert result.cash.safe_until == "2026-10-25"
     assert result.cash.safe_to_spend.delta == 0
 
-    # A one-off isn't spending for good: the FI number stays 2,037.09 × 12 /
-    # 0.04 = 611,127. Was: at 2047-05's end the baseline's FI base was
-    # 612,498.44. Surplus invested at the placeholder 100%, FI is 2042-05,
-    # whose end has 611,168.97, 41.97 past it; 2,400.00 less falls short, so
-    # FI is a month later, as it was.
-    assert result.fi.fi_number.scenario == Decimal("611127")
+    # A one-off isn't spending for good: the FI number stays 1,868.41 × 12 /
+    # 0.0314 = 714,042.04 (was 2,037.09 × 12 / 0.04 = 611,127, before the
+    # debts' payments left the spending and the rate was derived). FI is
+    # 2044-08, whose end has 716,046.90 less the emergency fund held out
+    # (11,210.46), 2,004.86 past it; 2,400.00 less falls short, so FI is a
+    # month later, as it was.
+    assert cents(result.fi.fi_number.scenario) == Decimal("714042.04")
     base_points = engine.baseline_outlook(baseline).monthly.points
-    assert cents(fi.asset_base(base_points[187 + 1])) == Decimal("611168.97")
-    assert (result.fi.fi_month.baseline, result.fi.fi_month.scenario) == ("2042-05", "2042-06")
+    held_out = fi.reserve(baseline)
+    assert cents(fi.asset_base(base_points[214 + 1], held_out)) == Decimal("716046.90")
+    assert (result.fi.fi_month.baseline, result.fi.fi_month.scenario) == ("2044-08", "2044-09")
     assert result.fi.months_gained == -1
 
     # Emergency-fund months at the low point, over essential spending
@@ -366,8 +369,9 @@ async def test_a_recurring_cost_that_pushes_cash_below_zero_and_its_break_even(b
     assert lowest("-2691.44") == Decimal("-0.06")
 
     # A new rent with no end is spending for good: the FI number rises by
-    # 4,000 × 12 / 0.04 = 1,200,000, to 1,811,127.
-    assert result.fi.fi_number.delta == Decimal("1200000")
+    # 4,000 × 12 over the rate (was / 0.04 = 1,200,000).
+    swr = baseline.assumptions.safe_withdrawal_rate.value
+    assert cents(result.fi.fi_number.delta) == cents(Decimal(48000) / swr)
 
 
 def _bonus_options() -> tuple[schema.Scenario, schema.Scenario]:
@@ -596,9 +600,10 @@ async def test_an_income_change(baseline):
     assert result.cash.lowest.delta == Decimal("14.34")
     # Income isn't spending: the FI number stays. Was 49 months sooner
     # (2047-05 to 2043-04); surplus invested at the placeholder 100%, FI
-    # comes 30 months sooner, from the baseline's 2042-05.
+    # comes 30 months sooner, from the baseline's 2042-05; now 34 months
+    # sooner, from 2044-08 (the plan-consistency pass).
     assert result.fi.fi_number.delta == 0
-    assert (result.fi.fi_month.scenario, result.fi.months_gained) == ("2039-11", 30)
+    assert (result.fi.fi_month.scenario, result.fi.months_gained) == ("2041-10", 34)
 
 
 async def test_cash_or_instalments_and_the_rate_they_cost_the_same(baseline):
@@ -720,9 +725,10 @@ async def test_cancelling_a_subscription(baseline):
         sum((grown(Decimal("12.99"), k) for k in range(12)), Decimal(0))
     )
     assert cents(result.monthly[0].investments.delta) == Decimal("158.77")
-    # And it was spending, so the FI number falls by 12.99 × 12 / 0.04 =
-    # 3,897.
-    assert result.fi.fi_number.delta == Decimal("-3897")
+    # And it was spending, so the FI number falls by 12.99 × 12 over the
+    # rate (was / 0.04 = 3,897).
+    swr = baseline.assumptions.safe_withdrawal_rate.value
+    assert cents(result.fi.fi_number.delta) == cents(Decimal("-155.88") / swr)
 
 
 async def test_setting_part_of_the_surplus_aside(baseline, cash_only):

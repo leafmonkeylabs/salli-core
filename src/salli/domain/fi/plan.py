@@ -14,6 +14,12 @@ phases (docs/baseline.md#the-fi-plan). Pure domain: no I/O.
 - **Spending phases**: the monthly spending to live on (today's money) from
   an age on, by the person's date of birth on their profile. Before the
   first phase, or without a date of birth, the baseline's spending applies.
+  A phase may name the part of it in a category (`categories`: housing,
+  education); a category with its own inflation (the plan's
+  `category_inflation`, else the active CMA pack's) grows apart from
+  general inflation: in today's money by (1 + its) / (1 + general) a year
+  from the as-of month (`category_uplift`). Without general inflation it
+  is not applied.
 
 Stored as `user_profiles.fi_plan`; checked here, never chosen by a model.
 """
@@ -73,6 +79,16 @@ class SpendingPhase:
     #: Monthly spending to live on, in today's money.
     monthly: Decimal
     source: str | None = None
+    #: (category, monthly): the part of `monthly` in each named category.
+    categories: tuple[tuple[str, Decimal], ...] = ()
+
+
+@dataclass(frozen=True)
+class CategoryInflation:
+    category: str
+    #: Yearly, a fraction.
+    value: Decimal
+    source: str | None = None
 
 
 @dataclass(frozen=True)
@@ -81,23 +97,30 @@ class FiPlan:
     phases: tuple[SpendingPhase, ...] = ()
     #: From the profile; the phases need it.
     born: dt.date | None = None
+    #: The person's own inflation by category of spending.
+    category_inflation: tuple[CategoryInflation, ...] = ()
 
     @property
     def empty(self) -> bool:
         return not self.streams and not self.phases
 
-    def phase_spending(self, month: str) -> Decimal | None:
-        """The phase's monthly spending in `month`, or None (no phase yet, or
-        no date of birth)."""
+    def phase(self, month: str) -> SpendingPhase | None:
+        """The phase `month` falls in, or None (no phase yet, or no date of
+        birth)."""
         if self.born is None or not self.phases:
             return None
         year, number = int(month[:4]), int(month[5:7])
         age = year - self.born.year - (1 if number < self.born.month else 0)
-        found: Decimal | None = None
+        found: SpendingPhase | None = None
         for phase in sorted(self.phases, key=lambda p: p.from_age):
             if age >= phase.from_age:
-                found = phase.monthly
+                found = phase
         return found
+
+    def phase_spending(self, month: str) -> Decimal | None:
+        """The phase's monthly spending in `month`, or None."""
+        phase = self.phase(month)
+        return None if phase is None else phase.monthly
 
     def as_stored(self) -> dict[str, Any]:
         return {
@@ -115,10 +138,56 @@ class FiPlan:
                 for s in self.streams
             ],
             "spending_phases": [
-                {"from_age": p.from_age, "monthly": f"{p.monthly:f}", "source": p.source}
+                {
+                    "from_age": p.from_age,
+                    "monthly": f"{p.monthly:f}",
+                    "source": p.source,
+                    **(
+                        {"categories": {k: f"{v:f}" for k, v in p.categories}}
+                        if p.categories
+                        else {}
+                    ),
+                }
                 for p in self.phases
             ],
+            **(
+                {
+                    "category_inflation": {
+                        c.category: {"value": f"{c.value:f}", "source": c.source}
+                        for c in self.category_inflation
+                    }
+                }
+                if self.category_inflation
+                else {}
+            ),
         }
+
+
+def category_uplift(
+    plan: FiPlan,
+    month: str,
+    first: str,
+    general: Decimal | None,
+    pack: Mapping[str, Decimal],
+) -> Decimal:
+    """What `month`'s phase's categories add, in today's money, for running
+    at their own inflation (the plan's, else `pack`'s) rather than `general`
+    from `first`, the as-of month; nothing without `general`."""
+    phase = plan.phase(month)
+    if phase is None or general is None or not phase.categories:
+        return Decimal(0)
+    own = {c.category: c.value for c in plan.category_inflation}
+    months = (int(month[:4]) - int(first[:4])) * 12 + int(month[5:7]) - int(first[5:7])
+    if months <= 0:
+        return Decimal(0)
+    added = Decimal(0)
+    for category, amount in phase.categories:
+        rate = own.get(category, pack.get(category))
+        if rate is None:
+            continue
+        growth = (Decimal(1) + rate) / (Decimal(1) + general)
+        added += amount * (growth ** (Decimal(months) / 12) - 1)
+    return added
 
 
 def _amount(raw: object, what: str) -> Decimal:
@@ -195,16 +264,58 @@ def parse(raw: object, born: dt.date | None = None) -> FiPlan:
         age = item.get("from_age")
         if not isinstance(age, int) or isinstance(age, bool) or not 0 <= age <= 120:
             raise ValueError(f"{at}.from_age must be a whole age from 0 to 120")
+        monthly = _amount(item.get("monthly"), f"{at}.monthly")
+        raw_categories = item.get("categories", {})
+        if (
+            not isinstance(raw_categories, Mapping)
+            or len(cast("Mapping[str, Any]", raw_categories)) > _MAX_ITEMS
+        ):
+            raise ValueError(f"{at}.categories must be an object of at most {_MAX_ITEMS}")
+        categories = tuple(
+            (_category(k, f"{at}.categories"), _amount(v, f"{at}.categories.{k}"))
+            for k, v in cast("Mapping[str, Any]", raw_categories).items()
+        )
+        if sum((v for _, v in categories), Decimal(0)) > monthly:
+            raise ValueError(f"{at}.categories add up to more than its monthly spending")
         phases.append(
-            SpendingPhase(
-                age,
-                _amount(item.get("monthly"), f"{at}.monthly"),
-                _text(item.get("source"), f"{at}.source"),
-            )
+            SpendingPhase(age, monthly, _text(item.get("source"), f"{at}.source"), categories)
         )
     if len({p.from_age for p in phases}) != len(phases):
         raise ValueError("Two spending phases start at the same age")
-    return FiPlan(tuple(streams), tuple(sorted(phases, key=lambda p: p.from_age)), born)
+    raw_inflation = doc.get("category_inflation", {})
+    if (
+        not isinstance(raw_inflation, Mapping)
+        or len(cast("Mapping[str, Any]", raw_inflation)) > _MAX_ITEMS
+    ):
+        raise ValueError(f"category_inflation must be an object of at most {_MAX_ITEMS}")
+    inflation: list[CategoryInflation] = []
+    for key, item in cast("Mapping[str, Any]", raw_inflation).items():
+        at = f"category_inflation.{key}"
+        if not isinstance(item, Mapping):
+            raise ValueError(f"{at} must be an object with value and source")
+        entry = cast("Mapping[str, Any]", item)
+        raw = entry.get("value")
+        try:
+            value = Decimal(str(raw)) if isinstance(raw, str) else Decimal("NaN")
+        except InvalidOperation:
+            value = Decimal("NaN")
+        if not value.is_finite() or not Decimal("-0.05") <= value <= 1:
+            raise ValueError(f"{at}.value must be a yearly fraction from -0.05 to 1, as a string")
+        inflation.append(
+            CategoryInflation(_category(key, at), value, _text(entry.get("source"), f"{at}.source"))
+        )
+    return FiPlan(
+        tuple(streams),
+        tuple(sorted(phases, key=lambda p: p.from_age)),
+        born,
+        tuple(inflation),
+    )
+
+
+def _category(raw: object, what: str) -> str:
+    if not isinstance(raw, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,39}", raw):
+        raise ValueError(f"{what}: a category is a lowercase key such as housing")
+    return raw
 
 
 def lenient(raw: object, born: dt.date | None) -> FiPlan:

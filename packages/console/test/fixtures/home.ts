@@ -172,23 +172,23 @@ export const INCOME_STATEMENT: IncomeStatement = {
 
 export const FI_SCORE: FiScore = {
   "pack_version": "4.0.0",
-  "overall_score": "57.42",
+  "overall_score": "56.42",
   "grade": "On track",
   "currency": "EUR",
   "monthly_income": "4000.00",
   "monthly_expenses": "2037.09",
   "monthly_surplus": "1962.91",
   "savings_rate": "0.4907",
-  "swr": "0.04",
+  "swr": "0.0314",
   "annual_expenses": "24445.08",
-  "fi_number": "611127.00",
+  "fi_number": "714042.04",
   "net_worth": "335901.47",
-  "fi_asset_base": "35901.47",
-  "progress_to_fi": "0.0587",
+  "fi_asset_base": "24691.01",
+  "progress_to_fi": "0.0346",
   "emergency_fund_months": "8.10",
   "debt_to_asset": "0.0524",
-  "projected_fi_months": 187,
-  "projected_fi_month": "2042-05",
+  "projected_fi_months": 214,
+  "projected_fi_month": "2044-08",
   "as_of": "2026-10-11",
   "status": "ok",
   "months_observed": 6,
@@ -210,9 +210,9 @@ export const FI_SCORE: FiScore = {
     {
       "key": "fi_progress",
       "label": "Progress to FI",
-      "score": "5.87",
+      "score": "3.46",
       "weight": "0.41",
-      "detail": "5.87% of your FI number"
+      "detail": "3.46% of your FI number"
     },
     {
       "key": "debt",
@@ -237,9 +237,9 @@ export const FI_SCORE: FiScore = {
       "note": null
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
+      "value": "0.0314",
       "origin": "placeholder",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
       "note": null
     },
     "surplus_invested": {
@@ -250,6 +250,12 @@ export const FI_SCORE: FiScore = {
     },
     "inflation": null,
     "nominal_return": null,
+    "cash_yield": {
+      "value": "0",
+      "origin": "placeholder",
+      "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+      "note": null
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -257,7 +263,7 @@ export const FI_SCORE: FiScore = {
     },
     "nominal_returns": null
   },
-  "inputs_hash": "e772b08e9f9a14eb8a3f9b0e7ad4e246440a894b9891839e6405199334b2e677"
+  "inputs_hash": "fde92595f6dba271e9428dec635290bb3dae41aaede8c3108fba7a7a7c9d303f"
 };
 
 export const REMINDERS: ReminderList = {
@@ -363,7 +369,7 @@ export const REVIEWS_DUE: DueReviews = {
       "as_of": "2026-08-11",
       "review_on": "2026-09-30",
       "recorded_at": "2026-08-11T09:00:00+00:00",
-      "hash": "sha256:0fa348c392ac8344680c108a131a5e003305f52861c48e78deacca27154f19a7",
+      "hash": "sha256:dc7a25db1b7f30fd4054a8740269ad1c471094ceb38bc4180011f48597f0959f",
       "notes": 0,
       "reviews": 0,
       "last_reviewed_at": null,
@@ -410,7 +416,7 @@ export const REVIEWS_DUE: DueReviews = {
           "difference": "0.55"
         },
         "others": [],
-        "baseline_fingerprint": "sha256:244502244eb40bc6cddb56109a0f2a03dae4deee86f685dfd13ade95d0a15e30",
+        "baseline_fingerprint": "sha256:749a823c940d77bc1df719e0c2790a697bd6eea78ebd78047666352c22cc26a3",
         "data_as_of": "2026-09-26",
         "is_stale": false,
         "notes": [

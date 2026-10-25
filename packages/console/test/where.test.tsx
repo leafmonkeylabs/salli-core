@@ -364,14 +364,14 @@ describe('financial independence', () => {
   it('shows the FI number, the way there, the projections at three returns and the placeholders', async () => {
     await setup({ path: '/console/fi' });
     const here = await screen.findByRole('region', { name: 'Where you are' });
-    expect(await within(here).findByText('EUR 611,127.00')).toBeTruthy();
-    expect(within(here).getByText('May 2042')).toBeTruthy();
+    expect(await within(here).findByText('EUR 714,042.04')).toBeTruthy();
+    expect(within(here).getByText('Aug 2044')).toBeTruthy();
     expect(within(here).getByText('49.07%')).toBeTruthy();
     const projections = region('Projections');
     const label = (await within(projections).findAllByRole('img'))[0]?.getAttribute('aria-label') ?? '';
-    expect(label).toContain('against your FI number of EUR 611,127.00');
+    expect(label).toContain('against your FI number of EUR 714,042.04');
     expect(within(projections).getAllByText('Conservative, 2% a year').length).toBeGreaterThan(0);
-    expect(within(projections).getByText('Feb 2045')).toBeTruthy();
+    expect(within(projections).getByText('Jan 2048')).toBeTruthy();
     const assumptions = region('Assumptions');
     expect(within(assumptions).getAllByText('Placeholder')).toHaveLength(3);
     expect(within(region('What the score is made of')).getByText('Saving 49.07% of income')).toBeTruthy();

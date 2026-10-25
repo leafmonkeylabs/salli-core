@@ -293,6 +293,8 @@ class HoldingInputs:
     #: How its sales are costed (its own `cost_method`, else the active tax
     #: rules' `cost_basis`, else fifo).
     cost_method: CostMethod = "fifo"
+    #: Its yearly running cost as a fraction of its value; None: not given.
+    expense_ratio: Decimal | None = None
 
 
 @dataclass(frozen=True)

@@ -552,7 +552,7 @@ export const AFFORD_IT_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:c51686f1c65c277fe38f7f721cc2fec8eb68813cb4f7831e26730541f9707f40"
+      "scenario_hash": "sha256:0126958330f9c7fc8df355903561b21da99ed1060d928fada59f6cca26426ad6"
     },
     {
       "label": "Spread over 12 months",
@@ -583,7 +583,7 @@ export const AFFORD_IT_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:44c00c745130e3ff2ffa078f2f95e8c1b5dd2446ebe6b218ec24e05c76448366"
+      "scenario_hash": "sha256:7429e84ac88390ab0b21f8c1154e3da35396a1dccac87cd2be2b983b82db8546"
     }
   ],
   "comparison": {
@@ -601,8 +601,8 @@ export const AFFORD_IT_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:c51686f1c65c277fe38f7f721cc2fec8eb68813cb4f7831e26730541f9707f40",
-        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
+        "hash": "sha256:0126958330f9c7fc8df355903561b21da99ed1060d928fada59f6cca26426ad6",
+        "baseline_fingerprint": "sha256:5de11341c93c2f647df5271af01a1aac58b39e66fd89a754e38e6e099b96dd0f",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Pay cash",
@@ -854,8 +854,8 @@ export const AFFORD_IT_START: DecisionStart = {
         },
         "fi": {
           "fi_number": {
-            "baseline": "611127.00",
-            "scenario": "611127.00",
+            "baseline": "714042.04",
+            "scenario": "714042.04",
             "delta": "0.00"
           },
           "monthly_spending": {
@@ -864,8 +864,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2042-05",
-            "scenario": "2042-06",
+            "baseline": "2044-08",
+            "scenario": "2044-09",
             "delta_months": 1
           },
           "months_gained": -1
@@ -895,9 +895,9 @@ export const AFFORD_IT_START: DecisionStart = {
             "note": null
           },
           "safe_withdrawal_rate": {
-            "value": "0.04",
+            "value": "0.0314",
             "origin": "placeholder",
-            "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+            "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
             "note": null
           },
           "surplus_invested": {
@@ -908,6 +908,12 @@ export const AFFORD_IT_START: DecisionStart = {
           },
           "inflation": null,
           "nominal_return": null,
+          "cash_yield": {
+            "value": "0",
+            "origin": "placeholder",
+            "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+            "note": null
+          },
           "real_returns": {
             "conservative": "0.02",
             "base": "0.04",
@@ -925,7 +931,7 @@ export const AFFORD_IT_START: DecisionStart = {
         "versions": {
           "schema": "salli.scenario/1",
           "engine": "4",
-          "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+          "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -939,8 +945,8 @@ export const AFFORD_IT_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:44c00c745130e3ff2ffa078f2f95e8c1b5dd2446ebe6b218ec24e05c76448366",
-        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
+        "hash": "sha256:7429e84ac88390ab0b21f8c1154e3da35396a1dccac87cd2be2b983b82db8546",
+        "baseline_fingerprint": "sha256:5de11341c93c2f647df5271af01a1aac58b39e66fd89a754e38e6e099b96dd0f",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Spread over 12 months",
@@ -1228,8 +1234,8 @@ export const AFFORD_IT_START: DecisionStart = {
         },
         "fi": {
           "fi_number": {
-            "baseline": "611127.00",
-            "scenario": "611127.00",
+            "baseline": "714042.04",
+            "scenario": "714042.04",
             "delta": "0.00"
           },
           "monthly_spending": {
@@ -1238,11 +1244,11 @@ export const AFFORD_IT_START: DecisionStart = {
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2042-05",
-            "scenario": "2042-07",
-            "delta_months": 2
+            "baseline": "2044-08",
+            "scenario": "2044-09",
+            "delta_months": 1
           },
-          "months_gained": -2
+          "months_gained": -1
         },
         "break_evens": [],
         "tax": {
@@ -1269,9 +1275,9 @@ export const AFFORD_IT_START: DecisionStart = {
             "note": null
           },
           "safe_withdrawal_rate": {
-            "value": "0.04",
+            "value": "0.0314",
             "origin": "placeholder",
-            "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+            "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
             "note": null
           },
           "surplus_invested": {
@@ -1282,6 +1288,12 @@ export const AFFORD_IT_START: DecisionStart = {
           },
           "inflation": null,
           "nominal_return": null,
+          "cash_yield": {
+            "value": "0",
+            "origin": "placeholder",
+            "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+            "note": null
+          },
           "real_returns": {
             "conservative": "0.02",
             "base": "0.04",
@@ -1299,7 +1311,7 @@ export const AFFORD_IT_START: DecisionStart = {
         "versions": {
           "schema": "salli.scenario/1",
           "engine": "4",
-          "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+          "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -1354,13 +1366,6 @@ export const AFFORD_IT_START: DecisionStart = {
             "this": "2009.25",
             "other": "2099.93",
             "delta": "-90.68"
-          },
-          {
-            "figure": "fi.fi_month",
-            "unit": "month",
-            "this": "2042-06",
-            "other": "2042-07",
-            "delta": -1
           }
         ],
         "gives_up": [
@@ -1469,13 +1474,6 @@ export const AFFORD_IT_START: DecisionStart = {
             "this": "2099.93",
             "other": "2009.25",
             "delta": "90.68"
-          },
-          {
-            "figure": "fi.fi_month",
-            "unit": "month",
-            "this": "2042-07",
-            "other": "2042-06",
-            "delta": 1
           }
         ]
       }
@@ -1501,11 +1499,11 @@ export const AFFORD_IT_START: DecisionStart = {
               "delta": "0.00"
             },
             "fi_month": {
-              "baseline": "2045-02",
-              "scenario": "2045-02",
-              "delta_months": 0
+              "baseline": "2048-01",
+              "scenario": "2048-02",
+              "delta_months": 1
             },
-            "months_gained": 0
+            "months_gained": -1
           },
           "base": {
             "net_worth": {
@@ -1519,8 +1517,8 @@ export const AFFORD_IT_START: DecisionStart = {
               "delta": "0.00"
             },
             "fi_month": {
-              "baseline": "2042-05",
-              "scenario": "2042-06",
+              "baseline": "2044-08",
+              "scenario": "2044-09",
               "delta_months": 1
             },
             "months_gained": -1
@@ -1537,8 +1535,8 @@ export const AFFORD_IT_START: DecisionStart = {
               "delta": "0.00"
             },
             "fi_month": {
-              "baseline": "2040-07",
-              "scenario": "2040-07",
+              "baseline": "2042-04",
+              "scenario": "2042-04",
               "delta_months": 0
             },
             "months_gained": 0
@@ -1558,8 +1556,8 @@ export const AFFORD_IT_START: DecisionStart = {
               "delta": "-2718.28"
             },
             "fi_month": {
-              "baseline": "2045-02",
-              "scenario": "2045-03",
+              "baseline": "2048-01",
+              "scenario": "2048-02",
               "delta_months": 1
             },
             "months_gained": -1
@@ -1576,11 +1574,11 @@ export const AFFORD_IT_START: DecisionStart = {
               "delta": "-2966.34"
             },
             "fi_month": {
-              "baseline": "2042-05",
-              "scenario": "2042-07",
-              "delta_months": 2
+              "baseline": "2044-08",
+              "scenario": "2044-09",
+              "delta_months": 1
             },
-            "months_gained": -2
+            "months_gained": -1
           },
           "growth": {
             "net_worth": {
@@ -1594,8 +1592,8 @@ export const AFFORD_IT_START: DecisionStart = {
               "delta": "-3236.68"
             },
             "fi_month": {
-              "baseline": "2040-07",
-              "scenario": "2040-08",
+              "baseline": "2042-04",
+              "scenario": "2042-05",
               "delta_months": 1
             },
             "months_gained": -1
@@ -1663,8 +1661,8 @@ export const AFFORD_IT_START: DecisionStart = {
         "max_debt_rate": "0.059",
         "max_debt_rate_while_investing": "0.059",
         "borrowed": "0.00",
-        "fi_number": "611127.00",
-        "fi_months": 187,
+        "fi_number": "714042.04",
+        "fi_months": 214,
         "fi_months_gained": 0,
         "tax_change_this_year": "0.00"
       },
@@ -1712,8 +1710,8 @@ export const AFFORD_IT_START: DecisionStart = {
           "max_debt_rate": "0.059",
           "max_debt_rate_while_investing": "0.059",
           "borrowed": "0.00",
-          "fi_number": "611127.00",
-          "fi_months": 188,
+          "fi_number": "714042.04",
+          "fi_months": 215,
           "fi_months_gained": -1,
           "tax_change_this_year": "0.00"
         },
@@ -1730,7 +1728,7 @@ export const AFFORD_IT_START: DecisionStart = {
           }
         ],
         "label": "Pay cash",
-        "scenario_hash": "sha256:c51686f1c65c277fe38f7f721cc2fec8eb68813cb4f7831e26730541f9707f40"
+        "scenario_hash": "sha256:0126958330f9c7fc8df355903561b21da99ed1060d928fada59f6cca26426ad6"
       },
       {
         "figures": {
@@ -1762,9 +1760,9 @@ export const AFFORD_IT_START: DecisionStart = {
           "max_debt_rate": "0.069",
           "max_debt_rate_while_investing": "0.069",
           "borrowed": "2400.00",
-          "fi_number": "611127.00",
-          "fi_months": 189,
-          "fi_months_gained": -2,
+          "fi_number": "714042.04",
+          "fi_months": 215,
+          "fi_months_gained": -1,
           "tax_change_this_year": "0.00"
         },
         "unavailable": {},
@@ -1780,7 +1778,7 @@ export const AFFORD_IT_START: DecisionStart = {
           }
         ],
         "label": "Spread over 12 months",
-        "scenario_hash": "sha256:44c00c745130e3ff2ffa078f2f95e8c1b5dd2446ebe6b218ec24e05c76448366"
+        "scenario_hash": "sha256:7429e84ac88390ab0b21f8c1154e3da35396a1dccac87cd2be2b983b82db8546"
       }
     ]
   },
@@ -1903,7 +1901,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "changes": [],
         "tax": null
       },
-      "scenario_hash": "sha256:450685f043fac8d5d3f7bcf9959a9321af3885949988618771f27b13200a30d1"
+      "scenario_hash": "sha256:b3a022c4e0d0b5f9c0a12fe9243a9913b04d2c1a554680f38d1be6231222e725"
     },
     {
       "label": "Set aside 200.00 a month",
@@ -1924,7 +1922,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:ff38f4b71a7615e3594770cb1f74f58bf0f1744fbc322bca429f4b553e8ddd28"
+      "scenario_hash": "sha256:5091ce46ea0a7dca440e11b199138f77ce821e905acf0965685eb51cf743bf0a"
     },
     {
       "label": "Set aside 500.00 a month",
@@ -1945,7 +1943,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:fedf7aa1a39687a837241699abe92b7d22c9c78daabd1882197a180e1eba8345"
+      "scenario_hash": "sha256:3126840043642ca6d76c869e58f5cfee9d269eca5cb74e04cf2e53d9db7279a0"
     }
   ],
   "comparison": {
@@ -1964,8 +1962,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:450685f043fac8d5d3f7bcf9959a9321af3885949988618771f27b13200a30d1",
-        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
+        "hash": "sha256:b3a022c4e0d0b5f9c0a12fe9243a9913b04d2c1a554680f38d1be6231222e725",
+        "baseline_fingerprint": "sha256:5de11341c93c2f647df5271af01a1aac58b39e66fd89a754e38e6e099b96dd0f",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "As things are",
@@ -2195,8 +2193,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         },
         "fi": {
           "fi_number": {
-            "baseline": "611127.00",
-            "scenario": "611127.00",
+            "baseline": "714042.04",
+            "scenario": "714042.04",
             "delta": "0.00"
           },
           "monthly_spending": {
@@ -2205,8 +2203,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2042-05",
-            "scenario": "2042-05",
+            "baseline": "2044-08",
+            "scenario": "2044-08",
             "delta_months": 0
           },
           "months_gained": 0
@@ -2236,9 +2234,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "note": null
           },
           "safe_withdrawal_rate": {
-            "value": "0.04",
+            "value": "0.0314",
             "origin": "placeholder",
-            "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+            "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
             "note": null
           },
           "surplus_invested": {
@@ -2249,6 +2247,12 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           },
           "inflation": null,
           "nominal_return": null,
+          "cash_yield": {
+            "value": "0",
+            "origin": "placeholder",
+            "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+            "note": null
+          },
           "real_returns": {
             "conservative": "0.02",
             "base": "0.04",
@@ -2266,7 +2270,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "versions": {
           "schema": "salli.scenario/1",
           "engine": "4",
-          "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+          "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -2280,8 +2284,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:ff38f4b71a7615e3594770cb1f74f58bf0f1744fbc322bca429f4b553e8ddd28",
-        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
+        "hash": "sha256:5091ce46ea0a7dca440e11b199138f77ce821e905acf0965685eb51cf743bf0a",
+        "baseline_fingerprint": "sha256:5de11341c93c2f647df5271af01a1aac58b39e66fd89a754e38e6e099b96dd0f",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Set aside 200.00 a month",
@@ -2532,8 +2536,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         },
         "fi": {
           "fi_number": {
-            "baseline": "611127.00",
-            "scenario": "611127.00",
+            "baseline": "714042.04",
+            "scenario": "714042.04",
             "delta": "0.00"
           },
           "monthly_spending": {
@@ -2542,11 +2546,11 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2042-05",
-            "scenario": "2042-09",
-            "delta_months": 4
+            "baseline": "2044-08",
+            "scenario": "2045-01",
+            "delta_months": 5
           },
-          "months_gained": -4
+          "months_gained": -5
         },
         "break_evens": [],
         "tax": {
@@ -2573,9 +2577,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "note": null
           },
           "safe_withdrawal_rate": {
-            "value": "0.04",
+            "value": "0.0314",
             "origin": "placeholder",
-            "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+            "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
             "note": null
           },
           "surplus_invested": {
@@ -2586,6 +2590,12 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           },
           "inflation": null,
           "nominal_return": null,
+          "cash_yield": {
+            "value": "0",
+            "origin": "placeholder",
+            "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+            "note": null
+          },
           "real_returns": {
             "conservative": "0.02",
             "base": "0.04",
@@ -2603,7 +2613,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "versions": {
           "schema": "salli.scenario/1",
           "engine": "4",
-          "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+          "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -2617,8 +2627,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:fedf7aa1a39687a837241699abe92b7d22c9c78daabd1882197a180e1eba8345",
-        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
+        "hash": "sha256:3126840043642ca6d76c869e58f5cfee9d269eca5cb74e04cf2e53d9db7279a0",
+        "baseline_fingerprint": "sha256:5de11341c93c2f647df5271af01a1aac58b39e66fd89a754e38e6e099b96dd0f",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Set aside 500.00 a month",
@@ -2869,8 +2879,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         },
         "fi": {
           "fi_number": {
-            "baseline": "611127.00",
-            "scenario": "611127.00",
+            "baseline": "714042.04",
+            "scenario": "714042.04",
             "delta": "0.00"
           },
           "monthly_spending": {
@@ -2879,11 +2889,11 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2042-05",
-            "scenario": "2043-03",
-            "delta_months": 10
+            "baseline": "2044-08",
+            "scenario": "2045-08",
+            "delta_months": 12
           },
-          "months_gained": -10
+          "months_gained": -12
         },
         "break_evens": [],
         "tax": {
@@ -2910,9 +2920,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "note": null
           },
           "safe_withdrawal_rate": {
-            "value": "0.04",
+            "value": "0.0314",
             "origin": "placeholder",
-            "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+            "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
             "note": null
           },
           "surplus_invested": {
@@ -2923,6 +2933,12 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           },
           "inflation": null,
           "nominal_return": null,
+          "cash_yield": {
+            "value": "0",
+            "origin": "placeholder",
+            "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+            "note": null
+          },
           "real_returns": {
             "conservative": "0.02",
             "base": "0.04",
@@ -2940,7 +2956,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "versions": {
           "schema": "salli.scenario/1",
           "engine": "4",
-          "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+          "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -2985,9 +3001,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2042-05",
-            "other": "2042-09",
-            "delta": -4
+            "this": "2044-08",
+            "other": "2045-01",
+            "delta": -5
           }
         ],
         "gives_up": [
@@ -3056,9 +3072,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2042-05",
-            "other": "2043-03",
-            "delta": -10
+            "this": "2044-08",
+            "other": "2045-08",
+            "delta": -12
           }
         ],
         "gives_up": [
@@ -3157,9 +3173,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2042-09",
-            "other": "2042-05",
-            "delta": 4
+            "this": "2045-01",
+            "other": "2044-08",
+            "delta": 5
           }
         ]
       },
@@ -3198,9 +3214,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2042-09",
-            "other": "2043-03",
-            "delta": -6
+            "this": "2045-01",
+            "other": "2045-08",
+            "delta": -7
           }
         ],
         "gives_up": [
@@ -3285,9 +3301,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2043-03",
-            "other": "2042-05",
-            "delta": 10
+            "this": "2045-08",
+            "other": "2044-08",
+            "delta": 12
           }
         ]
       },
@@ -3342,9 +3358,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2043-03",
-            "other": "2042-09",
-            "delta": 6
+            "this": "2045-08",
+            "other": "2045-01",
+            "delta": 7
           }
         ]
       }
@@ -3370,8 +3386,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "delta": "0.00"
             },
             "fi_month": {
-              "baseline": "2045-02",
-              "scenario": "2045-02",
+              "baseline": "2048-01",
+              "scenario": "2048-01",
               "delta_months": 0
             },
             "months_gained": 0
@@ -3388,8 +3404,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "delta": "0.00"
             },
             "fi_month": {
-              "baseline": "2042-05",
-              "scenario": "2042-05",
+              "baseline": "2044-08",
+              "scenario": "2044-08",
               "delta_months": 0
             },
             "months_gained": 0
@@ -3406,8 +3422,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "delta": "0.00"
             },
             "fi_month": {
-              "baseline": "2040-07",
-              "scenario": "2040-07",
+              "baseline": "2042-04",
+              "scenario": "2042-04",
               "delta_months": 0
             },
             "months_gained": 0
@@ -3427,11 +3443,11 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "delta": "-12609.47"
             },
             "fi_month": {
-              "baseline": "2045-02",
-              "scenario": "2045-05",
-              "delta_months": 3
+              "baseline": "2048-01",
+              "scenario": "2048-05",
+              "delta_months": 4
             },
-            "months_gained": -3
+            "months_gained": -4
           },
           "base": {
             "net_worth": {
@@ -3445,11 +3461,11 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "delta": "-13259.80"
             },
             "fi_month": {
-              "baseline": "2042-05",
-              "scenario": "2042-09",
-              "delta_months": 4
+              "baseline": "2044-08",
+              "scenario": "2045-01",
+              "delta_months": 5
             },
-            "months_gained": -4
+            "months_gained": -5
           },
           "growth": {
             "net_worth": {
@@ -3463,11 +3479,11 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "delta": "-13954.01"
             },
             "fi_month": {
-              "baseline": "2040-07",
-              "scenario": "2040-10",
-              "delta_months": 3
+              "baseline": "2042-04",
+              "scenario": "2042-08",
+              "delta_months": 4
             },
-            "months_gained": -3
+            "months_gained": -4
           }
         },
         {
@@ -3484,11 +3500,11 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "delta": "-31523.68"
             },
             "fi_month": {
-              "baseline": "2045-02",
-              "scenario": "2045-09",
-              "delta_months": 7
+              "baseline": "2048-01",
+              "scenario": "2048-11",
+              "delta_months": 10
             },
-            "months_gained": -7
+            "months_gained": -10
           },
           "base": {
             "net_worth": {
@@ -3502,11 +3518,11 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "delta": "-33149.49"
             },
             "fi_month": {
-              "baseline": "2042-05",
-              "scenario": "2043-03",
-              "delta_months": 10
+              "baseline": "2044-08",
+              "scenario": "2045-08",
+              "delta_months": 12
             },
-            "months_gained": -10
+            "months_gained": -12
           },
           "growth": {
             "net_worth": {
@@ -3520,11 +3536,11 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "delta": "-34885.02"
             },
             "fi_month": {
-              "baseline": "2040-07",
-              "scenario": "2041-05",
-              "delta_months": 10
+              "baseline": "2042-04",
+              "scenario": "2043-04",
+              "delta_months": 12
             },
-            "months_gained": -10
+            "months_gained": -12
           }
         }
       ]
@@ -3572,8 +3588,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "max_debt_rate": "0.059",
         "max_debt_rate_while_investing": "0.059",
         "borrowed": "0.00",
-        "fi_number": "611127.00",
-        "fi_months": 187,
+        "fi_number": "714042.04",
+        "fi_months": 214,
         "fi_months_gained": 0,
         "tax_change_this_year": "0.00"
       },
@@ -3621,8 +3637,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "max_debt_rate": "0.059",
           "max_debt_rate_while_investing": "0.059",
           "borrowed": "0.00",
-          "fi_number": "611127.00",
-          "fi_months": 187,
+          "fi_number": "714042.04",
+          "fi_months": 214,
           "fi_months_gained": 0,
           "tax_change_this_year": "0.00"
         },
@@ -3639,7 +3655,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ],
         "label": "As things are",
-        "scenario_hash": "sha256:450685f043fac8d5d3f7bcf9959a9321af3885949988618771f27b13200a30d1"
+        "scenario_hash": "sha256:b3a022c4e0d0b5f9c0a12fe9243a9913b04d2c1a554680f38d1be6231222e725"
       },
       {
         "figures": {
@@ -3671,9 +3687,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "max_debt_rate": "0.059",
           "max_debt_rate_while_investing": "0.059",
           "borrowed": "0.00",
-          "fi_number": "611127.00",
-          "fi_months": 191,
-          "fi_months_gained": -4,
+          "fi_number": "714042.04",
+          "fi_months": 219,
+          "fi_months_gained": -5,
           "tax_change_this_year": "0.00"
         },
         "unavailable": {},
@@ -3689,7 +3705,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ],
         "label": "Set aside 200.00 a month",
-        "scenario_hash": "sha256:ff38f4b71a7615e3594770cb1f74f58bf0f1744fbc322bca429f4b553e8ddd28"
+        "scenario_hash": "sha256:5091ce46ea0a7dca440e11b199138f77ce821e905acf0965685eb51cf743bf0a"
       },
       {
         "figures": {
@@ -3721,9 +3737,9 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "max_debt_rate": "0.059",
           "max_debt_rate_while_investing": "0.059",
           "borrowed": "0.00",
-          "fi_number": "611127.00",
-          "fi_months": 197,
-          "fi_months_gained": -10,
+          "fi_number": "714042.04",
+          "fi_months": 226,
+          "fi_months_gained": -12,
           "tax_change_this_year": "0.00"
         },
         "unavailable": {},
@@ -3739,7 +3755,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ],
         "label": "Set aside 500.00 a month",
-        "scenario_hash": "sha256:fedf7aa1a39687a837241699abe92b7d22c9c78daabd1882197a180e1eba8345"
+        "scenario_hash": "sha256:3126840043642ca6d76c869e58f5cfee9d269eca5cb74e04cf2e53d9db7279a0"
       }
     ]
   },
@@ -4320,7 +4336,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:558be28e9c84140e2178e6df954ccd25dd88f7e198f45d671edf411224f3274a"
+      "scenario_hash": "sha256:f9e66bae6e2f5f2158917fd55faa5dcb3a2c5a686d62eccf89f97b9213274535"
     },
     {
       "label": "Buy, 4.2% over 300 months",
@@ -4377,7 +4393,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:6aa0e89707d58ed8e30133ff459ea2bc8f96ac26c001804199ee40b95cbce86d"
+      "scenario_hash": "sha256:7f7ca451ecffd7205687d74626d2d9f8cae6193aeee3fe94c3ffce46c9fd9cfb"
     },
     {
       "label": "Buy, Shorter",
@@ -4434,7 +4450,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:a9ece0d189bc65a1be201f543b0577326018ac3f8cbd32a56502b4c8dd0a4250"
+      "scenario_hash": "sha256:8a76c6d52cebf8f2d97ed0cffca87f82167921ca464a5f5f185825d8f295e971"
     }
   ],
   "comparison": {
@@ -4453,8 +4469,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 20,
         "currency": "EUR",
-        "hash": "sha256:558be28e9c84140e2178e6df954ccd25dd88f7e198f45d671edf411224f3274a",
-        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
+        "hash": "sha256:f9e66bae6e2f5f2158917fd55faa5dcb3a2c5a686d62eccf89f97b9213274535",
+        "baseline_fingerprint": "sha256:5de11341c93c2f647df5271af01a1aac58b39e66fd89a754e38e6e099b96dd0f",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Keep renting",
@@ -4804,8 +4820,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         },
         "fi": {
           "fi_number": {
-            "baseline": "611127.00",
-            "scenario": "611127.00",
+            "baseline": "714042.04",
+            "scenario": "714042.04",
             "delta": "0.00"
           },
           "monthly_spending": {
@@ -4814,8 +4830,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2042-05",
-            "scenario": "2042-05",
+            "baseline": "2044-08",
+            "scenario": "2044-08",
             "delta_months": 0
           },
           "months_gained": 0
@@ -4845,9 +4861,9 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "note": null
           },
           "safe_withdrawal_rate": {
-            "value": "0.04",
+            "value": "0.0314",
             "origin": "placeholder",
-            "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+            "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
             "note": null
           },
           "surplus_invested": {
@@ -4858,6 +4874,12 @@ export const RENT_OR_BUY_START: DecisionStart = {
           },
           "inflation": null,
           "nominal_return": null,
+          "cash_yield": {
+            "value": "0",
+            "origin": "placeholder",
+            "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+            "note": null
+          },
           "real_returns": {
             "conservative": "0.02",
             "base": "0.04",
@@ -4875,7 +4897,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "versions": {
           "schema": "salli.scenario/1",
           "engine": "4",
-          "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+          "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -4889,8 +4911,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 20,
         "currency": "EUR",
-        "hash": "sha256:6aa0e89707d58ed8e30133ff459ea2bc8f96ac26c001804199ee40b95cbce86d",
-        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
+        "hash": "sha256:7f7ca451ecffd7205687d74626d2d9f8cae6193aeee3fe94c3ffce46c9fd9cfb",
+        "baseline_fingerprint": "sha256:5de11341c93c2f647df5271af01a1aac58b39e66fd89a754e38e6e099b96dd0f",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Buy, 4.2% over 300 months",
@@ -5319,9 +5341,9 @@ export const RENT_OR_BUY_START: DecisionStart = {
         },
         "fi": {
           "fi_number": {
-            "baseline": "611127.00",
-            "scenario": "236127.00",
-            "delta": "-375000.00"
+            "baseline": "714042.04",
+            "scenario": "236335.03",
+            "delta": "-477707.01"
           },
           "monthly_spending": {
             "baseline": "2037.09",
@@ -5329,11 +5351,11 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "delta": "-1250.00"
           },
           "fi_month": {
-            "baseline": "2042-05",
-            "scenario": "2040-09",
-            "delta_months": -20
+            "baseline": "2044-08",
+            "scenario": "2040-12",
+            "delta_months": -44
           },
-          "months_gained": 20
+          "months_gained": 44
         },
         "break_evens": [
           {
@@ -5376,9 +5398,9 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "note": null
           },
           "safe_withdrawal_rate": {
-            "value": "0.04",
+            "value": "0.0314",
             "origin": "placeholder",
-            "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+            "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
             "note": null
           },
           "surplus_invested": {
@@ -5389,6 +5411,12 @@ export const RENT_OR_BUY_START: DecisionStart = {
           },
           "inflation": null,
           "nominal_return": null,
+          "cash_yield": {
+            "value": "0",
+            "origin": "placeholder",
+            "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+            "note": null
+          },
           "real_returns": {
             "conservative": "0.02",
             "base": "0.04",
@@ -5407,7 +5435,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "versions": {
           "schema": "salli.scenario/1",
           "engine": "4",
-          "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+          "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -5424,8 +5452,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 20,
         "currency": "EUR",
-        "hash": "sha256:a9ece0d189bc65a1be201f543b0577326018ac3f8cbd32a56502b4c8dd0a4250",
-        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
+        "hash": "sha256:8a76c6d52cebf8f2d97ed0cffca87f82167921ca464a5f5f185825d8f295e971",
+        "baseline_fingerprint": "sha256:5de11341c93c2f647df5271af01a1aac58b39e66fd89a754e38e6e099b96dd0f",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Buy, Shorter",
@@ -5854,9 +5882,9 @@ export const RENT_OR_BUY_START: DecisionStart = {
         },
         "fi": {
           "fi_number": {
-            "baseline": "611127.00",
-            "scenario": "236127.00",
-            "delta": "-375000.00"
+            "baseline": "714042.04",
+            "scenario": "236335.03",
+            "delta": "-477707.01"
           },
           "monthly_spending": {
             "baseline": "2037.09",
@@ -5864,11 +5892,11 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "delta": "-1250.00"
           },
           "fi_month": {
-            "baseline": "2042-05",
-            "scenario": "2040-07",
-            "delta_months": -22
+            "baseline": "2044-08",
+            "scenario": "2040-09",
+            "delta_months": -47
           },
-          "months_gained": 22
+          "months_gained": 47
         },
         "break_evens": [
           {
@@ -5911,9 +5939,9 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "note": null
           },
           "safe_withdrawal_rate": {
-            "value": "0.04",
+            "value": "0.0314",
             "origin": "placeholder",
-            "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+            "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
             "note": null
           },
           "surplus_invested": {
@@ -5924,6 +5952,12 @@ export const RENT_OR_BUY_START: DecisionStart = {
           },
           "inflation": null,
           "nominal_return": null,
+          "cash_yield": {
+            "value": "0",
+            "origin": "placeholder",
+            "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+            "note": null
+          },
           "real_returns": {
             "conservative": "0.02",
             "base": "0.04",
@@ -5942,7 +5976,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "versions": {
           "schema": "salli.scenario/1",
           "engine": "4",
-          "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+          "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -6132,16 +6166,16 @@ export const RENT_OR_BUY_START: DecisionStart = {
           {
             "figure": "fi.fi_number",
             "unit": "amount",
-            "this": "611127.00",
-            "other": "236127.00",
-            "delta": "375000.00"
+            "this": "714042.04",
+            "other": "236335.03",
+            "delta": "477707.01"
           },
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2042-05",
-            "other": "2040-09",
-            "delta": 20
+            "this": "2044-08",
+            "other": "2040-12",
+            "delta": 44
           }
         ]
       },
@@ -6322,16 +6356,16 @@ export const RENT_OR_BUY_START: DecisionStart = {
           {
             "figure": "fi.fi_number",
             "unit": "amount",
-            "this": "611127.00",
-            "other": "236127.00",
-            "delta": "375000.00"
+            "this": "714042.04",
+            "other": "236335.03",
+            "delta": "477707.01"
           },
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2042-05",
-            "other": "2040-07",
-            "delta": 22
+            "this": "2044-08",
+            "other": "2040-09",
+            "delta": 47
           }
         ]
       },
@@ -6384,16 +6418,16 @@ export const RENT_OR_BUY_START: DecisionStart = {
           {
             "figure": "fi.fi_number",
             "unit": "amount",
-            "this": "236127.00",
-            "other": "611127.00",
-            "delta": "-375000.00"
+            "this": "236335.03",
+            "other": "714042.04",
+            "delta": "-477707.01"
           },
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2040-09",
-            "other": "2042-05",
-            "delta": -20
+            "this": "2040-12",
+            "other": "2044-08",
+            "delta": -44
           }
         ],
         "gives_up": [
@@ -6646,9 +6680,9 @@ export const RENT_OR_BUY_START: DecisionStart = {
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2040-09",
-            "other": "2040-07",
-            "delta": 2
+            "this": "2040-12",
+            "other": "2040-09",
+            "delta": 3
           }
         ]
       },
@@ -6708,16 +6742,16 @@ export const RENT_OR_BUY_START: DecisionStart = {
           {
             "figure": "fi.fi_number",
             "unit": "amount",
-            "this": "236127.00",
-            "other": "611127.00",
-            "delta": "-375000.00"
+            "this": "236335.03",
+            "other": "714042.04",
+            "delta": "-477707.01"
           },
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2040-07",
-            "other": "2042-05",
-            "delta": -22
+            "this": "2040-09",
+            "other": "2044-08",
+            "delta": -47
           }
         ],
         "gives_up": [
@@ -6919,9 +6953,9 @@ export const RENT_OR_BUY_START: DecisionStart = {
           {
             "figure": "fi.fi_month",
             "unit": "month",
-            "this": "2040-07",
-            "other": "2040-09",
-            "delta": -2
+            "this": "2040-09",
+            "other": "2040-12",
+            "delta": -3
           }
         ],
         "gives_up": [
@@ -6991,8 +7025,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
               "delta": "0.00"
             },
             "fi_month": {
-              "baseline": "2045-02",
-              "scenario": "2045-02",
+              "baseline": "2048-01",
+              "scenario": "2048-01",
               "delta_months": 0
             },
             "months_gained": 0
@@ -7009,8 +7043,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
               "delta": "0.00"
             },
             "fi_month": {
-              "baseline": "2042-05",
-              "scenario": "2042-05",
+              "baseline": "2044-08",
+              "scenario": "2044-08",
               "delta_months": 0
             },
             "months_gained": 0
@@ -7027,8 +7061,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
               "delta": "0.00"
             },
             "fi_month": {
-              "baseline": "2040-07",
-              "scenario": "2040-07",
+              "baseline": "2042-04",
+              "scenario": "2042-04",
               "delta_months": 0
             },
             "months_gained": 0
@@ -7048,11 +7082,11 @@ export const RENT_OR_BUY_START: DecisionStart = {
               "delta": "-74117.44"
             },
             "fi_month": {
-              "baseline": "2045-02",
-              "scenario": "2042-05",
-              "delta_months": -33
+              "baseline": "2048-01",
+              "scenario": "2042-08",
+              "delta_months": -65
             },
-            "months_gained": 33
+            "months_gained": 65
           },
           "base": {
             "net_worth": {
@@ -7066,11 +7100,11 @@ export const RENT_OR_BUY_START: DecisionStart = {
               "delta": "-91666.48"
             },
             "fi_month": {
-              "baseline": "2042-05",
-              "scenario": "2040-09",
-              "delta_months": -20
+              "baseline": "2044-08",
+              "scenario": "2040-12",
+              "delta_months": -44
             },
-            "months_gained": 20
+            "months_gained": 44
           },
           "growth": {
             "net_worth": {
@@ -7084,11 +7118,11 @@ export const RENT_OR_BUY_START: DecisionStart = {
               "delta": "-114716.69"
             },
             "fi_month": {
-              "baseline": "2040-07",
-              "scenario": "2039-06",
-              "delta_months": -13
+              "baseline": "2042-04",
+              "scenario": "2039-08",
+              "delta_months": -32
             },
-            "months_gained": 13
+            "months_gained": 32
           }
         },
         {
@@ -7105,11 +7139,11 @@ export const RENT_OR_BUY_START: DecisionStart = {
               "delta": "-124856.79"
             },
             "fi_month": {
-              "baseline": "2045-02",
-              "scenario": "2041-11",
-              "delta_months": -39
+              "baseline": "2048-01",
+              "scenario": "2042-02",
+              "delta_months": -71
             },
-            "months_gained": 39
+            "months_gained": 71
           },
           "base": {
             "net_worth": {
@@ -7123,11 +7157,11 @@ export const RENT_OR_BUY_START: DecisionStart = {
               "delta": "-154731.61"
             },
             "fi_month": {
-              "baseline": "2042-05",
-              "scenario": "2040-07",
-              "delta_months": -22
+              "baseline": "2044-08",
+              "scenario": "2040-09",
+              "delta_months": -47
             },
-            "months_gained": 22
+            "months_gained": 47
           },
           "growth": {
             "net_worth": {
@@ -7141,11 +7175,11 @@ export const RENT_OR_BUY_START: DecisionStart = {
               "delta": "-194075.37"
             },
             "fi_month": {
-              "baseline": "2040-07",
-              "scenario": "2039-04",
-              "delta_months": -15
+              "baseline": "2042-04",
+              "scenario": "2039-07",
+              "delta_months": -33
             },
-            "months_gained": 15
+            "months_gained": 33
           }
         }
       ]
@@ -7320,8 +7354,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "max_debt_rate": "0.059",
         "max_debt_rate_while_investing": "0.059",
         "borrowed": "0.00",
-        "fi_number": "611127.00",
-        "fi_months": 187,
+        "fi_number": "714042.04",
+        "fi_months": 214,
         "fi_months_gained": 0,
         "tax_change_this_year": "0.00"
       },
@@ -7369,8 +7403,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
           "max_debt_rate": "0.059",
           "max_debt_rate_while_investing": "0.059",
           "borrowed": "0.00",
-          "fi_number": "611127.00",
-          "fi_months": 187,
+          "fi_number": "714042.04",
+          "fi_months": 214,
           "fi_months_gained": 0,
           "tax_change_this_year": "0.00"
         },
@@ -7387,7 +7421,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
           }
         ],
         "label": "Keep renting",
-        "scenario_hash": "sha256:558be28e9c84140e2178e6df954ccd25dd88f7e198f45d671edf411224f3274a"
+        "scenario_hash": "sha256:f9e66bae6e2f5f2158917fd55faa5dcb3a2c5a686d62eccf89f97b9213274535"
       },
       {
         "figures": {
@@ -7419,9 +7453,9 @@ export const RENT_OR_BUY_START: DecisionStart = {
           "max_debt_rate": "0.059",
           "max_debt_rate_while_investing": "0.059",
           "borrowed": "280000.00",
-          "fi_number": "236127.00",
-          "fi_months": 167,
-          "fi_months_gained": 20,
+          "fi_number": "236335.03",
+          "fi_months": 170,
+          "fi_months_gained": 44,
           "tax_change_this_year": "0.00"
         },
         "unavailable": {},
@@ -7437,7 +7471,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
           }
         ],
         "label": "Buy, 4.2% over 300 months",
-        "scenario_hash": "sha256:6aa0e89707d58ed8e30133ff459ea2bc8f96ac26c001804199ee40b95cbce86d"
+        "scenario_hash": "sha256:7f7ca451ecffd7205687d74626d2d9f8cae6193aeee3fe94c3ffce46c9fd9cfb"
       },
       {
         "figures": {
@@ -7469,9 +7503,9 @@ export const RENT_OR_BUY_START: DecisionStart = {
           "max_debt_rate": "0.059",
           "max_debt_rate_while_investing": "0.059",
           "borrowed": "280000.00",
-          "fi_number": "236127.00",
-          "fi_months": 165,
-          "fi_months_gained": 22,
+          "fi_number": "236335.03",
+          "fi_months": 167,
+          "fi_months_gained": 47,
           "tax_change_this_year": "0.00"
         },
         "unavailable": {},
@@ -7487,7 +7521,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
           }
         ],
         "label": "Buy, Shorter",
-        "scenario_hash": "sha256:a9ece0d189bc65a1be201f543b0577326018ac3f8cbd32a56502b4c8dd0a4250"
+        "scenario_hash": "sha256:8a76c6d52cebf8f2d97ed0cffca87f82167921ca464a5f5f185825d8f295e971"
       }
     ]
   },

@@ -26,9 +26,16 @@ agree: a scenario with no changes has the baseline's FI exactly.
   baseline's, plus a scenario's change) less the guaranteed income paying
   then, so the number can step down when a pension starts (`fi_numbers`).
   Without a plan every month's number is the same.
+- **Debts, counted once.** The FI number's spending leaves out what the
+  average spending already pays of the debts' payments (`debt_service`:
+  a linked debt's interest, an unlinked one's minimum payment): a debt paid
+  off before FI takes its payment with it, and one still owed at FI is
+  subtracted from the asset base instead, never both.
 - **The FI asset base** at a month's end is what could fund withdrawals:
-  cash and investments, less debts and other liabilities, in today's money.
-  What else is owned (a home) funds none.
+  cash and investments, less debts and other liabilities and less the
+  emergency fund held out of it (`reserve`: the FI method's emergency
+  target in months of the FI number's spending), in today's money. What
+  else is owned (a home) funds none.
 - **The FI month** is the first month whose end the base reaches the
   number, searched to 50 years whatever horizon is shown, counted in months
   from the as-of month (0: reached by its end, or already). None while there
@@ -45,6 +52,8 @@ from typing import Any
 from salli.domain.baseline import timelines
 from salli.domain.baseline.models import Baseline
 from salli.domain.debt.engine import month_after
+from salli.domain.fi.packs.registry import get_pack
+from salli.domain.fi.plan import category_uplift
 from salli.domain.taxrules.common import RuleSetError
 from salli.domain.taxrules.engine import compile_rule_set, evaluate
 
@@ -59,6 +68,22 @@ FI_YEARS = timelines.MAX_HORIZON_YEARS
 def spending(baseline: Baseline) -> Decimal:
     """The monthly spending FI is built on: the baseline's average spending."""
     return baseline.flows.expenses
+
+
+def debt_service(baseline: Baseline) -> Decimal:
+    """What the average spending already pays each month of the debts still
+    owed: none of it is spending to live on at FI (see the module)."""
+    return sum(
+        (d.already_paid for d in baseline.debts if d.source != "scenario" and d.balance > 0),
+        Decimal(0),
+    )
+
+
+def reserve(baseline: Baseline) -> Decimal:
+    """The emergency fund held out of the FI asset base: the FI method's
+    target months of the spending the FI number is built on."""
+    living = max(spending(baseline) - debt_service(baseline), Decimal(0))
+    return living * get_pack().emergency_fund_target_months
 
 
 def _withdrawal_rules(baseline: Baseline) -> Any:
@@ -193,7 +218,18 @@ def need(baseline: Baseline, month: str, spend: Decimal, levels: dict[str, Decim
     timeline's deflators by month (1 where missing)."""
     plan = baseline.plan
     phase = plan.phase_spending(month)
-    total = spend if phase is None else phase + (spend - spending(baseline))
+    total = (
+        spend - debt_service(baseline) if phase is None else phase + (spend - spending(baseline))
+    )
+    if phase is not None:
+        pack = baseline.assumptions.cma
+        total += category_uplift(
+            plan,
+            month,
+            baseline.as_of.isoformat()[:7],
+            baseline.inflation,
+            {} if pack.placeholder else {k: f.value for k, f in pack.category_inflation.items()},
+        )
     for stream in plan.streams:
         if month >= stream.start:
             level = levels.get(month, Decimal(1))
@@ -221,13 +257,16 @@ def fi_numbers(
     ]
 
 
-def asset_base(point: timelines.MonthPoint) -> Decimal:
-    """What could fund withdrawals at a point, in today's money."""
-    return point.cash + point.investments - point.debts - point.other_liabilities
+def asset_base(point: timelines.MonthPoint, held_out: Decimal = Decimal(0)) -> Decimal:
+    """What could fund withdrawals at a point, in today's money, less
+    `held_out` (the emergency fund, `reserve`)."""
+    return point.cash + point.investments - point.debts - point.other_liabilities - held_out
 
 
 def months_to_fi(
-    points: Sequence[timelines.MonthPoint], number: Decimal | Sequence[Decimal]
+    points: Sequence[timelines.MonthPoint],
+    number: Decimal | Sequence[Decimal],
+    held_out: Decimal = Decimal(0),
 ) -> int | None:
     """Months from the as-of month to the first month-end at which the asset
     base reaches `number` (one, or one per point, `fi_numbers`): 0 when it
@@ -236,10 +275,10 @@ def months_to_fi(
     numbers = [number] * len(points) if isinstance(number, Decimal) else list(number)
     if not points or numbers[0] <= 0:
         return None
-    if asset_base(points[0]) >= numbers[0]:
+    if asset_base(points[0], held_out) >= numbers[0]:
         return 0
     for i, point in enumerate(points[1:]):
-        if numbers[i + 1] > 0 and asset_base(point) >= numbers[i + 1]:
+        if numbers[i + 1] > 0 and asset_base(point, held_out) >= numbers[i + 1]:
             return i
     return None
 
@@ -280,7 +319,7 @@ def outlook(
     be found wherever it falls), with `monthly_spending` (the baseline's when
     None): the month the asset base reaches that month's number."""
     numbers = fi_numbers(baseline, timeline.points, monthly_spending)
-    months = months_to_fi(timeline.points, numbers)
+    months = months_to_fi(timeline.points, numbers, reserve(baseline))
     return FiOutlook(numbers[0], months, fi_month(baseline, months), timeline.real_return)
 
 

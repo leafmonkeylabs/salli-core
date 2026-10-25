@@ -526,6 +526,7 @@ function registerPortfolio(program: Command, app: App): void {
     .option('--account <account>', 'The investment account that holds it in your ledger (code, name or id)')
     .addOption(new Option('--cost-method <method>', 'How its sales are costed (default: your tax rules’, else fifo)').choices(['fifo', 'average'] as const))
     .option('--expense-ratio <fraction>', 'Its yearly running cost, e.g. 0.002 or 0.2%')
+    .option('--allocation <class:share,…>', 'A fund’s look-through, e.g. equity.international:0.6,fixed_income:0.4 (adds up to 1)')
     .action(async (symbol, opts) => {
       const api = await app.api();
       const account = opts.account ? (await AccountBook.load(api)).resolve(opts.account) : undefined;
@@ -540,6 +541,7 @@ function registerPortfolio(program: Command, app: App): void {
           ...(account ? { account_id: account.id } : {}),
           ...(opts.costMethod ? { cost_method: opts.costMethod } : {}),
           ...(opts.expenseRatio ? { expense_ratio: rateArg(opts.expenseRatio, '--expense-ratio') } : {}),
+          ...(opts.allocation ? { allocation: allocationArg(opts.allocation) } : {}),
         },
       });
       if (app.out.machine) app.out.emit(created, { human: () => undefined });
@@ -564,6 +566,7 @@ function registerPortfolio(program: Command, app: App): void {
     .option('--no-account', 'Unlink it from its account (a what-if can then invest into it, but not sell it)')
     .addOption(new Option('--cost-method <method>', 'How its sales are costed; default: back to your tax rules’, else fifo').choices(['fifo', 'average', 'default'] as const))
     .option('--expense-ratio <fraction>', 'Its yearly running cost, e.g. 0.002 or 0.2%; none clears it')
+    .option('--allocation <class:share,…>', 'A fund’s look-through, e.g. equity:0.6,fixed_income:0.4; none clears it')
     .action(async (query, opts) => {
       const api = await app.api();
       const holding = await resolveHolding(api, query);
@@ -578,8 +581,9 @@ function registerPortfolio(program: Command, app: App): void {
         account_id: account ? account.id : opts.account === false ? null : undefined,
         cost_method: opts.costMethod === 'default' ? null : opts.costMethod,
         expense_ratio: opts.expenseRatio === undefined ? undefined : opts.expenseRatio === 'none' ? null : rateArg(opts.expenseRatio, '--expense-ratio'),
+        allocation: opts.allocation === undefined ? undefined : opts.allocation === 'none' ? null : allocationArg(opts.allocation),
       });
-      requireChanges(body, '--symbol, --name, --class, --invested, --value, --sold, --active, --account, --no-account, --cost-method or --expense-ratio');
+      requireChanges(body, '--symbol, --name, --class, --invested, --value, --sold, --active, --account, --no-account, --cost-method, --expense-ratio or --allocation');
       const result = await api.call(holdingsUpdate, { path: { holding_id: holding.id }, body });
       app.out.done(result, `Updated ${str(holding.symbol)}.`);
     });
@@ -794,7 +798,7 @@ function registerInsurance(program: Command, app: App): void {
     .command('add')
     .argument('<name>', 'e.g. "Life cover"')
     .description('Add a policy')
-    .requiredOption('--type <type>', 'life, health, motor, property, other')
+    .requiredOption('--type <type>', 'life, health, motor, property, liability, other')
     .requiredOption('--provider <provider>', 'The insurer')
     .requiredOption('--cover <amount>', 'Coverage amount')
     .requiredOption('--premium <amount>', 'Premium amount')
@@ -887,7 +891,7 @@ function registerInsurance(program: Command, app: App): void {
 
   targets
     .command('set')
-    .argument('<type>', 'life, health, motor, property, other')
+    .argument('<type>', 'life, health, motor, property, liability, other')
     .requiredOption('--amount <amount>', 'The cover you want in total for this type')
     .description('Set the cover you want for a type')
     .action(async (type, opts) => {
@@ -929,6 +933,9 @@ function registerInsurance(program: Command, app: App): void {
               ['Life cover held', m(d.life_cover_held)],
               ['Gap', m(d.life_cover_gap)],
               ['Income protection, a month', m(d.income_protection_monthly)],
+              ['Liability cover need (net worth)', m(d.liability_cover_need)],
+              ['Liability cover held', m(d.liability_cover_held)],
+              ['Liability gap', m(d.liability_cover_gap)],
             ]),
           );
         },
@@ -949,7 +956,7 @@ function registerInsurance(program: Command, app: App): void {
             out.line(
               out.table(d.lines, [
                 { header: 'TYPE', get: (l) => l.policy_type },
-                { header: 'TARGET', get: (l) => out.amount(l.target_amount, d.currency), align: 'right' },
+                { header: 'TARGET', get: (l) => `${out.amount(l.target_amount, d.currency)}${l.basis === 'needs' ? ' (needs)' : ''}`, align: 'right' },
                 { header: 'COVERED', get: (l) => out.amount(l.actual_coverage, d.currency), align: 'right' },
                 {
                   header: 'GAP',
@@ -976,17 +983,29 @@ function riskRows(app: App, r: InvestorRiskProfile): Array<readonly [string, str
   return [
     ['Tolerance', r.tolerance.category ? `${r.tolerance.category} (${r.tolerance.score ?? '—'})` : 'not answered (`salli onboarding risk`)'],
     ['Capacity', `${c.category} (${c.score})${c.missing.length ? `, without ${c.missing.join(', ')}` : ''}`],
+    ['Need', r.need.category ? `${r.need.category}: ${r.need.required_return === null ? 'beyond 20%' : `${out.percent(r.need.required_return, 2)} a year after inflation`}${r.need.above_profile ? ', above the profile' : ''}` : 'no horizon (`salli ips set --horizon`)'],
     ['Profile', `${r.profile}: equity up to ${out.percent(r.equity_max)}`],
   ];
 }
 
 // ── Investment policy ────────────────────────────────────────────────────────
 
+/** `CLASS:SHARE,…`, a holding's look-through. */
+function allocationArg(value: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const pair of value.split(',')) {
+    const [cls, share] = pair.split(':');
+    if (!cls || !share) throw new UsageError(`--allocation takes CLASS:SHARE,… e.g. equity:0.6,fixed_income:0.4 (got "${value}").`);
+    out[cls.trim()] = rateArg(share, '--allocation');
+  }
+  return out;
+}
+
 /** `CLASS:FRACTION[:BAND]`, for `salli ips set --target`. */
 function policyTarget(value: string): PolicyTargetIn {
   const [cls, target, band] = value.split(':');
   if (!cls || !target) throw new UsageError(`--target takes ASSET_CLASS:FRACTION[:BAND], e.g. equity:0.6:0.05 (got "${value}").`);
-  return { asset_class: cls, target: rateArg(target, '--target'), ...(band ? { band: rateArg(band, '--target') } : {}) };
+  return { asset_class: cls as PolicyTargetIn['asset_class'], target: rateArg(target, '--target'), ...(band ? { band: rateArg(band, '--target') } : {}) };
 }
 
 function registerPolicy(program: Command, app: App): void {
@@ -1054,6 +1073,7 @@ function registerPolicy(program: Command, app: App): void {
     .option('--objectives <text>', 'What the money is for, in your words')
     .option('--constraints <text>', 'Limits you set yourself')
     .option('--review-on <date>', 'When to look at the policy again (YYYY-MM-DD)')
+    .option('--override-reason <text>', 'Why the equity target may sit above your risk profile’s band (needed then; stored with the version)')
     .action(async (opts) => {
       const api = await app.api();
       const now = app.runtime.now();
@@ -1065,6 +1085,7 @@ function registerPolicy(program: Command, app: App): void {
           ...(opts.objectives ? { objectives: opts.objectives } : {}),
           ...(opts.constraints ? { constraints: opts.constraints } : {}),
           ...(opts.reviewOn ? { review_on: parseDate(opts.reviewOn, now, '--review-on') } : {}),
+          ...(opts.overrideReason ? { override_reason: opts.overrideReason } : {}),
         },
       });
       app.out.done(stored, `Adopted version ${stored.version} of your investment policy.`);
@@ -1094,7 +1115,21 @@ function registerPolicy(program: Command, app: App): void {
           out.line();
           out.line(out.details(riskRows(app, r.risk_profile)));
           if (r.equity_check.above_profile) {
-            out.line(`${out.colors.yellow('!')} The policy’s equity target (${out.percent(r.equity_check.equity_target)}) is above your ${r.equity_check.profile} profile’s ${out.percent(r.equity_check.profile_equity_max)}.`);
+            out.line(`${out.colors.yellow('!')} The policy’s equity target (${out.percent(r.equity_check.equity_target)}) is above your ${r.equity_check.profile} profile’s ${out.percent(r.equity_check.profile_equity_max)}${r.equity_check.override_reason ? `, by your override: ${singleLine(r.equity_check.override_reason)}` : ''}.`);
+          }
+          for (const sale of r.tax_aware_sales) {
+            out.line();
+            out.line(`${out.heading(`To bring ${sale.asset_class} to target`)}: ${out.money(sale.to_sell, r.currency)} of lots, realising ${out.money(sale.realised_gain, r.currency)} (losses first; figures, not advice)`);
+            out.line(
+              out.table(sale.lots, [
+                { header: 'HOLDING', get: (l) => singleLine(l.symbol) },
+                { header: 'LOT', get: (l) => displayDate(l.opened_on, out.locale) },
+                { header: 'HELD', get: (l) => l.holding_period ?? '—' },
+                { header: 'UNITS', get: (l) => l.quantity, align: 'right' },
+                { header: 'PROCEEDS', get: (l) => out.amount(l.proceeds, r.currency), align: 'right' },
+                { header: 'GAIN', get: (l) => out.amount(l.realised_gain, r.currency), align: 'right' },
+              ]),
+            );
           }
           for (const note of r.notes) out.note(singleLine(note));
         },

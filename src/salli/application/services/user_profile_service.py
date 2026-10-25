@@ -327,6 +327,10 @@ class UserProfileService:
             income_stability=answers_data["income_stability"],
             investment_experience=answers_data["investment_experience"],
             dependents_count=int(answers_data.get("dependents_count", 0)),
+            **{
+                item: None if answers_data.get(item) is None else int(answers_data[item])
+                for item in risk_engine.ITEMS
+            },
         )
         profile = risk_engine.compute(answers)
         async with self._uow_factory() as uow:
@@ -344,6 +348,9 @@ class UserProfileService:
             "score": profile.score,
             "category": profile.category,
             "breakdown": profile.breakdown,
+            "items_answered": len(profile.breakdown),
+            "experience": answers.investment_experience,
+            "experience_scored": False,
         }
 
     # ── Opening balances / income (reuse LedgerService, never reinvent it) ──

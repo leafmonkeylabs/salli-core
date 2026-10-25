@@ -446,6 +446,7 @@ export const whereStrings = {
     applied: 'In use',
     setBy: 'Set by',
     you: 'You',
+    derived: 'From your returns',
     placeholder: 'Placeholder',
     notSet: 'Not set',
     none: 'None',

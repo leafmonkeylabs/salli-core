@@ -24,7 +24,12 @@ with a `source` and a `note`, and stored as user data:
   to become a real one (set one of the two, not both);
 - `inflation`: yearly. It has no placeholder. Without it every figure is in
   today's money only; with it, projections show future money too;
-- `safe_withdrawal_rate`: what the FI number is built on;
+- `volatility`: the yearly volatility of the base scenario's return. With
+  your own return, the odds draw with this pair; without either, with the
+  pack's (`domain/fi/returns.py`), so mean and volatility never mix sources;
+- `safe_withdrawal_rate`: what the FI number is built on. Without one, the
+  rate the odds' returns sustain over `odds_returns.DRAWDOWN_YEARS` (labelled
+  `derived`; a placeholder while those returns are the placeholder pack's);
 - `surplus_invested`: the share, from 0 to 1, of each month's regular
   surplus that goes into investments and grows at the real return; the rest
   stays in cash, which earns an active CMA pack's cash yield or nothing (`baseline.timelines` says what is
@@ -42,14 +47,16 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, cast
 
 from salli.domain.fi import cma as cma_
+from salli.domain.fi import returns as odds_returns
 
-Origin = Literal["user", "placeholder"]
+Origin = Literal["user", "placeholder", "derived"]
 
 #: What a user may set, in the order they are shown.
 NAMES: tuple[str, ...] = (
     "real_return",
     "nominal_return",
     "inflation",
+    "volatility",
     "safe_withdrawal_rate",
     "surplus_invested",
 )
@@ -60,6 +67,7 @@ BOUNDS: dict[str, tuple[Decimal, Decimal]] = {
     "real_return": (Decimal("-0.05"), Decimal("0.15")),
     "nominal_return": (Decimal("-0.05"), Decimal("1")),
     "inflation": (Decimal("-0.05"), Decimal("1")),
+    "volatility": (Decimal(0), Decimal("0.80")),
     "safe_withdrawal_rate": (Decimal("0.01"), Decimal("0.10")),
     "surplus_invested": (Decimal(0), Decimal(1)),
 }
@@ -90,11 +98,19 @@ PLACEHOLDERS: dict[str, Placeholder] = {
         "Placeholder: a round 4% a year after inflation, not a forecast and not any "
         "country's figure. Set your own, with its source.",
     ),
+    # The rate the placeholder pack's returns sustain (`resolve`).
     "safe_withdrawal_rate": Placeholder(
-        Decimal("0.04"),
-        "Placeholder: a round 4%, the rule of thumb most writing on financial independence "
-        "starts from. Not a recommendation: the rate that lasts differs between markets and "
-        "periods. Set your own, with its source.",
+        odds_returns.sustained_rate(
+            odds_returns.ReturnSource(
+                cma_.PLACEHOLDER.expected_return,
+                cma_.PLACEHOLDER.volatility,
+                cma_.TAILS,
+                "placeholder",
+            )
+        ),
+        "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over "
+        "30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set "
+        "your own rate, or your own returns, with a source.",
     ),
     "surplus_invested": Placeholder(
         Decimal(1),
@@ -221,6 +237,7 @@ class OwnAssumptions:
     real_return: OwnFigure | None = None
     nominal_return: OwnFigure | None = None
     inflation: OwnFigure | None = None
+    volatility: OwnFigure | None = None
     safe_withdrawal_rate: OwnFigure | None = None
     surplus_invested: OwnFigure | None = None
 
@@ -304,6 +321,7 @@ _LABELS = {
     "real_return": "the real return",
     "nominal_return": "the nominal return",
     "inflation": "inflation",
+    "volatility": "the volatility",
     "safe_withdrawal_rate": "the safe withdrawal rate",
     "surplus_invested": "the share of your monthly surplus invested",
 }
@@ -336,6 +354,31 @@ class FiAssumptions:
     #: The capital-market assumptions in use: the user's active pack, or the
     #: labelled placeholder pack.
     cma: cma_.CmaPack = cma_.PLACEHOLDER
+    #: Where the odds' returns come from: one source for mean and volatility.
+    odds: odds_returns.ReturnSource = odds_returns.ReturnSource(
+        cma_.PLACEHOLDER.expected_return,
+        cma_.PLACEHOLDER.volatility,
+        cma_.TAILS,
+        "placeholder",
+    )
+
+    @property
+    def cash_yield_applied(self) -> Applied:
+        """The cash yield with where it comes from: a placeholder of nothing
+        without an active pack."""
+        if self.cma.placeholder:
+            return Applied(
+                Decimal(0),
+                "placeholder",
+                "Placeholder: cash earns nothing after inflation. Activate capital-market "
+                "assumptions with a cash yield to replace it.",
+            )
+        figure = self.cma.cash_yield
+        return Applied(
+            figure.value,
+            "user",
+            _from_pack(self.cma, "cash yield", f"{figure.source} ({figure.date})"),
+        )
 
     @property
     def cash_yield(self) -> Decimal:
@@ -398,7 +441,9 @@ def _from_pack(pack: cma_.CmaPack, what: str, figure: str) -> str:
     return f"Your capital-market assumptions ({pack.label}): {what}. Sources: {figure}"
 
 
-def resolve(own: OwnAssumptions, cma: cma_.CmaPack | None = None) -> FiAssumptions:
+def resolve(
+    own: OwnAssumptions, cma: cma_.CmaPack | None = None, expense_ratio: Decimal = Decimal(0)
+) -> FiAssumptions:
     """The assumptions that apply: the user's own, then their active
     capital-market assumptions (`cma`: the mix's expected real return, and
     inflation), then the placeholders. A nominal return without inflation
@@ -448,11 +493,44 @@ def resolve(own: OwnAssumptions, cma: cma_.CmaPack | None = None) -> FiAssumptio
         base = Applied(placeholder.value, "placeholder", placeholder.source)
         scenarios = Scenarios.around(placeholder.value)
 
+    # Your pair only when you set both a return and a volatility.
+    if own.volatility is not None and (own.real_return is not None or nominal is not None):
+        odds = odds_returns.ReturnSource(
+            base.value, own.volatility.value, pack.tails, "user", expense_ratio
+        )
+    else:
+        odds = odds_returns.ReturnSource(
+            pack.expected_return,
+            pack.volatility,
+            pack.tails,
+            "placeholder" if pack.placeholder else "pack",
+            expense_ratio,
+            None if pack.history is None else pack.history.monthly,
+        )
+
     if own.safe_withdrawal_rate is not None:
         swr = _yours(own.safe_withdrawal_rate)
     else:
-        placeholder = PLACEHOLDERS["safe_withdrawal_rate"]
-        swr = Applied(placeholder.value, "placeholder", placeholder.source)
+        rate = odds_returns.sustained_rate(odds)
+        said = (
+            f"Derived: the yearly withdrawal {odds_returns.DEFAULT_SUCCESS * 100:.0f}% of "
+            f"{odds_returns.DEFAULT_PATHS} simulated return paths sustain over "
+            f"{odds_returns.DRAWDOWN_YEARS} years drawn down"
+        )
+        if odds.origin == "placeholder":
+            swr = Applied(
+                rate,
+                "placeholder",
+                f"Placeholder: {said[9:]}, on the placeholder pack's returns. Not a "
+                "recommendation. Set your own rate, or your own returns, with a source.",
+            )
+        else:
+            swr = Applied(
+                rate,
+                "derived",
+                f"{said}, on {'your own returns' if odds.origin == 'user' else 'your pack'}. "
+                "Not a recommendation; set your own rate to replace it.",
+            )
 
     if own.surplus_invested is not None:
         share = _yours(own.surplus_invested)
@@ -468,6 +546,7 @@ def resolve(own: OwnAssumptions, cma: cma_.CmaPack | None = None) -> FiAssumptio
         inflation=inflation,
         nominal_return=nominal,
         cma=pack,
+        odds=odds,
     )
 
 
@@ -512,6 +591,7 @@ def assumptions_dict(applied: FiAssumptions) -> dict[str, Any]:
         "surplus_invested": _applied_dict(applied.surplus_invested),
         "inflation": _applied_dict(applied.inflation),
         "nominal_return": _applied_dict(applied.nominal_return),
+        "cash_yield": _applied_dict(applied.cash_yield_applied),
         "real_returns": scenarios_dict(applied.real_returns),
         "nominal_returns": scenarios_dict(applied.nominal_returns),
         # Only with the user's own pack, so figures on the placeholder are

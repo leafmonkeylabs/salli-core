@@ -392,8 +392,8 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
       "max_debt_rate": "0.059",
       "max_debt_rate_while_investing": "0.059",
       "borrowed": "0.00",
-      "fi_number": "611127.00",
-      "fi_months": 187,
+      "fi_number": "714042.04",
+      "fi_months": 214,
       "fi_months_gained": 0,
       "tax_change_this_year": "0.00"
     },
@@ -450,8 +450,8 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
         "max_debt_rate": "0.059",
         "max_debt_rate_while_investing": "0.059",
         "borrowed": "0.00",
-        "fi_number": "611127.00",
-        "fi_months": 188,
+        "fi_number": "714042.04",
+        "fi_months": 215,
         "fi_months_gained": -1,
         "tax_change_this_year": "0.00"
       },
@@ -477,7 +477,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
         }
       ],
       "label": "Pay cash",
-      "scenario_hash": "sha256:67c7683d3fc91bae68fad9bdd5ab25f640395381316a4e352517a595aa434f73"
+      "scenario_hash": "sha256:9d9310531441cd397513741ee5663a1b65e8044c20841621b975ec097a7f46e3"
     },
     {
       "figures": {
@@ -509,9 +509,9 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
         "max_debt_rate": "0.069",
         "max_debt_rate_while_investing": "0.069",
         "borrowed": "2400.00",
-        "fi_number": "611127.00",
-        "fi_months": 189,
-        "fi_months_gained": -2,
+        "fi_number": "714042.04",
+        "fi_months": 215,
+        "fi_months_gained": -1,
         "tax_change_this_year": "0.00"
       },
       "unavailable": {},
@@ -536,7 +536,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
         }
       ],
       "label": "Instalments",
-      "scenario_hash": "sha256:294a0d3a1c63d134eabf355363fb85f904d776112905d64c0e4f8b0cbd9013cf"
+      "scenario_hash": "sha256:5d65146e6c32ef8d093554c745085c70f8a00507252dde140149477789244e68"
     }
   ],
   "placeholders": [

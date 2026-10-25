@@ -8340,6 +8340,21 @@
               "title": "Cash Yield"
             },
             "description": "A yearly cash yield for the Sharpe ratio, a fraction (0.03)."
+          },
+          {
+            "name": "blend",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Repeatable asset_class:SYMBOL: a blended benchmark, weighted by your investment policy's targets, over the closes recorded for each symbol.",
+              "default": [],
+              "title": "Blend"
+            },
+            "description": "Repeatable asset_class:SYMBOL: a blended benchmark, weighted by your investment policy's targets, over the closes recorded for each symbol."
           }
         ],
         "responses": {
@@ -18378,6 +18393,86 @@
         "title": "BenchmarkFigures",
         "description": "A series of closes you record for any symbol, measured month by month\nover the same period."
       },
+      "BlendedBenchmark": {
+        "properties": {
+          "weights": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string, exact; never a float.",
+              "examples": [
+                "10.5"
+              ]
+            },
+            "type": "object",
+            "title": "Weights"
+          },
+          "series": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Series"
+          },
+          "yearly_return": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yearly Return"
+          },
+          "volatility": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volatility"
+          },
+          "max_drawdown": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weights",
+          "series",
+          "yearly_return",
+          "volatility",
+          "max_drawdown"
+        ],
+        "title": "BlendedBenchmark"
+      },
       "BriefingAssumptions": {
         "properties": {
           "status": {
@@ -19180,6 +19275,59 @@
           "updated"
         ],
         "title": "CategorizedTransactions"
+      },
+      "CategoryInflationIn": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Value",
+            "examples": [
+              "0.05"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "CategoryInflationIn"
+      },
+      "CategoryInflationOut": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "CategoryInflationOut"
       },
       "ChainBreak": {
         "properties": {
@@ -20673,6 +20821,15 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "target",
+              "needs"
+            ],
+            "title": "Basis",
+            "default": "target"
           }
         },
         "type": "object",
@@ -23206,6 +23363,13 @@
           "equity_check": {
             "$ref": "#/components/schemas/EquityCheck"
           },
+          "tax_aware_sales": {
+            "items": {
+              "$ref": "#/components/schemas/TaxAwareSale"
+            },
+            "type": "array",
+            "title": "Tax Aware Sales"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -23224,6 +23388,7 @@
           "review_due",
           "risk_profile",
           "equity_check",
+          "tax_aware_sales",
           "notes"
         ],
         "title": "DriftReport"
@@ -23539,6 +23704,17 @@
           "above_profile": {
             "type": "boolean",
             "title": "Above Profile"
+          },
+          "override_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Reason"
           }
         },
         "type": "object",
@@ -24094,7 +24270,8 @@
             "type": "string",
             "enum": [
               "user",
-              "placeholder"
+              "placeholder",
+              "derived"
             ],
             "title": "Origin"
           },
@@ -24169,6 +24346,16 @@
             ]
           },
           "nominal_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cash_yield": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/FiAssumption"
@@ -24264,6 +24451,16 @@
             ]
           },
           "inflation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "volatility": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/FiOwnAssumptionIn"
@@ -24458,6 +24655,9 @@
             "type": "string",
             "title": "Volatility"
           },
+          "returns": {
+            "$ref": "#/components/schemas/OddsReturns"
+          },
           "cma": {
             "$ref": "#/components/schemas/CmaSummary"
           },
@@ -24551,6 +24751,7 @@
           "horizon_years",
           "real_return",
           "volatility",
+          "returns",
           "cma",
           "fi_number",
           "reach",
@@ -24684,6 +24885,16 @@
               }
             ]
           },
+          "volatility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "safe_withdrawal_rate": {
             "anyOf": [
               {
@@ -24764,6 +24975,14 @@
             "type": "array",
             "title": "Spending Phases"
           },
+          "category_inflation": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CategoryInflationOut"
+            },
+            "type": "object",
+            "title": "Category Inflation",
+            "default": {}
+          },
           "date_of_birth": {
             "anyOf": [
               {
@@ -24803,6 +25022,15 @@
             "maxItems": 20,
             "title": "Spending Phases",
             "default": []
+          },
+          "category_inflation": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CategoryInflationIn"
+            },
+            "type": "object",
+            "maxProperties": 20,
+            "title": "Category Inflation",
+            "default": {}
           }
         },
         "type": "object",
@@ -26138,6 +26366,20 @@
             ],
             "title": "Expense Ratio"
           },
+          "allocation": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocation"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -26353,6 +26595,21 @@
           "is_open": {
             "type": "boolean",
             "title": "Is Open"
+          },
+          "holding_period": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "short",
+                  "long"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holding Period"
           }
         },
         "type": "object",
@@ -26401,6 +26658,28 @@
               "average"
             ],
             "title": "Cost Method"
+          },
+          "long_term_after_months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Long Term After Months"
+          },
+          "wash_sale_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wash Sale Days"
           },
           "quantity": {
             "type": "string",
@@ -26592,6 +26871,24 @@
               }
             ],
             "title": "Expense Ratio"
+          },
+          "allocation": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^-?\\d+(\\.\\d+)?$",
+                  "examples": [
+                    "0.05"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocation"
           }
         },
         "type": "object",
@@ -26701,6 +26998,17 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "wash_sale": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wash Sale"
           },
           "consumed": {
             "items": {
@@ -27437,6 +27745,24 @@
               }
             ],
             "title": "Expense Ratio"
+          },
+          "allocation": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^-?\\d+(\\.\\d+)?$",
+                  "examples": [
+                    "0.05"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocation"
           }
         },
         "type": "object",
@@ -27971,6 +28297,33 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "liability_cover_need": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Liability Cover Need",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "liability_cover_held": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Liability Cover Held",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "liability_cover_gap": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Liability Cover Gap",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
@@ -27984,7 +28337,10 @@
           "life_cover_need",
           "life_cover_held",
           "life_cover_gap",
-          "income_protection_monthly"
+          "income_protection_monthly",
+          "liability_cover_need",
+          "liability_cover_held",
+          "liability_cover_gap"
         ],
         "title": "InsuranceNeeds",
         "description": "A needs analysis from your own figures. Figures only: never a product."
@@ -28211,6 +28567,17 @@
               }
             ],
             "title": "Review On"
+          },
+          "override_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Reason"
           }
         },
         "type": "object",
@@ -28278,6 +28645,19 @@
               }
             ],
             "title": "Review On"
+          },
+          "override_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Reason"
           }
         },
         "type": "object",
@@ -28337,6 +28717,9 @@
           "capacity": {
             "$ref": "#/components/schemas/RiskCapacityFigures"
           },
+          "need": {
+            "$ref": "#/components/schemas/RiskNeed"
+          },
           "profile": {
             "type": "string",
             "enum": [
@@ -28360,6 +28743,7 @@
         "required": [
           "tolerance",
           "capacity",
+          "need",
           "profile",
           "equity_max"
         ],
@@ -28821,6 +29205,21 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "holding_period": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "short",
+                  "long"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holding Period"
           }
         },
         "type": "object",
@@ -28878,6 +29277,79 @@
           "quantity"
         ],
         "title": "LotPickRequest"
+      },
+      "LotToSell": {
+        "properties": {
+          "holding_id": {
+            "type": "string",
+            "title": "Holding Id"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "lot_id": {
+            "type": "string",
+            "title": "Lot Id"
+          },
+          "opened_on": {
+            "type": "string",
+            "title": "Opened On"
+          },
+          "holding_period": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "short",
+                  "long"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holding Period"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Quantity",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "proceeds": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Proceeds",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "realised_gain": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Realised Gain",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "holding_id",
+          "symbol",
+          "lot_id",
+          "opened_on",
+          "quantity",
+          "proceeds",
+          "realised_gain"
+        ],
+        "title": "LotToSell"
       },
       "MapBankAccount": {
         "properties": {
@@ -29299,6 +29771,53 @@
         ],
         "title": "NativeFigures",
         "description": "A holding's figures in its own currency."
+      },
+      "NetOfFees": {
+        "properties": {
+          "expense_ratio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Ratio"
+          },
+          "yearly_return": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yearly Return"
+          },
+          "says": {
+            "type": "string",
+            "title": "Says"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expense_ratio",
+          "yearly_return",
+          "says"
+        ],
+        "title": "NetOfFees"
       },
       "NetWorthByMonth": {
         "properties": {
@@ -29869,6 +30388,44 @@
         ],
         "title": "OddsGuardrails"
       },
+      "OddsReturns": {
+        "properties": {
+          "origin": {
+            "type": "string",
+            "enum": [
+              "user",
+              "pack",
+              "placeholder"
+            ],
+            "title": "Origin"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "student_t",
+              "bootstrap"
+            ],
+            "title": "Method"
+          },
+          "expense_ratio": {
+            "type": "string",
+            "title": "Expense Ratio"
+          },
+          "says": {
+            "type": "string",
+            "title": "Says"
+          }
+        },
+        "type": "object",
+        "required": [
+          "origin",
+          "method",
+          "expense_ratio",
+          "says"
+        ],
+        "title": "OddsReturns",
+        "description": "Where the paths' returns come from: one source for mean and volatility."
+      },
       "OddsWithdrawalRate": {
         "properties": {
           "applied": {
@@ -29879,9 +30436,21 @@
             "type": "string",
             "enum": [
               "user",
-              "placeholder"
+              "placeholder",
+              "derived"
             ],
             "title": "Origin"
+          },
+          "applied_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied Years"
           },
           "horizon_derived": {
             "type": "string",
@@ -30975,8 +31544,23 @@
         "properties": {
           "asset_class": {
             "type": "string",
-            "maxLength": 40,
-            "minLength": 1,
+            "enum": [
+              "equity",
+              "equity.domestic",
+              "equity.international",
+              "equity.emerging",
+              "fixed_income",
+              "fixed_income.government",
+              "fixed_income.corporate",
+              "fixed_income.inflation_linked",
+              "cash",
+              "property",
+              "property.direct",
+              "property.listed",
+              "commodities",
+              "alternatives",
+              "other"
+            ],
             "title": "Asset Class"
           },
           "target": {
@@ -33556,40 +34140,6 @@
         ],
         "title": "ReviewIn"
       },
-      "RiskBreakdown": {
-        "properties": {
-          "time_horizon": {
-            "type": "integer",
-            "title": "Time Horizon"
-          },
-          "drawdown_reaction": {
-            "type": "integer",
-            "title": "Drawdown Reaction"
-          },
-          "income_stability": {
-            "type": "integer",
-            "title": "Income Stability"
-          },
-          "investment_experience": {
-            "type": "integer",
-            "title": "Investment Experience"
-          },
-          "dependents": {
-            "type": "integer",
-            "title": "Dependents"
-          }
-        },
-        "type": "object",
-        "required": [
-          "time_horizon",
-          "drawdown_reaction",
-          "income_stability",
-          "investment_experience",
-          "dependents"
-        ],
-        "title": "RiskBreakdown",
-        "description": "The points each answer contributed to the score."
-      },
       "RiskCapacityFigures": {
         "properties": {
           "score": {
@@ -33803,6 +34353,50 @@
                 "type": "null"
               }
             ]
+          },
+          "blended_benchmark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlendedBenchmark"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tracking_error": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Error"
+          },
+          "tracking_against": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "benchmark",
+                  "blended_benchmark"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Against"
+          },
+          "net_of_fees": {
+            "$ref": "#/components/schemas/NetOfFees"
           }
         },
         "type": "object",
@@ -33814,10 +34408,64 @@
           "sharpe",
           "hurdle",
           "hurdle_source",
-          "benchmark"
+          "benchmark",
+          "net_of_fees"
         ],
         "title": "RiskFigures",
         "description": "From the period's monthly time-weighted returns. Fractions of one."
+      },
+      "RiskNeed": {
+        "properties": {
+          "required_return": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Return"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "conservative",
+                  "balanced",
+                  "aggressive"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "above_profile": {
+            "type": "boolean",
+            "title": "Above Profile"
+          },
+          "says": {
+            "type": "string",
+            "title": "Says"
+          }
+        },
+        "type": "object",
+        "required": [
+          "required_return",
+          "category",
+          "above_profile",
+          "says"
+        ],
+        "title": "RiskNeed",
+        "description": "The return the plan requires, beside the profile, never folded in."
       },
       "RiskProfile": {
         "properties": {
@@ -33835,17 +34483,36 @@
             "title": "Category"
           },
           "breakdown": {
-            "$ref": "#/components/schemas/RiskBreakdown"
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Breakdown"
+          },
+          "items_answered": {
+            "type": "integer",
+            "title": "Items Answered"
+          },
+          "experience": {
+            "type": "string",
+            "title": "Experience"
+          },
+          "experience_scored": {
+            "type": "boolean",
+            "title": "Experience Scored"
           }
         },
         "type": "object",
         "required": [
           "score",
           "category",
-          "breakdown"
+          "breakdown",
+          "items_answered",
+          "experience",
+          "experience_scored"
         ],
         "title": "RiskProfile",
-        "description": "The scored questionnaire, as saved to the profile."
+        "description": "The scored tolerance, as saved to the profile."
       },
       "RiskQuestionnaireRequest": {
         "properties": {
@@ -33869,6 +34536,84 @@
             "type": "integer",
             "title": "Dependents Count",
             "default": 0
+          },
+          "loss_tolerance": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loss Tolerance"
+          },
+          "certainty": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certainty"
+          },
+          "volatility_comfort": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volatility Comfort"
+          },
+          "self_rating": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Self Rating"
+          },
+          "loss_focus": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loss Focus"
+          },
+          "past_behaviour": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Past Behaviour"
           }
         },
         "type": "object",
@@ -33878,7 +34623,8 @@
           "income_stability",
           "investment_experience"
         ],
-        "title": "RiskQuestionnaireRequest"
+        "title": "RiskQuestionnaireRequest",
+        "description": "Tolerance (attitude, scored), capacity (horizon, income stability,\ndependents: measured with your baseline, `GET /v1/ips/risk-profile`)\nand experience (recorded, never scored)."
       },
       "RiskTolerance": {
         "properties": {
@@ -36911,6 +37657,20 @@
               }
             ],
             "title": "Source"
+          },
+          "categories": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string, read exactly; a JSON number is refused.",
+              "examples": [
+                "1234.50"
+              ]
+            },
+            "type": "object",
+            "maxProperties": 20,
+            "title": "Categories",
+            "default": {}
           }
         },
         "type": "object",
@@ -36941,6 +37701,14 @@
               }
             ],
             "title": "Source"
+          },
+          "categories": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Categories",
+            "default": {}
           }
         },
         "type": "object",
@@ -37075,8 +37843,23 @@
             "type": "string",
             "title": "Debt"
           },
-          "debt_real_rate": {
+          "status": {
             "type": "string",
+            "enum": [
+              "computed",
+              "not_computed"
+            ],
+            "title": "Status"
+          },
+          "debt_real_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Debt Real Rate"
           },
           "months": {
@@ -37092,7 +37875,14 @@
             "title": "Seed"
           },
           "invest_beats_paying_down": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Invest Beats Paying Down"
           },
           "says": {
@@ -37103,6 +37893,7 @@
         "type": "object",
         "required": [
           "debt",
+          "status",
           "debt_real_rate",
           "months",
           "paths",
@@ -38259,6 +39050,48 @@
           "target_amount"
         ],
         "title": "TargetRequest"
+      },
+      "TaxAwareSale": {
+        "properties": {
+          "asset_class": {
+            "type": "string",
+            "title": "Asset Class"
+          },
+          "to_sell": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "To Sell",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lots": {
+            "items": {
+              "$ref": "#/components/schemas/LotToSell"
+            },
+            "type": "array",
+            "title": "Lots"
+          },
+          "realised_gain": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Realised Gain",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_class",
+          "to_sell",
+          "lots",
+          "realised_gain"
+        ],
+        "title": "TaxAwareSale",
+        "description": "For a class above its target: the open lots that, sold, bring it to\ntarget with the least realised gain (losses first). Figures, not advice:\nwhether to sell is yours."
       },
       "TaxComputation": {
         "properties": {

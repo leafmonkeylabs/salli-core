@@ -124,20 +124,25 @@ describe('the rest of the fact-find', () => {
     mock.on('POST', '/v1/onboarding/risk-questionnaire', () => ({
       status: 200,
       body: {
-        score: 14,
+        score: 63,
         category: 'balanced',
-        breakdown: { time_horizon: 4, drawdown_reaction: 3, income_stability: 3, investment_experience: 2, dependents: 2 },
+        breakdown: { drawdown_reaction: 3, certainty: 2 },
+        items_answered: 2,
+        experience: 'some',
+        experience_scored: false,
       },
     }));
-    const result = await run(['profile', 'risk', '--horizon', '15', '--drawdown', 'hold', '--income-stability', 'stable', '--experience', 'some']);
+    const result = await run(['profile', 'risk', '--horizon', '15', '--drawdown', 'hold', '--income-stability', 'stable', '--experience', 'some', '--certainty', '3']);
     expect(sent('POST', '/v1/onboarding/risk-questionnaire')).toEqual({
       time_horizon_years: 15,
       drawdown_reaction: 'hold',
       income_stability: 'stable',
       investment_experience: 'some',
       dependents_count: 0,
+      certainty: 3,
     });
-    expect(result.stdout).toContain('Risk score 14 (balanced)');
+    expect(result.stdout).toContain('Risk tolerance 63 (balanced, over 2 answers)');
+    expect((await run(['profile', 'risk', '--horizon', '15', '--drawdown', 'hold', '--income-stability', 'stable', '--experience', 'some', '--certainty', '6'])).code).toBe(2);
     expect((await run(['profile', 'risk', '--horizon', '15', '--drawdown', 'panic', '--income-stability', 'stable', '--experience', 'some'])).code).toBe(2);
   });
 });

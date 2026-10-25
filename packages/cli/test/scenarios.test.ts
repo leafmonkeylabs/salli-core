@@ -111,8 +111,8 @@ describe('salli whatif', () => {
       Car loan (new) paid off           —    Dec 2030               —
       Interest on debts          2,009.25    4,658.71       +2,649.46
       Debt-free                  Mar 2033    Mar 2033      same month
-      FI number                611,127.00  607,230.00       -3,897.00
-      Financially independent    May 2042    Sep 2042  4 months later
+      FI number                714,042.04  709,077.71       -4,964.33
+      Financially independent    Aug 2044    Nov 2044  3 months later
       "
     `);
     expect(result.stderr).toContain('In today’s money.');
@@ -325,17 +325,17 @@ describe('salli compare', () => {
       Net worth in 20 years        1,149,349.20  1,146,949.20  1,143,949.56
       Interest on debts                2,009.25      2,009.25      2,099.93
       Debt-free                        Mar 2033      Mar 2033      Mar 2033
-      FI number                      611,127.00    611,127.00    611,127.00
-      Financially independent          May 2042      Jun 2042      Jul 2042
+      FI number                      714,042.04    714,042.04    714,042.04
+      Financially independent          Aug 2044      Sep 2044      Sep 2044
 
       The trade
         Pay cash against Instalments
-          ahead on:  net worth in 1 year +127.92; investments in 1 year +2,321.48; debts in 1 year -206.44; net worth in 5 years +566.34; investments in 5 years +2,966.34; net worth in 10 years +1,221.90; investments in 10 years +3,621.90; net worth in 20 years +2,999.64; investments in 20 years +5,399.64; interest -90.68; FI 1 month sooner
+          ahead on:  net worth in 1 year +127.92; investments in 1 year +2,321.48; debts in 1 year -206.44; net worth in 5 years +566.34; investments in 5 years +2,966.34; net worth in 10 years +1,221.90; investments in 10 years +3,621.90; net worth in 20 years +2,999.64; investments in 20 years +5,399.64; interest -90.68
           behind on: lowest cash -2,222.10; emergency months at the low -1.17; cash in 1 year -2,400.00; cash in 5 years -2,400.00; cash in 10 years -2,400.00; cash in 20 years -2,400.00
 
       AT 20 YEARS     CONSERVATIVE (2%)               BASE (4%)             GROWTH (6%)
-      Pay cash     975,256.19  Feb 2045  1,146,949.20  Jun 2042  1,377,923.33  Jul 2040
-      Instalments  973,987.81  Mar 2045  1,143,949.56  Jul 2042  1,372,380.21  Aug 2040
+      Pay cash     975,256.19  Feb 2048  1,146,949.20  Sep 2044  1,377,923.33  Apr 2042
+      Instalments  973,987.81  Feb 2048  1,143,949.56  Sep 2044  1,372,380.21  May 2042
 
       Break-evens
         Pay cash ends the horizon with more net worth than Instalments at every loan rate from 0% to 100%.

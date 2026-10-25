@@ -5782,9 +5782,9 @@ export const ASSUMPTIONS: FiAssumptionsReport = {
       "note": null
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
+      "value": "0.0314",
       "origin": "placeholder",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
       "note": null
     },
     "surplus_invested": {
@@ -5795,6 +5795,12 @@ export const ASSUMPTIONS: FiAssumptionsReport = {
     },
     "inflation": null,
     "nominal_return": null,
+    "cash_yield": {
+      "value": "0",
+      "origin": "placeholder",
+      "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+      "note": null
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -5807,6 +5813,7 @@ export const ASSUMPTIONS: FiAssumptionsReport = {
     "real_return": null,
     "nominal_return": null,
     "inflation": null,
+    "volatility": null,
     "safe_withdrawal_rate": null,
     "surplus_invested": null
   },
@@ -5816,8 +5823,8 @@ export const ASSUMPTIONS: FiAssumptionsReport = {
       "source": "Placeholder: a round 4% a year after inflation, not a forecast and not any country's figure. Set your own, with its source."
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source."
+      "value": "0.0314",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source."
     },
     "surplus_invested": {
       "value": "1",
@@ -5833,155 +5840,173 @@ export const PROJECTIONS: FiProjections = {
   "points": [
     {
       "year": 0,
-      "conservative": "35901.47",
-      "base": "35901.47",
-      "growth": "35901.47"
+      "conservative": "24691.01",
+      "base": "24691.01",
+      "growth": "24691.01"
     },
     {
       "year": 1,
-      "conservative": "65182.46",
-      "base": "66266.13",
-      "growth": "67369.42"
+      "conservative": "53972.00",
+      "base": "55055.67",
+      "growth": "56158.96"
     },
     {
       "year": 2,
-      "conservative": "91659.83",
-      "base": "94257.57",
-      "growth": "96947.26"
+      "conservative": "80449.37",
+      "base": "83047.11",
+      "growth": "85736.80"
     },
     {
       "year": 3,
-      "conservative": "118846.54",
-      "base": "123466.86",
-      "growth": "128327.47"
+      "conservative": "107636.08",
+      "base": "112256.40",
+      "growth": "117117.01"
     },
     {
       "year": 4,
-      "conservative": "146641.24",
-      "base": "153886.40",
-      "growth": "161623.43"
+      "conservative": "135430.78",
+      "base": "142675.94",
+      "growth": "150412.97"
     },
     {
       "year": 5,
-      "conservative": "175029.43",
-      "base": "185551.81",
-      "growth": "196953.13"
+      "conservative": "163818.97",
+      "base": "174341.35",
+      "growth": "185742.67"
     },
     {
       "year": 6,
-      "conservative": "204024.60",
-      "base": "218514.19",
-      "growth": "234441.13"
+      "conservative": "192814.14",
+      "base": "207303.73",
+      "growth": "223230.67"
     },
     {
       "year": 7,
-      "conservative": "233635.02",
-      "base": "252825.56",
-      "growth": "274222.94"
+      "conservative": "222424.56",
+      "base": "241615.10",
+      "growth": "263012.48"
     },
     {
       "year": 8,
-      "conservative": "263846.71",
-      "base": "288535.57",
-      "growth": "316456.17"
+      "conservative": "252636.25",
+      "base": "277325.11",
+      "growth": "305245.71"
     },
     {
       "year": 9,
-      "conservative": "294668.21",
-      "base": "325700.46",
-      "growth": "361294.26"
+      "conservative": "283457.75",
+      "base": "314490.00",
+      "growth": "350083.80"
     },
     {
       "year": 10,
-      "conservative": "326111.82",
-      "base": "364379.50",
-      "growth": "408897.86"
+      "conservative": "314901.36",
+      "base": "353169.04",
+      "growth": "397687.40"
     },
     {
       "year": 11,
-      "conservative": "358190.09",
-      "base": "404634.39",
-      "growth": "459437.55"
+      "conservative": "346979.63",
+      "base": "393423.93",
+      "growth": "448227.09"
     },
     {
       "year": 12,
-      "conservative": "390915.85",
-      "base": "446529.32",
-      "growth": "513094.41"
+      "conservative": "379705.39",
+      "base": "435318.86",
+      "growth": "501883.95"
     },
     {
       "year": 13,
-      "conservative": "424302.15",
-      "base": "490131.11",
-      "growth": "570060.71"
+      "conservative": "413091.69",
+      "base": "478920.65",
+      "growth": "558850.25"
     },
     {
       "year": 14,
-      "conservative": "458362.34",
-      "base": "535509.32",
-      "growth": "630540.57"
+      "conservative": "447151.88",
+      "base": "524298.86",
+      "growth": "619330.11"
     },
     {
       "year": 15,
-      "conservative": "493110.01",
-      "base": "582736.30",
-      "growth": "694750.69"
+      "conservative": "481899.55",
+      "base": "571525.84",
+      "growth": "683540.23"
     },
     {
       "year": 16,
-      "conservative": "528559.04",
-      "base": "631887.37",
-      "growth": "762921.16"
+      "conservative": "517348.58",
+      "base": "620676.91",
+      "growth": "751710.70"
     },
     {
       "year": 17,
-      "conservative": "564723.58",
-      "base": "683040.94",
-      "growth": "835296.23"
+      "conservative": "553513.12",
+      "base": "671830.48",
+      "growth": "824085.77"
     },
     {
       "year": 18,
-      "conservative": "601618.08",
-      "base": "736278.59",
-      "growth": "912135.23"
+      "conservative": "590407.62",
+      "base": "725068.13",
+      "growth": "900924.77"
     },
     {
       "year": 19,
-      "conservative": "639257.27",
-      "base": "791685.22",
-      "growth": "993713.50"
+      "conservative": "628046.81",
+      "base": "780474.76",
+      "growth": "982503.04"
     },
     {
       "year": 20,
-      "conservative": "677656.19",
-      "base": "849349.20",
-      "growth": "1080323.33"
+      "conservative": "666445.73",
+      "base": "838138.74",
+      "growth": "1069112.87"
     },
     {
       "year": 21,
-      "conservative": "716830.16",
-      "base": "909362.50",
-      "growth": "1172275.07"
+      "conservative": "705619.70",
+      "base": "898152.04",
+      "growth": "1161064.61"
+    },
+    {
+      "year": 22,
+      "conservative": "745584.38",
+      "base": "960610.37",
+      "growth": "1258687.74"
+    },
+    {
+      "year": 23,
+      "conservative": "786355.71",
+      "base": "1025613.36",
+      "growth": "1362332.04"
+    },
+    {
+      "year": 24,
+      "conservative": "827949.99",
+      "base": "1093264.66",
+      "growth": "1472368.90"
     }
   ],
-  "fi_number": "611127.00",
-  "swr": "0.04",
+  "fi_number": "714042.04",
+  "swr": "0.0314",
   "fi_by": {
     "conservative": {
-      "months": 220,
-      "month": "2045-02"
+      "months": 255,
+      "month": "2048-01"
     },
     "base": {
-      "months": 187,
-      "month": "2042-05"
+      "months": 214,
+      "month": "2044-08"
     },
     "growth": {
-      "months": 165,
-      "month": "2040-07"
+      "months": 186,
+      "month": "2042-04"
     }
   },
   "as_of": "2026-10-11",
-  "current_portfolio": "35901.47",
+  "current_portfolio": "24691.01",
   "real_returns": {
     "conservative": "0.02",
     "base": "0.04",
@@ -6004,9 +6029,9 @@ export const PROJECTIONS: FiProjections = {
       "note": null
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
+      "value": "0.0314",
       "origin": "placeholder",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
       "note": null
     },
     "surplus_invested": {
@@ -6017,6 +6042,12 @@ export const PROJECTIONS: FiProjections = {
     },
     "inflation": null,
     "nominal_return": null,
+    "cash_yield": {
+      "value": "0",
+      "origin": "placeholder",
+      "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+      "note": null
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -6033,7 +6064,7 @@ export const SCORE_HISTORY: FiScoreHistory = {
   "currency": "EUR",
   "history": [
     {
-      "score": 57.42,
+      "score": 56.42,
       "net_worth": "335901.47",
       "created_at": "2026-10-11T10:00:00+00:00"
     }
@@ -7124,9 +7155,9 @@ export const ASSUMPTION_SET: FiAssumptionsReport = {
       "note": "Halfway between the conservative and base scenarios."
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
+      "value": "0.0314",
       "origin": "placeholder",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
       "note": null
     },
     "surplus_invested": {
@@ -7137,6 +7168,12 @@ export const ASSUMPTION_SET: FiAssumptionsReport = {
     },
     "inflation": null,
     "nominal_return": null,
+    "cash_yield": {
+      "value": "0",
+      "origin": "placeholder",
+      "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+      "note": null
+    },
     "real_returns": {
       "conservative": "0.015",
       "base": "0.035",
@@ -7154,6 +7191,7 @@ export const ASSUMPTION_SET: FiAssumptionsReport = {
     },
     "nominal_return": null,
     "inflation": null,
+    "volatility": null,
     "safe_withdrawal_rate": null,
     "surplus_invested": null
   },
@@ -7163,8 +7201,8 @@ export const ASSUMPTION_SET: FiAssumptionsReport = {
       "source": "Placeholder: a round 4% a year after inflation, not a forecast and not any country's figure. Set your own, with its source."
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source."
+      "value": "0.0314",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source."
     },
     "surplus_invested": {
       "value": "1",
@@ -7179,23 +7217,23 @@ export const ASSUMPTION_SET: FiAssumptionsReport = {
  */
 export const FI_SCORE_SET: FiScore = {
   "pack_version": "4.0.0",
-  "overall_score": "57.42",
+  "overall_score": "56.42",
   "grade": "On track",
   "currency": "EUR",
   "monthly_income": "4000.00",
   "monthly_expenses": "2037.09",
   "monthly_surplus": "1962.91",
   "savings_rate": "0.4907",
-  "swr": "0.04",
+  "swr": "0.0314",
   "annual_expenses": "24445.08",
-  "fi_number": "611127.00",
+  "fi_number": "714042.04",
   "net_worth": "335901.47",
-  "fi_asset_base": "35901.47",
-  "progress_to_fi": "0.0587",
+  "fi_asset_base": "24691.01",
+  "progress_to_fi": "0.0346",
   "emergency_fund_months": "8.10",
   "debt_to_asset": "0.0524",
-  "projected_fi_months": 194,
-  "projected_fi_month": "2042-12",
+  "projected_fi_months": 223,
+  "projected_fi_month": "2045-05",
   "as_of": "2026-10-11",
   "status": "ok",
   "months_observed": 6,
@@ -7217,9 +7255,9 @@ export const FI_SCORE_SET: FiScore = {
     {
       "key": "fi_progress",
       "label": "Progress to FI",
-      "score": "5.87",
+      "score": "3.46",
       "weight": "0.41",
-      "detail": "5.87% of your FI number"
+      "detail": "3.46% of your FI number"
     },
     {
       "key": "debt",
@@ -7243,9 +7281,9 @@ export const FI_SCORE_SET: FiScore = {
       "note": "Halfway between the conservative and base scenarios."
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
+      "value": "0.0314",
       "origin": "placeholder",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
       "note": null
     },
     "surplus_invested": {
@@ -7256,6 +7294,12 @@ export const FI_SCORE_SET: FiScore = {
     },
     "inflation": null,
     "nominal_return": null,
+    "cash_yield": {
+      "value": "0",
+      "origin": "placeholder",
+      "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+      "note": null
+    },
     "real_returns": {
       "conservative": "0.015",
       "base": "0.035",
@@ -7263,7 +7307,7 @@ export const FI_SCORE_SET: FiScore = {
     },
     "nominal_returns": null
   },
-  "inputs_hash": "6571f7ca515850d5af72fc6917dab34ef38fc43cd51f838ce09b7b3045649dfe"
+  "inputs_hash": "e8344727bdb1cf6d7219f94c981dfe2454c2c9b53f980f063a134f1767fdb071"
 };
 
 /**
@@ -7275,161 +7319,179 @@ export const PROJECTIONS_SET: FiProjections = {
   "points": [
     {
       "year": 0,
-      "conservative": "35901.47",
-      "base": "35901.47",
-      "growth": "35901.47"
+      "conservative": "24691.01",
+      "base": "24691.01",
+      "growth": "24691.01"
     },
     {
       "year": 1,
-      "conservative": "64914.57",
-      "base": "65993.39",
-      "growth": "67091.74"
+      "conservative": "53704.11",
+      "base": "54782.93",
+      "growth": "55881.28"
     },
     {
       "year": 2,
-      "conservative": "91024.39",
-      "base": "93599.64",
-      "growth": "96266.04"
+      "conservative": "79813.93",
+      "base": "82389.18",
+      "growth": "85055.58"
     },
     {
       "year": 3,
-      "conservative": "117727.55",
-      "base": "122289.75",
-      "growth": "127089.09"
+      "conservative": "106517.09",
+      "base": "111079.29",
+      "growth": "115878.63"
     },
     {
       "year": 4,
-      "conservative": "144902.87",
-      "base": "152030.33",
-      "growth": "159641.16"
+      "conservative": "133692.41",
+      "base": "140819.87",
+      "growth": "148430.70"
     },
     {
       "year": 5,
-      "conservative": "172527.53",
-      "base": "182841.76",
-      "growth": "194016.19"
+      "conservative": "161317.07",
+      "base": "171631.30",
+      "growth": "182805.73"
     },
     {
       "year": 6,
-      "conservative": "200610.11",
-      "base": "214762.75",
-      "growth": "230316.44"
+      "conservative": "189399.65",
+      "base": "203552.29",
+      "growth": "219105.98"
     },
     {
       "year": 7,
-      "conservative": "229152.74",
-      "base": "247831.16",
-      "growth": "268652.09"
+      "conservative": "217942.28",
+      "base": "236620.70",
+      "growth": "257441.63"
     },
     {
       "year": 8,
-      "conservative": "258130.77",
-      "base": "282077.17",
-      "growth": "309148.69"
+      "conservative": "246920.31",
+      "base": "270866.71",
+      "growth": "297938.23"
     },
     {
       "year": 9,
-      "conservative": "287546.48",
-      "base": "317541.22",
-      "growth": "351929.62"
+      "conservative": "276336.02",
+      "base": "306330.76",
+      "growth": "340719.16"
     },
     {
       "year": 10,
-      "conservative": "317406.47",
-      "base": "354266.61",
-      "growth": "397123.73"
+      "conservative": "306196.01",
+      "base": "343056.15",
+      "growth": "385913.27"
     },
     {
       "year": 11,
-      "conservative": "347717.44",
-      "base": "392298.21",
-      "growth": "444867.14"
+      "conservative": "336506.98",
+      "base": "381087.75",
+      "growth": "433656.68"
     },
     {
       "year": 12,
-      "conservative": "378486.23",
-      "base": "431682.47",
-      "growth": "495303.66"
+      "conservative": "367275.77",
+      "base": "420472.01",
+      "growth": "484093.20"
     },
     {
       "year": 13,
-      "conservative": "409719.73",
-      "base": "472467.52",
-      "growth": "548585.19"
+      "conservative": "398509.27",
+      "base": "461257.06",
+      "growth": "537374.73"
     },
     {
       "year": 14,
-      "conservative": "441424.96",
-      "base": "514703.17",
-      "growth": "604872.22"
+      "conservative": "430214.50",
+      "base": "503492.71",
+      "growth": "593661.76"
     },
     {
       "year": 15,
-      "conservative": "473609.06",
-      "base": "558441.01",
-      "growth": "664334.28"
+      "conservative": "462398.60",
+      "base": "547230.55",
+      "growth": "653123.82"
     },
     {
       "year": 16,
-      "conservative": "506279.26",
-      "base": "603734.47",
-      "growth": "727150.47"
+      "conservative": "495068.80",
+      "base": "592524.01",
+      "growth": "715940.01"
     },
     {
       "year": 17,
-      "conservative": "539442.89",
-      "base": "650638.88",
-      "growth": "793509.98"
+      "conservative": "528232.43",
+      "base": "639428.42",
+      "growth": "782299.52"
     },
     {
       "year": 18,
-      "conservative": "573107.41",
-      "base": "699211.54",
-      "growth": "863612.69"
+      "conservative": "561896.95",
+      "base": "688001.08",
+      "growth": "852402.23"
     },
     {
       "year": 19,
-      "conservative": "607280.38",
-      "base": "749511.78",
-      "growth": "937669.75"
+      "conservative": "596069.92",
+      "base": "738301.32",
+      "growth": "926459.29"
     },
     {
       "year": 20,
-      "conservative": "641969.48",
-      "base": "801601.05",
-      "growth": "1015904.21"
+      "conservative": "630759.02",
+      "base": "790390.59",
+      "growth": "1004693.75"
     },
     {
       "year": 21,
-      "conservative": "677182.52",
-      "base": "855542.97",
-      "growth": "1098551.70"
+      "conservative": "665972.06",
+      "base": "844332.51",
+      "growth": "1087341.24"
     },
     {
       "year": 22,
-      "conservative": "712927.40",
-      "base": "911403.45",
-      "growth": "1185861.17"
+      "conservative": "701716.94",
+      "base": "900192.99",
+      "growth": "1174650.71"
+    },
+    {
+      "year": 23,
+      "conservative": "738001.69",
+      "base": "958040.25",
+      "growth": "1266885.11"
+    },
+    {
+      "year": 24,
+      "conservative": "774834.47",
+      "base": "1017944.96",
+      "growth": "1364322.26"
+    },
+    {
+      "year": 25,
+      "conservative": "812223.55",
+      "base": "1079980.29",
+      "growth": "1467255.63"
     }
   ],
-  "fi_number": "611127.00",
-  "swr": "0.04",
+  "fi_number": "714042.04",
+  "swr": "0.0314",
   "fi_by": {
     "conservative": {
-      "months": 230,
-      "month": "2045-12"
+      "months": 269,
+      "month": "2049-03"
     },
     "base": {
-      "months": 194,
-      "month": "2042-12"
+      "months": 223,
+      "month": "2045-05"
     },
     "growth": {
-      "months": 170,
-      "month": "2040-12"
+      "months": 192,
+      "month": "2042-10"
     }
   },
   "as_of": "2026-10-11",
-  "current_portfolio": "35901.47",
+  "current_portfolio": "24691.01",
   "real_returns": {
     "conservative": "0.015",
     "base": "0.035",
@@ -7451,9 +7513,9 @@ export const PROJECTIONS_SET: FiProjections = {
       "note": "Halfway between the conservative and base scenarios."
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
+      "value": "0.0314",
       "origin": "placeholder",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
       "note": null
     },
     "surplus_invested": {
@@ -7464,6 +7526,12 @@ export const PROJECTIONS_SET: FiProjections = {
     },
     "inflation": null,
     "nominal_return": null,
+    "cash_yield": {
+      "value": "0",
+      "origin": "placeholder",
+      "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+      "note": null
+    },
     "real_returns": {
       "conservative": "0.015",
       "base": "0.035",

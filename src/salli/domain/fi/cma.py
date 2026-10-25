@@ -16,14 +16,18 @@ the Monte Carlo): the real return when the user set none (the mix's
 expected return), inflation when the user set none, what cash earns, and
 the volatility the Monte Carlo draws returns with, and how fat its tails
 are (the optional `degrees_of_freedom` of its Student-t draws; without one,
-`TAILS`, a labelled placeholder).
+`TAILS`, a labelled placeholder). Two optional figures more: `history`, a
+series of the mix's monthly real returns the odds resample windows of
+instead of drawing from a Student-t, and `category_inflation`, inflation for
+a category of spending (housing, education) that runs apart from the
+general figure (`domain/fi/plan.py`).
 """
 
 from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
@@ -39,7 +43,11 @@ _BOUNDS: dict[str, tuple[Decimal, Decimal]] = {
     "inflation": (Decimal("-0.05"), Decimal("1")),
     "correlation": (Decimal(-1), Decimal(1)),
     "degrees_of_freedom": (Decimal(3), Decimal(100)),
+    "monthly_return": (Decimal("-0.50"), Decimal("0.50")),
 }
+
+#: How long a history may be, in months: two years at least, a century at most.
+_HISTORY = (24, 1200)
 
 _MAX_CLASSES = 20
 _MAX_TEXT = 500
@@ -64,6 +72,21 @@ class AssetClass:
 
 
 @dataclass(frozen=True)
+class History:
+    """The mix's real returns month by month, oldest first: what the odds
+    resample when a pack gives them."""
+
+    monthly: tuple[Decimal, ...]
+    source: str
+    date: str
+
+    @property
+    def mean(self) -> Decimal:
+        """The series' mean return a year: twelve months at its monthly mean."""
+        return sum(self.monthly, Decimal(0)) / len(self.monthly) * 12
+
+
+@dataclass(frozen=True)
 class CmaPack:
     name: str
     version: str
@@ -83,6 +106,10 @@ class CmaPack:
     #: The stored pack's id and content hash, when it is one.
     pack_id: str | None = None
     content_hash: str | None = None
+    #: The mix's monthly real returns, for the odds to resample.
+    history: History | None = None
+    #: Category → yearly inflation of that category of spending.
+    category_inflation: Mapping[str, Figure] = field(default_factory=dict[str, Figure])
 
     def correlation(self, a: str, b: str) -> Decimal:
         return Decimal(1) if a == b else self.correlations.get((a, b), Decimal(0))
@@ -258,6 +285,16 @@ def parse(document: object) -> CmaPack:
 
     inflation = doc.get("inflation")
     tails = doc.get("degrees_of_freedom")
+    raw_categories = doc.get("category_inflation", {})
+    if (
+        not isinstance(raw_categories, Mapping)
+        or len(cast("Mapping[str, Any]", raw_categories)) > _MAX_CLASSES
+    ):
+        raise ValueError(f"category_inflation is an object of at most {_MAX_CLASSES} categories")
+    categories = {
+        str(k): _figure(v, f"category_inflation.{k}", "inflation")
+        for k, v in cast("Mapping[str, Any]", raw_categories).items()
+    }
     pack = CmaPack(
         name=_text(doc.get("name"), "name"),
         version=_text(doc.get("version"), "version"),
@@ -269,8 +306,29 @@ def parse(document: object) -> CmaPack:
         degrees_of_freedom=None
         if tails is None
         else _figure(tails, "degrees_of_freedom", "degrees_of_freedom"),
+        history=_history(doc.get("history")),
+        category_inflation=categories,
     )
     return pack
+
+
+def _history(raw: object) -> History | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise ValueError("history must be an object with monthly_real_returns, source and date")
+    item = cast("Mapping[str, Any]", raw)
+    values = item.get("monthly_real_returns")
+    low, high = _HISTORY
+    if not isinstance(values, list) or not low <= len(cast("list[Any]", values)) <= high:
+        raise ValueError(f"history.monthly_real_returns is a list of {low} to {high} returns")
+    monthly = tuple(
+        _number(v, f"history.monthly_real_returns[{i}]", "monthly_return")
+        for i, v in enumerate(cast("list[Any]", values))
+    )
+    # The figure check gives the source and the date.
+    dated = _figure({"value": "0", **item}, "history", "monthly_return")
+    return History(monthly, dated.source, dated.date)
 
 
 def content_hash(document: object) -> str:
@@ -280,19 +338,7 @@ def content_hash(document: object) -> str:
 
 def stored(document: object, pack_id: str, digest: str) -> CmaPack:
     """A stored, valid document as a pack carrying its id and hash."""
-    pack = parse(document)
-    return CmaPack(
-        pack.name,
-        pack.version,
-        pack.classes,
-        pack.correlations,
-        pack.cash_yield,
-        pack.inflation,
-        pack.mix,
-        degrees_of_freedom=pack.degrees_of_freedom,
-        pack_id=pack_id,
-        content_hash=digest,
-    )
+    return replace(parse(document), pack_id=pack_id, content_hash=digest)
 
 
 def summary(pack: CmaPack) -> dict[str, Any]:
@@ -309,4 +355,8 @@ def summary(pack: CmaPack) -> dict[str, Any]:
         if pack.inflation is None
         else canonical.decimal_text(pack.inflation.value),
         "degrees_of_freedom": canonical.decimal_text(pack.tails),
+        "history_months": None if pack.history is None else len(pack.history.monthly),
+        "category_inflation": {
+            k: canonical.decimal_text(f.value) for k, f in sorted(pack.category_inflation.items())
+        },
     }

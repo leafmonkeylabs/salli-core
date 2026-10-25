@@ -283,7 +283,7 @@ function Assumption({
     setLocal('');
     write.mutate({ body: { [name]: { value: parsed, source: source.trim() || null, note: note.trim() || null } }, cleared: false });
   };
-  const origin = applied ? (applied.origin === 'placeholder' ? <PlaceholderTag /> : f.you) : f.notSet;
+  const origin = applied ? (applied.origin === 'placeholder' ? <PlaceholderTag /> : applied.origin === 'derived' ? f.derived : f.you) : f.notSet;
   return (
     <li className="assumption">
       <div className="assumption-head">

@@ -75,6 +75,8 @@ class FinancialSnapshot:
     monthly_debt_payments: Decimal = Decimal(0)
     #: Full months of income and spending observed; None when not counted.
     full_months: int | None = None
+    #: The emergency fund held out of the FI asset base (`baseline.fi.reserve`).
+    held_out: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True)

@@ -444,7 +444,7 @@
       "category": "fi",
       "kind": "month",
       "currency": "EUR",
-      "expected": "2042-05",
+      "expected": "2044-08",
       "from": {
         "tool": "get_overview",
         "args": {},
@@ -458,7 +458,7 @@
       "category": "fi",
       "kind": "percent",
       "currency": "EUR",
-      "expected": "0.05874633259535252083445830408",
+      "expected": "0.03457921057655082842274090448",
       "from": {
         "tool": "get_overview",
         "args": {},
@@ -471,7 +471,7 @@
       "category": "fi",
       "kind": "amount",
       "currency": "EUR",
-      "expected": "611127",
+      "expected": "714042.0382165605095541401274",
       "from": {
         "tool": "get_fi_projections",
         "args": {},
@@ -484,7 +484,7 @@
       "category": "fi",
       "kind": "month",
       "currency": "EUR",
-      "expected": "2045-02",
+      "expected": "2048-01",
       "from": {
         "tool": "get_fi_projections",
         "args": {},
@@ -647,7 +647,7 @@
       "category": "purchase",
       "kind": "month",
       "currency": "EUR",
-      "expected": "2044-10",
+      "expected": "2047-04",
       "from": {
         "tool": "run_scenario",
         "args": {
@@ -940,7 +940,7 @@
       "category": "fi",
       "kind": "month",
       "currency": "NZD",
-      "expected": "2040-12",
+      "expected": "2044-09",
       "from": {
         "tool": "get_overview",
         "args": {},
@@ -954,7 +954,7 @@
       "category": "fi",
       "kind": "percent",
       "currency": "NZD",
-      "expected": "0.24",
+      "expected": "0.1727000000000000000000000000",
       "from": {
         "tool": "get_overview",
         "args": {},
@@ -1013,7 +1013,7 @@
       "category": "purchase",
       "kind": "month",
       "currency": "NZD",
-      "expected": "2043-10",
+      "expected": "2048-04",
       "from": {
         "tool": "run_scenario",
         "args": {
@@ -1357,7 +1357,7 @@
       "category": "fi",
       "kind": "month",
       "currency": "NZD",
-      "expected": "2042-09",
+      "expected": "2045-05",
       "from": {
         "tool": "get_overview",
         "args": {},
@@ -1371,7 +1371,7 @@
       "category": "fi",
       "kind": "amount",
       "currency": "NZD",
-      "expected": "450000",
+      "expected": "573248.4076433121019108280255",
       "from": {
         "tool": "get_fi_projections",
         "args": {},

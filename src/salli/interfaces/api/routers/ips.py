@@ -13,6 +13,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError
 
+from salli.domain.portfolio.policy import AssetClass
 from salli.interfaces.api.contract import Amount, CurrencyCode, DecimalIn, DecimalOut
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
@@ -20,7 +21,9 @@ router = APIRouter(prefix="/ips", tags=["portfolio"])
 
 
 class PolicyTargetIn(BaseModel):
-    asset_class: str = Field(min_length=1, max_length=40)
+    #: One of the controlled taxonomy's classes or sub-classes ("equity",
+    #: "equity.international"); a class or its sub-classes, not both.
+    asset_class: AssetClass
     #: Its target share of the portfolio, a fraction ("0.6").
     target: DecimalIn
     #: How far either side of the target its share may move ("0.05").
@@ -42,6 +45,9 @@ class InvestmentPolicyRequest(BaseModel):
     objectives: str = Field(default="", max_length=2000)
     constraints: str = Field(default="", max_length=2000)
     review_on: dt.date | None = None
+    #: Needed when the equity target is above your risk profile's band:
+    #: why, in your words. Stored with the version.
+    override_reason: str | None = Field(default=None, min_length=1, max_length=1000)
 
 
 class PolicyTargetOut(BaseModel):
@@ -58,6 +64,7 @@ class InvestmentPolicyContent(BaseModel):
     objectives: str
     constraints: str
     review_on: dt.date | None
+    override_reason: str | None = None
 
 
 class InvestmentPolicyVersion(BaseModel):
@@ -94,10 +101,26 @@ class RiskCapacityFigures(BaseModel):
     debt_service_ratio: DecimalOut | None
 
 
+class RiskNeed(BaseModel):
+    """The return the plan requires, beside the profile, never folded in."""
+
+    #: The yearly real return your asset base and monthly saving need to
+    #: reach your FI number within the horizon; null without a horizon, or
+    #: when none up to 0.20 does.
+    required_return: DecimalOut | None
+    #: The least profile whose band covers it; null without a horizon.
+    category: Literal["conservative", "balanced", "aggressive"] | None
+    #: The need asks more than the profile takes.
+    above_profile: bool
+    says: str
+
+
 class InvestorRiskProfile(BaseModel):
     tolerance: RiskTolerance
     capacity: RiskCapacityFigures
-    #: The lower of tolerance and capacity. It gates nothing.
+    need: RiskNeed
+    #: The lower of tolerance and capacity. A policy whose equity target is
+    #: above its band needs an override with a reason.
     profile: Literal["conservative", "balanced", "aggressive"]
     #: The most of a portfolio in equity this profile is described as suited to.
     equity_max: DecimalOut
@@ -124,6 +147,31 @@ class EquityCheck(BaseModel):
     profile_equity_max: DecimalOut
     #: The policy's equity target is above the risk profile's band.
     above_profile: bool
+    #: The reason stored with the version, when it overrode the band.
+    override_reason: str | None = None
+
+
+class LotToSell(BaseModel):
+    holding_id: str
+    symbol: str
+    lot_id: str
+    opened_on: str
+    #: "short" or "long" by your tax rules' line; null without one.
+    holding_period: Literal["short", "long"] | None = None
+    quantity: DecimalOut
+    proceeds: Amount
+    realised_gain: Amount
+
+
+class TaxAwareSale(BaseModel):
+    """For a class above its target: the open lots that, sold, bring it to
+    target with the least realised gain (losses first). Figures, not advice:
+    whether to sell is yours."""
+
+    asset_class: str
+    to_sell: Amount
+    lots: list[LotToSell]
+    realised_gain: Amount
 
 
 class DriftReport(BaseModel):
@@ -137,6 +185,7 @@ class DriftReport(BaseModel):
     review_due: bool
     risk_profile: InvestorRiskProfile
     equity_check: EquityCheck
+    tax_aware_sales: list[TaxAwareSale]
     notes: list[str]
 
 

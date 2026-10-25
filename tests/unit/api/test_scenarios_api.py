@@ -82,8 +82,8 @@ async def test_a_scenario_runs_with_every_figure_against_the_baseline(client, uo
     # The surplus invested at the placeholder 100%: the golden household
     # (tests/golden/test_household_scenarios.py) works these through.
     assert body["fi"]["fi_month"] == {
-        "baseline": "2042-05",
-        "scenario": "2042-06",
+        "baseline": "2044-08",
+        "scenario": "2044-09",
         "delta_months": 1,
     }
     assert body["fi"]["months_gained"] == -1

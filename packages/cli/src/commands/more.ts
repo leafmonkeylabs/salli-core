@@ -511,6 +511,12 @@ function registerProfile(program: Command, app: App): void {
     .addOption(new Option('--income-stability <level>', 'How steady your income is').choices(['unstable', 'moderate', 'stable']).makeOptionMandatory())
     .addOption(new Option('--experience <level>', 'Your investing experience').choices(['none', 'some', 'experienced']).makeOptionMandatory())
     .option('--dependents <n>', 'People who depend on your income', countArg('--dependents'), 0)
+    .option('--loss-tolerance <1-5>', 'The largest fall in a year you could accept: 1 none, 5 forty per cent or more', likert('--loss-tolerance'))
+    .option('--certainty <1-5>', 'A sure gain or an uncertain larger one: 1 always the sure one, 5 always the uncertain', likert('--certainty'))
+    .option('--volatility-comfort <1-5>', 'Values that swing month to month: 1 very uncomfortable, 5 at ease', likert('--volatility-comfort'))
+    .option('--self-rating <1-5>', 'How you see yourself with money: 1 very cautious, 5 very adventurous', likert('--self-rating'))
+    .option('--loss-focus <1-5>', 'After a decision, what you dwell on: 1 the possible loss, 5 the possible gain', likert('--loss-focus'))
+    .option('--past-behaviour <1-5>', 'In a fall you lived through: 1 sold everything, 5 bought more', likert('--past-behaviour'))
     .action(async (opts) => {
       const api = await app.api();
       const result = await api.call(onboardingRiskQuestionnaire, {
@@ -520,12 +526,19 @@ function registerProfile(program: Command, app: App): void {
           income_stability: opts.incomeStability,
           investment_experience: opts.experience,
           dependents_count: opts.dependents,
+          loss_tolerance: opts.lossTolerance,
+          certainty: opts.certainty,
+          volatility_comfort: opts.volatilityComfort,
+          self_rating: opts.selfRating,
+          loss_focus: opts.lossFocus,
+          past_behaviour: opts.pastBehaviour,
         },
       });
       app.out.emit(result, {
         human: (r) => {
-          app.out.line(`${app.out.heading(`Risk score ${r.score}`)} ${app.out.colors.dim(`(${singleLine(r.category)})`)}`);
-          app.out.line(app.out.details(Object.entries(r.breakdown).map(([part, points]) => [fieldLabel(part), String(points)] as const)));
+          app.out.line(`${app.out.heading(`Risk tolerance ${r.score}`)} ${app.out.colors.dim(`(${singleLine(r.category)}, over ${r.items_answered} answers)`)}`);
+          app.out.line(app.out.details(Object.entries(r.breakdown).map(([part, points]) => [fieldLabel(part), `${points} of 4`] as const)));
+          app.out.note('Experience is recorded, never scored; the horizon, income stability and dependents count toward capacity (`salli ips risk`).');
         },
       });
     });
@@ -555,6 +568,15 @@ function registerProfile(program: Command, app: App): void {
       const total = Object.values(result.counts).reduce((sum, n) => sum + n, 0);
       app.out.done(result, `Deleted your account (${total} record${total === 1 ? '' : 's'}).`);
     });
+}
+
+/** A 1-5 answer to a tolerance item. */
+function likert(flag: string): (value: string) => number {
+  return (value) => {
+    if (!/^[1-5]$/.test(value.trim())) throw new UsageError(`${flag} takes a whole number from 1 to 5 (got "${value}").`);
+    // eslint-disable-next-line no-restricted-syntax -- not money: a 1-5 answer
+    return Number(value.trim());
+  };
 }
 
 // ── Your LLM keys and MCP clients ────────────────────────────────────────────

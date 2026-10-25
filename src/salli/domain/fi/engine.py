@@ -88,10 +88,16 @@ def fi_asset_base(snapshot: FinancialSnapshot) -> Decimal:
     assets, net of debt.
 
     A primary residence does not fund a 4%-rule withdrawal, so total net worth
-    overstates FI progress. This deliberately differs from `net_worth`, and is the
+    overstates FI progress; nor does the emergency fund, which is held out
+    (`held_out`). This deliberately differs from `net_worth`, and is the
     base used by BOTH progress-to-FI and the projection so the two agree.
     """
-    return snapshot.liquid_savings + snapshot.investments - snapshot.total_liabilities
+    return (
+        snapshot.liquid_savings
+        + snapshot.investments
+        - snapshot.total_liabilities
+        - snapshot.held_out
+    )
 
 
 def installment_payment(amount: Decimal, annual_rate: Decimal, term_months: int) -> Decimal:
