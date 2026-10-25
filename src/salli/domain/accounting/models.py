@@ -288,6 +288,9 @@ class JournalEntry(BaseModel):
     external_ref: str | None = None
     #: For a reversal: the entry it reverses.
     reverses: str | None = None
+    #: For a corrected copy: the entry it corrects, whose source and
+    #: external_ref it keeps.
+    corrects: str | None = None
     postings: list[Posting] = Field(min_length=2)
     #: The owner's base currency, when the caller knows it: the entry then
     #: balances as the ledger keeps it, each posting's base value in that

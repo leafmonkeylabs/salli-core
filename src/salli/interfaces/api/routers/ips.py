@@ -115,6 +115,19 @@ class RiskNeed(BaseModel):
     says: str
 
 
+class RiskMethod(BaseModel):
+    """The method's cut-offs, disclosed beside every read (docs/risk.md)."""
+
+    doc: str
+    #: Category → the score range (0-100) it covers, for tolerance and capacity.
+    score_buckets: dict[str, str]
+    #: Category → the most equity it is described as suited to.
+    equity_max: dict[str, DecimalOut]
+    #: Category → the most real return a year it is described as reaching for.
+    need_max: dict[str, DecimalOut]
+    says: str
+
+
 class InvestorRiskProfile(BaseModel):
     tolerance: RiskTolerance
     capacity: RiskCapacityFigures
@@ -124,6 +137,7 @@ class InvestorRiskProfile(BaseModel):
     profile: Literal["conservative", "balanced", "aggressive"]
     #: The most of a portfolio in equity this profile is described as suited to.
     equity_max: DecimalOut
+    method: RiskMethod
 
 
 class DriftClass(BaseModel):

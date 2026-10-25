@@ -157,6 +157,7 @@ class DataPortabilityService:
                     "source": e.source,
                     "external_ref": e.external_ref,
                     "reverses": e.reverses,
+                    "corrects": e.corrects,
                     "reversed_by": e.reversed_by,
                     # Who posted it, and its place in the hash chain.
                     "created_by": e.created_by,

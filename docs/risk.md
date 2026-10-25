@@ -10,6 +10,9 @@ never folded in. Every part is figures: no part names a product.
 salli ips risk --json
 ```
 
+Every read carries `method`: the score buckets and the equity and need
+bands below, so the cut-offs a profile came from are shown beside it.
+
 ## Tolerance
 
 The items follow the structure of the risk-tolerance scale Grable and

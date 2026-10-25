@@ -379,7 +379,7 @@ export const REVIEWS_DUE: DueReviews = {
       "as_of": "2026-08-11",
       "review_on": "2026-09-30",
       "recorded_at": "2026-08-11T09:00:00+00:00",
-      "hash": "sha256:a6351417a3cb545e00b27f8090cdcb1e871c898d79b791b25805045c5db30571",
+      "hash": "sha256:89c4e9c86e53767f40162995b37ec28b9c9de1bddd6ef4682b11f0c0ed1efb1e",
       "notes": 0,
       "reviews": 0,
       "last_reviewed_at": null,
@@ -426,7 +426,7 @@ export const REVIEWS_DUE: DueReviews = {
           "difference": "0.55"
         },
         "others": [],
-        "baseline_fingerprint": "sha256:749a823c940d77bc1df719e0c2790a697bd6eea78ebd78047666352c22cc26a3",
+        "baseline_fingerprint": "sha256:99da6b61743dc278133f3204b498f5d6c0affc71a98e31765f97886ce7e417de",
         "data_as_of": "2026-09-26",
         "is_stale": false,
         "notes": [

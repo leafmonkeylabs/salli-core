@@ -97,6 +97,7 @@ async def test_an_entry_reads_back_with_amounts_in_their_own_currency(client, mo
         "external_ref": None,
         "reversed_by": "e2",
         "reverses": None,
+        "corrects": None,
         "created_by": None,
         "created_via": None,
         "seq": None,
@@ -160,6 +161,7 @@ async def test_provenance_of_a_statement_entry(client, mock_services):
         "description": "UBER TRIP",
         "source": "statement",
         "external_ref": "txn-1",
+        "corrects": None,
         "statement": {
             "parsed_transaction_id": "txn-1",
             "raw_description": "UBER TRIP",
@@ -193,6 +195,7 @@ async def test_provenance_of_a_manual_entry_with_a_receipt(client, mock_services
         "description": "Groceries",
         "source": "manual",
         "external_ref": "doc-1",
+        "corrects": None,
         "statement": None,
         "receipt": {
             "document_id": "doc-1",

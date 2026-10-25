@@ -426,7 +426,13 @@ def plan_odds(
         "currency": currency,
         "as_of": baseline.as_of.isoformat(),
         "headline_status": applied.headline_status,
-        "headline": applied.headline,
+        # Parametric odds say so up front: no history of returns resampled.
+        "headline": applied.headline
+        + (
+            " The odds are parametric: Student-t draws, with no history of returns."
+            if source.method == "student_t"
+            else ""
+        ),
         "paths": odds.paths,
         "seed": odds.seed,
         "horizon_years": horizon_years,

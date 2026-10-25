@@ -18,7 +18,7 @@ a bank statement, and `!` otherwise; the cleared postings carry `*` themselves.
 A completed reconciliation goes out as a balance assertion (Beancount's
 `balance`, hledger's `= `) on its closing balance, always: where the ledger
 doesn't reach it on that day the file's own check fails, and a warning at its
-head (and in the JSON export) says which; a reversal names the entry it reverses, and an account its
+head (and in the JSON export) says which; a reversal names the entry it reverses (a corrected copy the one it corrects), and an account its
 tax, asset and equity roles. Pure: no I/O.
 """
 
@@ -187,6 +187,8 @@ def beancount(
         lines.append(f"  salli-id: {_string(entry.id)}")
         if entry.reverses:
             lines.append(f"  reverses: {_string(entry.reverses)}")
+        if entry.corrects:
+            lines.append(f"  corrects: {_string(entry.corrects)}")
         lines.append(f"  source: {_string(entry.source)}")
         if entry.external_ref:
             lines.append(f"  external-ref: {_string(entry.external_ref)}")
@@ -241,6 +243,7 @@ def hledger(
     for entry in sorted(entries, key=lambda e: (e.entry_date, e.id)):
         description = " ".join(entry.description.split()).replace(";", ",")
         link = f", reverses:{entry.reverses}" if entry.reverses else ""
+        link += f", corrects:{entry.corrects}" if entry.corrects else ""
         lines += [
             "",
             f"{entry.entry_date} {_flag(entry, cleared)} {description}"

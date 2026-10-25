@@ -91,6 +91,9 @@ class JournalEntry(BaseModel):
     reversed_by: str | None
     #: For a reversal, the entry it reverses.
     reverses: str | None = None
+    #: For a corrected copy (a recategorised entry), the entry it corrects:
+    #: it keeps that entry's source and external_ref.
+    corrects: str | None = None
     #: Who posted it: the signed-in person's user id, and how they came in
     #: (console, cli, mobile, mcp:<client>, oauth:<client>, token, import,
     #: automation; "unrecorded" for entries posted before Salli kept it).
@@ -150,6 +153,9 @@ class EntryProvenance(BaseModel):
     description: str
     source: Source
     external_ref: str | None
+    #: For a corrected copy, the entry it corrects: the provenance is that
+    #: entry's, which the copy keeps.
+    corrects: str | None = None
     #: Set when the entry was posted from a bank statement.
     statement: ProvenanceStatement | None
     #: Set when a manual entry has a receipt attached.
@@ -179,6 +185,7 @@ def _entry(e: StoredJournalEntry) -> JournalEntry:
         external_ref=e.external_ref,
         reversed_by=e.reversed_by,
         reverses=e.reverses,
+        corrects=e.corrects,
         created_by=e.created_by,
         created_via=e.created_via,
         seq=e.seq,
@@ -349,8 +356,8 @@ class RecategoriseRequest(BaseModel):
 class Recategorised(BaseModel):
     #: The entry that reverses the original.
     reversal_id: str
-    #: The corrected copy (source "recategorise", `external_ref`
-    #: "recategorise:<original id>").
+    #: The corrected copy: the original's source and external_ref, and
+    #: `corrects` naming the original.
     corrected_id: str
 
 
