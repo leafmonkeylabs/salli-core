@@ -60,7 +60,7 @@ EXAMPLE = {
 
 
 def test_a_decimal_comma_layout_is_read_as_stated():
-    data = "Fecha;Concepto;Importe\n03.02.2026;Alquiler;-1.250,40\n".encode()
+    data = b"Fecha;Concepto;Importe\n03.02.2026;Alquiler;-1.250,40\n"
     result = extract_from_csv(data, load_bank_format(EXAMPLE).mapping)
     assert [(line.date, str(line.amount), line.credit_flag) for line in result.lines] == [
         ("2026-02-03", "1250.40", False)
@@ -93,10 +93,12 @@ def test_no_format_fitting_is_said_with_every_count():
 
 
 def test_the_importer_counts_each_format_it_tried():
-    from salli.application.services.parsing_service import _extract  # pyright: ignore[reportPrivateUsage]
+    from salli.application.services.parsing_service import (
+        _extract,  # pyright: ignore[reportPrivateUsage]
+    )
 
     other = {**EXAMPLE, "name": "Otro", "columns": {"date": "Día", "amount": "Suma"}}
-    data = "Fecha;Concepto;Importe\n03.02.2026;Alquiler;-1.250,40\n".encode()
+    data = b"Fecha;Concepto;Importe\n03.02.2026;Alquiler;-1.250,40\n"
     outcomes = []
     rows, _ = _extract(
         "s.csv", data, "EUR", bank_formats=load_bank_formats(json.dumps([other, EXAMPLE])),
