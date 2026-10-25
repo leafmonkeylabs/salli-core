@@ -332,7 +332,7 @@ function registerFi(program: Command, app: App): void {
     });
 
   fi.command('odds')
-    .description('The odds of reaching and sustaining FI: a seeded Monte Carlo of returns (reads only)')
+    .description('Experimental: The odds of reaching and sustaining FI: a seeded Monte Carlo of returns (reads only)')
     .option('--retire <YYYY-MM>', 'When withdrawals start (default: your FI month)')
     .option('--horizon <years>', 'How far to run, 1 to 50 years (default 50)', countArg('--horizon'))
     .option('--paths <n>', 'How many return paths (default 1000)', countArg('--paths'))

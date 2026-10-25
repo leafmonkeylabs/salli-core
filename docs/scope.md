@@ -29,14 +29,21 @@ What a pilot is judged on, and what the freeze protects:
 ## Experimental
 
 Working, documented and tested, and marked as experimental where the docs
-describe them:
+describe them. The engines without a pilot user yet are also marked in the
+API (`x-experimental: true` and the `experimental` tag on their operations)
+and in `salli --help` ("Experimental:"); `SALLI_EXPERIMENTAL=false` takes
+their tools and prompts out of what an AI agent sees over MCP (the API
+keeps them):
 
 | Area | Docs |
 |---|---|
-| The decision lab: scenarios, templates, principles, the decision journal and reviews, the odds | [scenarios.md](scenarios.md), [templates.md](templates.md), [decisions.md](decisions.md) |
+| The decision lab: scenarios, templates, principles, the decision journal and reviews | [scenarios.md](scenarios.md), [templates.md](templates.md), [decisions.md](decisions.md) |
+| The odds: Monte Carlo of returns, with spending guardrails | [baseline.md](baseline.md) |
+| Insurance needs and cover targets (policies and the cover report are core) | `salli insurance --help` |
+| The investment policy: drift, look-through, tax-aware sales; and the wash-sale flag on lots | `salli ips --help` |
 | The monthly briefing and the agents (the tax agent, return preparation) | [ai-clients.md](ai-clients.md) |
 | The phone app (in development) | [design/mobile.md](design/mobile.md) |
-| Usage counts for the owner (`salli-server stats`, off by default) | [self-host.md](self-host.md#configuration) |
+| Usage counts for the owner (`salli-server stats`, off by default; `--send` reports the weekly totals to a URL the owner sets) | [self-host.md](self-host.md#usage-reports) |
 
 ## After the pilots
 

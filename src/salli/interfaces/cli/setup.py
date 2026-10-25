@@ -322,6 +322,31 @@ def members_add(
     console.print("  They sign in with that email and password: salli login, or any client.")
 
 
+@members_app.command("invite")
+def members_invite(
+    email: str = typer.Argument(..., help="Their email; they sign in with it"),
+    currency: str = typer.Option(
+        None, help="ISO 4217 code their ledger is kept in (default: the instance's)"
+    ),
+):
+    """A link, good once for seven days, where someone sets their own password
+    (and two-step sign-in). Salli sends no email: pass the link on yourself."""
+    from salli.application.services.login_service import INVITATION_TTL, LoginExists
+    from salli.config import get_settings
+
+    try:
+        token = asyncio.run(services().logins.invite(email, base_currency=currency))
+    except (LoginExists, ValueError) as exc:
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
+    link = f"{get_settings().salli_public_url.rstrip('/')}/join?t={token}"
+    if emit({"email": email, "link": link, "expires_in_days": INVITATION_TTL.days}):
+        return
+    console.print(f"[green]Invitation made[/green] for {escape(email)}. Send them this link:")
+    console.print(f"  {link}", soft_wrap=True)
+    console.print("  It works once, for seven days. Anyone with it can join as them.")
+
+
 @members_app.command("list")
 def members_list():
     """Everyone who can sign in here."""

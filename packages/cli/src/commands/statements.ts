@@ -1,5 +1,5 @@
 /**
- * salli import <file>, and salli statements list | pending | post | discard | categorize | draft
+ * salli import <file>, salli import check, and salli statements list | pending | post | discard | categorize | draft
  *
  * A statement is read on the server (CSV, OFX/QFX, QIF, camt.053, MT940,
  * PDF or Excel). Each transaction gets the other side from a rule or the
@@ -17,6 +17,7 @@ import {
   statementsList,
   statementsPending,
   statementsPost,
+  statementsCheck,
   statementsUpload,
   type BankStatement,
   type PostedStatementTransactions,
@@ -198,7 +199,7 @@ async function pendingOf(api: SalliClient, statementId?: string): Promise<Transa
 }
 
 export function registerStatements(program: Command, app: App): void {
-  program
+  const importCommand = program
     .command('import')
     .argument('<file>', 'A bank statement: CSV, OFX/QFX, QIF, camt.053, MT940, PDF or Excel')
     .description('Import a bank statement: review each transaction, then post the ones you approve')
@@ -320,6 +321,55 @@ Examples:
           },
         },
       );
+    });
+
+  importCommand
+    .command('check')
+    .argument('<statement>', 'A real statement from your bank')
+    .description('Read a statement with a bank format and import nothing: counts, totals and balances to compare with the bank’s')
+    .requiredOption('--format <path>', 'The bank’s layout: a salli.bankformat/1 file, or a directory of them to pick from')
+    .option('--currency <code>', 'The statement’s currency (default: your base currency)')
+    .addOption(new Option('--date-order <order>', 'How to read dates the file leaves ambiguous (01/02/2026)').choices(DATE_ORDERS))
+    .addHelpText(
+      'after',
+      `
+Nothing is stored and no model runs. Compare the counts, money in and out and
+the balances with the statement's own; when the opening balance plus the
+movements makes the closing balance, the format reads that bank's file.
+
+Example:
+  $ salli import check --format ./markets/lk/banks/ october.csv`,
+    )
+    .action(async (file, opts) => {
+      const upload = await readUpload(file, MAX_BYTES);
+      const formats = await readBankFormats(opts.format);
+      const api = await app.api();
+      const r = await api.call(statementsCheck, {
+        body: { file: upload, formats },
+        query: {
+          ...(opts.currency ? { currency: currencyArg(opts.currency) } : {}),
+          ...(opts.dateOrder ? { date_order: opts.dateOrder } : {}),
+        },
+        timeoutMs: 5 * 60_000,
+      });
+      const out = app.out;
+      out.emit(r, {
+        human: () => {
+          for (const f of r.formats ?? []) {
+            out.line(`${singleLine(f.name)}: ${plural(f.parsed, 'row')} read, ${f.failed} not${f.chosen ? ' (used)' : ''}`);
+          }
+          const span = r.first_date && r.last_date ? `, ${displayRange(r.first_date, r.last_date, out.locale)}` : '';
+          out.line(`${plural(r.transactions, 'transaction')}${span}`);
+          out.line(`Money in:  ${out.money(r.money_in, r.currency)}`);
+          out.line(`Money out: ${out.money(r.money_out, r.currency)}`);
+          const balance = (b: string | null | undefined): string => (b == null ? 'not in the file' : out.money(b, r.currency));
+          out.line(`Opening balance: ${balance(r.opening_balance)}`);
+          out.line(`Closing balance: ${balance(r.closing_balance)}`);
+          if (r.balances_agree === true) out.line('Opening + in - out = closing: the format reads this file.');
+          if (r.balances_agree === false) out.warn('Opening + in - out does not make the closing balance: rows were missed or misread.');
+          for (const problem of r.errors) out.warn(singleLine(String(problem)));
+        },
+      });
     });
 
   const statements = program.command('statements').alias('statement').description('Imported bank statements and their pending transactions');

@@ -167,6 +167,16 @@ async def test_the_computation_is_lines_with_their_expressions_and_sources():
     assert "Never recompute" in result["how_to_read"]
     assert "explain_tax_line" in result["how_to_read"]
     assert "Salli doesn't vouch" in result["provenance"]
+    assert "provisional_warning" not in result
+
+
+def test_provisional_values_carry_a_warning_to_quote():
+    from salli.domain.agents.tools import computation_for_agent, provisional_warning
+
+    assert provisional_warning([]) == {}
+    warned = provisional_warning([{"key": "band_tables.main", "note": ""}])
+    assert "provisional (band_tables.main)" in warned["provisional_warning"]
+    assert "quote it" in computation_for_agent.__globals__["_HOW_TO_READ"]
 
 
 async def test_every_figure_is_a_string_never_a_float():

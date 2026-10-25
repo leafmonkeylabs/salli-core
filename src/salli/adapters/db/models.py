@@ -512,6 +512,9 @@ class TaxReturnORM(Base):
     # The hash of the user's last journal entry when this version was
     # recorded: the ledger it was made from, as its hash chain stood.
     chain_head_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # What the filer said, filing on values the rules mark provisional
+    # (the values are in the snapshot); null otherwise.
+    provisional_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # The authority's reference for what was filed, and the day it was.
     reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
     filed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -2056,6 +2059,21 @@ class LoginFailureORM(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (Index("ix_login_failures_key_at", "key_hash", "at"),)
+
+
+class InvitationORM(Base):
+    """An owner's invitation to join (`salli-server members invite`): good
+    once, until `expires_at`. Stored as a SHA-256 of its token, which is seen
+    once, in the link the owner passes on; Salli sends no email."""
+
+    __tablename__ = "invitations"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    base_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class CategorizationRuleORM(Base):

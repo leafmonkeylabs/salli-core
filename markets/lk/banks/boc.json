@@ -8,7 +8,8 @@
       "Particulars"
     ],
     "debit": "Payments",
-    "credit": "Receipts"
+    "credit": "Receipts",
+    "balance": "Balance"
   },
   "date_format": "%d/%m/%Y",
   "decimal_separator": ".",

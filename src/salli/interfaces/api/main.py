@@ -54,6 +54,7 @@ from salli.domain.secrets import redact
 from salli.domain.taxrules.explain import UnknownLine
 from salli.domain.usage import UsageLimitReached
 from salli.extensions import enabled_specs
+from salli.interfaces.api import experimental
 from salli.interfaces.api.console import NoStoreMiddleware, console_router
 from salli.interfaces.api.contract import API_PREFIX, document_problems, operation_id
 from salli.interfaces.api.deps import StepUpRequired, get_services
@@ -76,6 +77,7 @@ from salli.interfaces.api.routers import (
     fi,
     insights,
     insurance,
+    invitation_page,
     ips,
     ledger,
     llm_keys,
@@ -333,6 +335,7 @@ def create_app() -> FastAPI:
     app.include_router(mcp_oauth.router)
     # A server-rendered page for people, not an API operation: kept out of the schema.
     app.include_router(mcp_consent_page.router, include_in_schema=False)
+    app.include_router(invitation_page.router, include_in_schema=False)
     # New in /v1 too (after the protocol routes only to keep the API
     # document's order stable).
     app.include_router(principles.router, prefix=API_PREFIX)
@@ -655,7 +658,7 @@ def create_app() -> FastAPI:
 
     def openapi() -> dict[str, Any]:
         if app.openapi_schema is None:
-            app.openapi_schema = document_problems(build_openapi())
+            app.openapi_schema = experimental.mark(document_problems(build_openapi()))
         return app.openapi_schema
 
     app.openapi = openapi  # type: ignore[method-assign]

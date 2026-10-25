@@ -2021,6 +2021,26 @@ class LoginRepository(ABC):
         ...
 
     @abstractmethod
+    async def create_invitation(
+        self,
+        token_hash: str,
+        email: str,
+        base_currency: str | None,
+        at: datetime,
+        expires_at: datetime,
+    ) -> None: ...
+
+    @abstractmethod
+    async def get_invitation(self, token_hash: str, now: datetime) -> dict[str, Any] | None:
+        """{email, base_currency} of an invitation not used and not expired."""
+        ...
+
+    @abstractmethod
+    async def use_invitation(self, token_hash: str, now: datetime) -> dict[str, Any] | None:
+        """Mark it used, if it was still good: {email, base_currency}, or None."""
+        ...
+
+    @abstractmethod
     async def create_session(
         self,
         user_id: str,

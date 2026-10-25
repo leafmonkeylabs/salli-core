@@ -8,7 +8,8 @@
       "Description"
     ],
     "debit": "Withdrawals",
-    "credit": "Deposits"
+    "credit": "Deposits",
+    "balance": "Balance"
   },
   "date_format": "%d-%m-%Y",
   "decimal_separator": ".",

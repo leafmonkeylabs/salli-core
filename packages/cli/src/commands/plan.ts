@@ -865,7 +865,7 @@ function registerInsurance(program: Command, app: App): void {
       app.out.done({ id: policy.id, deleted: true }, `Deleted “${str(policy.name)}”.`);
     });
 
-  const targets = insurance.command('targets').alias('target').description('How much cover you want, per type');
+  const targets = insurance.command('targets').alias('target').description('Experimental: How much cover you want, per type');
 
   targets
     .command('list')
@@ -915,7 +915,7 @@ function registerInsurance(program: Command, app: App): void {
 
   insurance
     .command('needs')
-    .description('Life cover and income protection, as figures from your money (never a product)')
+    .description('Experimental: Life cover and income protection, as figures from your money (never a product)')
     .option('--years <n>', 'Years of income to replace', '10')
     .option('--benefit-years <n>', 'Years a disability benefit would pay (else to your planning age)')
     .option('--sick-pay <amount>', 'What your employer would pay while you are off sick, in all')
@@ -1020,7 +1020,7 @@ function policyTarget(value: string): PolicyTargetIn {
 }
 
 function registerPolicy(program: Command, app: App): void {
-  const ips = program.command('ips').description('Your investment policy statement: targets with bands, rebalancing rule, horizon, review date; drift against it');
+  const ips = program.command('ips').description('Experimental: Your investment policy statement: targets with bands, rebalancing rule, horizon, review date; drift against it');
 
   ips
     .command('show', { isDefault: true })
