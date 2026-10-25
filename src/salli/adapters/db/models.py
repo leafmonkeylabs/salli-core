@@ -1661,6 +1661,33 @@ class OAuthDeviceCodeORM(Base):
     )
 
 
+class AccessGrantORM(Base):
+    """One member letting another member of the same server read their
+    books, until either of them revokes it (`revoked_at`). Read only: the
+    grantee's requests on the grantor's books are reads (deps.get_current_user)."""
+
+    __tablename__ = "access_grants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    grantor_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    grantee_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("grantor_id <> grantee_id", name="ck_access_grants_not_self"),
+        Index(
+            "uq_access_grants_live_pair",
+            "grantor_id",
+            "grantee_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
+
+
 class PersonalAccessTokenORM(Base):
     """A long-lived token a person creates for scripts and CI (`salli_pat_…`).
 

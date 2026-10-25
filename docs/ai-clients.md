@@ -12,7 +12,8 @@ shows how.
 
 Once connected, your AI can:
 - start from where you stand (`get_overview`), and find what you booked, by
-  text, account, dates or amount, with Salli's totals (`search_entries`);
+  text, account, dates or amount, with Salli's totals (`search_entries`), read
+  one entry (`get_entry`) and, once you say yes, reverse it (`reverse_entry`);
 - read your cash flow, spending, net worth over time, recurring payments and your
   cash forecast;
 - weigh a decision (can I afford it, cash or instalments, pay down a debt or
@@ -29,7 +30,8 @@ Once connected, your AI can:
 - sort imported transactions, then book what you approve;
 - create rules, so the next statement sorts itself;
 - write the monthly briefing (Salli's figures and signals, described, never advice)
-  and read budgets, debts, portfolio and insurance;
+  and read budgets (`list_budgets`, `get_budget_summary`), debts (`list_debts`),
+  goals (`list_goals`), reminders (`list_reminders`), portfolio and insurance;
 - read your tax, computed by Salli from the tax rules you activated, and explain
   each line from its expression and the source the rules cite;
 - research your country's tax rules from official sources, write them as a Salli
@@ -187,6 +189,13 @@ Before connecting anything:
   Salli app's own AI may change, since the app asks you before each change.
 - **Disconnecting:** `salli mcp connections` lists connected clients, and
   `salli mcp revoke` disconnects one.
+- **Outside text is fenced:** every free-text field a read tool returns (entry
+  descriptions, payees, names, labels, notes, documents, memories) comes inside
+  `{"untrusted_text": ...}`, and the server's instructions tell the model never to
+  follow instructions there.
+- **A headless agent** (one that can't open a browser to sign in) may send a
+  personal access token as its bearer instead (`salli tokens create <name>`): it
+  only reads, whatever the token holds, and only while MCP is on for your account.
 
 ## Claude (web, desktop, mobile)
 
@@ -211,7 +220,13 @@ claude mcp add --transport http salli https://<your-salli>/mcp
 ```
 
 Run `/mcp` inside Claude Code to sign in. Claude Code runs on your machine, so a Salli on
-`localhost` works here too.
+`localhost` works here too. Headless (`claude -p`, CI), give it a personal access token
+instead, and it reads only:
+
+```bash
+claude mcp add --transport http salli https://<your-salli>/mcp \
+  --header "Authorization: Bearer $SALLI_TOKEN"
+```
 
 ## ChatGPT
 

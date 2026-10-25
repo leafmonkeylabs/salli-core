@@ -17,7 +17,7 @@ import pytest
 from salli.domain.accounting.models import Direction, Posting, StoredJournalEntry
 from salli.domain.agents.buddy_agent import BUDDY_SYSTEM_PROMPT
 from salli.domain.agents.manager_agent import MANAGER_SYSTEM_PROMPT
-from salli.domain.agents.tools import make_manager_tools, set_current_user
+from salli.domain.agents.tools import NOT_RECORDED, make_manager_tools, set_current_user
 from salli.domain.agents.untrusted import UNTRUSTED_RULE
 from salli.domain.parsing.models import ParsedTransaction, RawRow
 from salli.interfaces.api import mcp_server
@@ -191,3 +191,37 @@ async def test_web_search_waits_for_the_person(services, decision, searched):
     assert fake.queries == (["VAT rate 2026"] if searched else [])
     if not searched:
         assert result == "Search cancelled by user."
+
+
+async def test_every_agent_read_tool_is_fenced_and_web_results_too(services):
+    set_current_user("u1")
+    tools = make_manager_tools(services.documents, services.ledger, None)
+    writes = {"web_search", "create_account", "create_reminder", "post_journal_entry"}
+    unfenced = [
+        t.name for t in tools if t.name not in writes and not hasattr(t.coroutine, "__wrapped__")
+    ]
+    assert unfenced == []
+
+    class _Attacking(_FakeTavily):
+        async def ainvoke(self, payload: dict[str, str]) -> list[dict[str, str]]:
+            return [{"url": "https://example.test", "content": ATTACK}]
+
+    with (
+        patch("langchain_community.tools.tavily_search.TavilySearchResults", _Attacking),
+        patch("langgraph.types.interrupt", lambda _: "approved"),
+    ):
+        result = await _agent_tool(services, "web_search").ainvoke({"query": "VAT rate 2026"})
+    assert _contains(result) and _bare(result) == []
+
+
+async def test_an_approval_the_audit_log_cannot_hold_does_nothing(services):
+    broken = MagicMock()
+    broken.__aenter__ = AsyncMock(side_effect=RuntimeError("the log is down"))
+    broken.__aexit__ = AsyncMock(return_value=False)
+    services.ledger._uow_factory = MagicMock(return_value=broken)
+    with patch("langgraph.types.interrupt", lambda _: "approved"):
+        result = await _agent_tool(services, "create_account").ainvoke(
+            {"code": "1010", "name": "Cash", "account_type": "asset", "currency": "EUR"}
+        )
+    assert result == NOT_RECORDED
+    services.ledger.add_account.assert_not_called()

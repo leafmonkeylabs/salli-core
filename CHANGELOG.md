@@ -9,6 +9,30 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Added
 
+- **Read-only access to another member's books.** A member lets another
+  member of the same server read their books (`salli access grant <email>`,
+  `POST /v1/access-grants`, behind the step-up; never from a token or
+  another application), both see it (`salli access list`), and either ends
+  it (`salli access revoke`). The grantee reads by naming the books
+  (`salli --books <member-id>`, `SALLI_BOOKS`, the `Salli-Books` header):
+  GET requests on the books' routes only; giving, receiving, ending and
+  every read are in the audit logs. Migration `core_0036_access_grants`.
+- **MCP catches up with the API.** `list_budgets`, `list_debts`,
+  `list_goals`, `list_reminders`, `get_entry`, and `reverse_entry` (a write,
+  with `confirmed_by_user`). A headless agent may send a personal access
+  token as its MCP bearer: it reads only, while MCP is on.
+- **The benchmark runs through Claude Code.** `uv run python -m
+  benchmark.run --via claude` asks `claude -p` with only Salli's MCP server
+  (`benchmark/serve.py`), so a run needs no API key of its own.
+- **Business notes** (`docs/business/`): a commercial thesis for a first
+  launch, a commercial-licence offer for the AGPL parts and a metrics plan,
+  every figure in them a hypothesis.
+- **A benchmark scorer that can't be talked round.** An answer Salli can
+  answer that opens by declining or hedging, that adds a figure Salli didn't
+  give, or that advises (a ranking word, "you should buy", a product) is
+  wrong whatever its headline; and a placeholder caveat is wrong on any
+  answer whose figures are the person's own.
+
 - **A stricter benchmark scorer.** A refusal must decline in its first
   sentence and quote no amount; a negative word must sit by the figure it
   signs; an answer quoting more than five tool figures is a dump however it
@@ -119,6 +143,15 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
+- **Outside text is fenced everywhere a model reads it.** Every free-text
+  field any MCP read tool or in-app agent tool returns (descriptions,
+  payees, memos, account and holding names, principle labels, decisions'
+  text, signals, reminders, subscription reports, suggested rules, web
+  search results) comes inside `{"untrusted_text": ...}`, fenced once where
+  the answer is serialised, not field by field; a contract test walks every
+  MCP read tool on the golden households. The in-app agents' approvals fail
+  closed: an action whose approval the audit log can't record is not done.
+
 - Prompt injection is fenced: statement and bank descriptions, payees,
   documents and saved memories reach a model only inside an
   `untrusted_text` field, and every prompt says never to follow
@@ -159,6 +192,11 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 ### Breaking
 
 #### Changed
+
+- MCP: every free-text string in a read tool's answer is now
+  `{"untrusted_text": ...}` (names, labels, notes, titles too, not only
+  descriptions and payees), and `get_budget_summary` takes a `budget_id`
+  (from `list_budgets`) instead of picking the first budget.
 
 - MCP `search_entries` and `list_pending_transactions` return `description`,
   `get_recurring_payments` `payee` and `examples`, the documents tools

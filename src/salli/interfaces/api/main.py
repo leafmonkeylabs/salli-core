@@ -57,6 +57,7 @@ from salli.interfaces.api.contract import API_PREFIX, document_problems, operati
 from salli.interfaces.api.deps import StepUpRequired, get_services
 from salli.interfaces.api.request_context import UNEXPECTED_TITLE, RequestContextMiddleware
 from salli.interfaces.api.routers import (
+    access,
     accounts,
     advisor,
     agent,
@@ -331,6 +332,7 @@ def create_app() -> FastAPI:
     app.include_router(principles.router, prefix=API_PREFIX)
     app.include_router(decisions.router, prefix=API_PREFIX)
     app.include_router(notifications.router, prefix=API_PREFIX)
+    app.include_router(access.router, prefix=API_PREFIX)
     # The console's static files, at /console: here, so before the MCP app's
     # catch-all mount at "/", which the lifespan adds last. None when it is
     # switched off (SALLI_CONSOLE=false) or no console is built.

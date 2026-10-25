@@ -35,7 +35,7 @@ describe('salli completion', () => {
     const script = join(dir, 'salli.bash');
     await writeFile(script, result.stdout);
     expect(spawnSync('bash', ['-n', script]).status).toBe(0);
-    expect(bashCompletions(script, ['salli', 'acc'])).toEqual(['accounts', 'account']);
+    expect(bashCompletions(script, ['salli', 'acc'])).toEqual(['accounts', 'account', 'access']);
     expect(bashCompletions(script, ['salli', 'insurance', 'policies', ''])).toEqual(
       expect.arrayContaining(['list', 'show', 'add', 'update', 'delete', '--json']),
     );

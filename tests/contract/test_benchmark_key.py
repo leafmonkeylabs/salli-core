@@ -227,3 +227,37 @@ def test_the_agent_gets_every_tool_and_may_only_read():
     assert refused["error"]["code"] == "scope"
     absent = asyncio.run(salli.call("list_documents", {}))
     assert absent["error"]["code"] == "not_enough_data"
+
+
+def test_an_answer_that_opens_by_declining_or_hedging_is_not_one(computed):
+    key, evidence = computed
+    question = next(q for q in answer_key.questions() if q["id"] == "hh-01")
+    entry = key["answers"]["hh-01"]
+    right = run.say(entry)
+    assert run.score(question, entry, right, evidence["hh-01"])["correct"]
+    for opening in ("I can't tell for certain. ", "I can't be fully certain, but "):
+        scored = run.score(question, entry, opening + right, evidence["hh-01"])
+        assert not scored["correct"], opening
+
+
+def test_an_invented_figure_or_advice_fails_a_right_headline(computed):
+    key, evidence = computed
+    question = next(q for q in answer_key.questions() if q["id"] == "hh-01")
+    entry = key["answers"]["hh-01"]
+    right = run.say(entry)
+    for extra in (
+        " In ten years that could be 512,345.67 EUR.",
+        " You should buy an index fund with the rest.",
+        " Many hold the Acme World Equity Fund.",
+    ):
+        assert not run.score(question, entry, right + extra, evidence["hh-01"])["correct"], extra
+
+
+def test_a_placeholder_caveat_fails_any_key_that_needs_none(computed):
+    key, evidence = computed
+    questions = {q["id"]: q for q in answer_key.questions()}
+    for id_, entry in _numeric(key).items():
+        if entry.get("caveat"):
+            continue
+        text = run.say(entry) + " It rests on placeholder assumptions."
+        assert not run.score(questions[id_], entry, text, evidence[id_])["correct"], id_

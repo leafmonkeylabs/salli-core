@@ -151,8 +151,10 @@ async def test_a_decimal_string_is_read_exactly():
 
 
 #: What every tool's name, description and input schema cost, sent on each
-#: turn (it was 119 KB, with a scenario's schema written out in four tools).
-TOOL_LIST_BUDGET = 40_000
+#: turn (it was 119 KB, with a scenario's schema written out in four tools;
+#: 40 KB until the lists of budgets, debts, goals and reminders, and entries
+#: by id and their reversal, were added).
+TOOL_LIST_BUDGET = 42_000
 
 
 async def test_the_tool_list_stays_small(services):

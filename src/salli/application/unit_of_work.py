@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from salli.adapters.db.access_grants import SQLAccessGrantRepository
 from salli.adapters.db.decisions import SQLDecisionRepository, SQLPrincipleRepository
 from salli.adapters.db.notifications import SQLNotificationRepository
 from salli.adapters.db.repositories import (
@@ -54,6 +55,7 @@ from salli.adapters.db.repositories import (
 from salli.adapters.db.tax_computations import SQLTaxComputationRepository
 from salli.adapters.db.tax_rule_sets import SQLTaxRuleSetRepository
 from salli.application.ports import (
+    AccessGrantRepository,
     AdvisoryRepository,
     AgentDocumentRepository,
     AgentSessionRepository,
@@ -139,6 +141,7 @@ class UnitOfWork:
     ai_connections: AiConnectionRepository
     instance_settings: InstanceSettingsRepository
     personal_access_tokens: PersonalAccessTokenRepository
+    access_grants: AccessGrantRepository
     logins: LoginRepository
     rules: RuleRepository
     bank_connections: BankConnectionRepository
@@ -185,6 +188,7 @@ class UnitOfWork:
         self.ai_connections = SQLAiConnectionRepository(self._session)
         self.instance_settings = SQLInstanceSettingsRepository(self._session)
         self.personal_access_tokens = SQLPersonalAccessTokenRepository(self._session)
+        self.access_grants = SQLAccessGrantRepository(self._session)
         self.logins = SQLLoginRepository(self._session)
         self.rules = SQLRuleRepository(self._session)
         self.bank_connections = SQLBankConnectionRepository(self._session)
