@@ -221,7 +221,7 @@ async def test_a_closed_year_s_stored_figure_is_never_replaced(db, uow_factory, 
     async with uow_factory() as uow:
         await uow.user_profiles.set_lock_date(A, filed["period_end"])
 
-    with pytest.raises(BooksLocked, match="can't be replaced"):
+    with pytest.raises(BooksLocked, match="keeps the figure stored when they closed"):
         await tax.compute_tax(A, country="XG", year="2031/32")
     assert "error" in await tax.prepare_return(A, country="XG", year="2031/32")
     preview = await tax.compute_tax(A, country="XG", year="2031/32", persist=False)

@@ -13,6 +13,7 @@ from typing import Annotated, Any, Literal
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from salli.application.entry_author import set_author, via_for
 from salli.application.permissions import Actor, is_recent, needs_step_up, permissions_for
 from salli.application.ports import IdentityProvider
 from salli.application.services.llm_credential_service import ResolvedCredentials
@@ -165,6 +166,14 @@ async def get_principal(
     settings: Annotated[Settings, Depends(get_settings)],
     services: Annotated[Services, Depends(get_services)],
 ) -> Principal:
+    """The caller (`_principal`), recorded as the author of the entries this
+    request posts (application/entry_author.py)."""
+    principal = await _principal(creds.credentials, settings, services)
+    set_author(principal.user_id, via_for(principal.method, principal.client_id))
+    return principal
+
+
+async def _principal(token: str, settings: Settings, services: Services) -> Principal:
     """Verify the bearer token, whichever kind it is.
 
     Salli's own tokens are checked against this database: sessions, personal
@@ -174,7 +183,6 @@ async def get_principal(
     goes to an extension's identity provider, if there is one, and then to
     the local-development fallback, if that is on; never one Salli issued.
     """
-    token = creds.credentials
     if is_personal_access_token(token):
         verified = await services.tokens.verify(token)
         if verified is None:

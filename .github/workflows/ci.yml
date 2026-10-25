@@ -67,6 +67,8 @@ jobs:
           src/salli/domain/baseline src/salli/application/services/baseline_service.py
           src/salli/interfaces/api/routers/baseline.py
           src/salli/domain/canonical.py src/salli/domain/scenarios
+          src/salli/domain/accounting/chain.py src/salli/application/entry_author.py
+          src/salli/adapters/db/tax_returns.py
           src/salli/application/services/scenario_service.py
           src/salli/interfaces/api/routers/scenarios.py
           src/salli/domain/decisions src/salli/adapters/db/decisions.py

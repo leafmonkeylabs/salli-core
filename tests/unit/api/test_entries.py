@@ -95,6 +95,11 @@ async def test_an_entry_reads_back_with_amounts_in_their_own_currency(client, mo
         "source": "manual",
         "external_ref": None,
         "reversed_by": "e2",
+        "reverses": None,
+        "created_by": None,
+        "created_via": None,
+        "seq": None,
+        "hash": None,
         "postings": [
             {
                 "id": "p1",

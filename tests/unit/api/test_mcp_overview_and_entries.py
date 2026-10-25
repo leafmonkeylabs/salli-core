@@ -177,6 +177,7 @@ async def test_entries_are_found_with_totals_over_every_match(services, refused)
             "date": "2026-10-24",
             "description": {"untrusted_text": "Corner Bakery"},
             "reversed_by": None,
+            "posted_via": None,
             "postings": [
                 {"account_id": "food", "side": "debit", "amount": "8.40", "currency": "EUR"},
                 {"account_id": "cash", "side": "credit", "amount": "8.40", "currency": "EUR"},

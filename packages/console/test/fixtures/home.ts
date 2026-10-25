@@ -76,11 +76,17 @@ export const BALANCE_SHEET: BalanceSheet = {
       "code": "3000",
       "name": "Opening equity",
       "balance": "334000.00"
+    },
+    {
+      "account_id": null,
+      "code": "",
+      "name": "Current-year earnings",
+      "balance": "10026.47"
     }
   ],
   "total_assets": "354493.15",
   "total_liabilities": "18591.68",
-  "total_equity": "334000.00",
+  "total_equity": "344026.47",
   "net_worth": "335901.47",
   "notes": []
 };

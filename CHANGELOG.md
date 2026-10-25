@@ -9,6 +9,25 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Added
 
+- **Filed years, a year-end close, and who posted what.** A return record
+  keeps what was filed: each version of a year's return (draft, filed,
+  amended with a reason), with a snapshot of its computation and the
+  snapshot's hash, the authority's reference, the filing date and the
+  payments against it, append-only (`/v1/tax/return-records`, `salli tax
+  returns list|show|record|pay`, MCP `list_tax_returns`). While a year's
+  return is filed its books can't be opened again (the lock date can't move
+  before its end, nor be cleared) until an amendment is recorded. `salli
+  ledger close-year <date>` (`POST /v1/ledger/year-end-close`) moves the
+  year's income and expenses to the equity account set with `salli ledger
+  retained-earnings <account>`, and the balance sheet shows what isn't
+  closed yet as current-year earnings. Every entry records who posted it
+  and how (`created_by`, `created_via`: console, cli, mobile,
+  `mcp:<client>`, import, automation), in its reads and the export, and is
+  hash-chained to the one before; `salli ledger verify` (`GET
+  /v1/ledger/verify`) names the first entry that changed. Migration
+  `core_0033_filed_years` chains the entries already stored, recorded as
+  posted by their owner via "unrecorded".
+
 - **A stricter benchmark scorer.** A refusal must decline in its first
   sentence and quote no amount; a negative word must sit by the figure it
   signs; an answer quoting more than five tool figures is a dump however it
@@ -159,6 +178,13 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 ### Breaking
 
 #### Changed
+
+- **A stored entry never changes.** The database now refuses any update of
+  a journal entry or posting, and any deletion but erasure, in open books
+  as in closed ones; a reversal records the entry it reverses (`reverses`)
+  and the original's `reversed_by` is read from it. The column
+  `journal_entries.reversed_by` is gone. A refusal to store a closed year's
+  tax no longer suggests moving the lock date earlier.
 
 - MCP `search_entries` and `list_pending_transactions` return `description`,
   `get_recurring_payments` `payee` and `examples`, the documents tools

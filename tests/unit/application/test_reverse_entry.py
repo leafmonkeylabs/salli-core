@@ -19,7 +19,7 @@ import pytest
 
 from salli.application.services.ledger_service import LedgerService
 from salli.domain.accounting.models import Account, BooksLocked, StoredJournalEntry
-from tests.fakes import FakeAuditLog, FakeProfiles
+from tests.fakes import FakeAuditLog, FakeProfiles, FakeTaxReturns
 
 TODAY = dt.date(2026, 10, 25)
 
@@ -36,15 +36,14 @@ class FakeLedgerRepo:
         self.entries[entry_id] = StoredJournalEntry(
             id=entry_id, user_id=user_id, **entry.model_dump(exclude={"id", "user_id"})
         )
+        if entry.reverses:
+            original = self.entries[entry.reverses]
+            self.entries[entry.reverses] = original.model_copy(update={"reversed_by": entry_id})
         return entry_id
 
     async def get_entry_by_id(self, user_id, entry_id):
         row = self.entries.get(entry_id)
         return row if row and row.user_id == user_id else None
-
-    async def set_reversed_by(self, entry_id, reversing_id):
-        original = self.entries[entry_id]
-        self.entries[entry_id] = original.model_copy(update={"reversed_by": reversing_id})
 
     async def get_account(self, user_id, account_id):
         return self.accounts.get(account_id)
@@ -73,6 +72,7 @@ class FakeUoW:
         self.ledger = ledger
         self.user_profiles = profiles
         self.audit_log = audit_log
+        self.tax_returns = FakeTaxReturns()
 
     async def __aenter__(self):
         return self

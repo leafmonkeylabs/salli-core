@@ -150,6 +150,8 @@ class LedgerService:
             before = await self._lock_date(uow, user_id)
             if before == lock_date:
                 return lock_date
+            if before is not None and (lock_date is None or lock_date < before):
+                await self._refuse_reopening_filed(uow, user_id, before, lock_date)
             await uow.user_profiles.set_lock_date(user_id, lock_date)
             change = (
                 "clear"
@@ -168,6 +170,30 @@ class LedgerService:
                 client_id=client_id,
             )
         return lock_date
+
+    @staticmethod
+    async def _refuse_reopening_filed(
+        uow: Any, user_id: str, before: str, after: str | None
+    ) -> None:
+        """A tax year whose books are closed (it ends on or before `before`)
+        and whose latest return was filed stays closed: moving the lock to
+        `after` (None: clearing it) may not open any of it. Recording an
+        amendment of the return, with its reason, lets it open."""
+        for ret in await uow.tax_returns.latest_of_each(user_id):
+            end = ret["period_end"].isoformat()
+            if ret["status"] != "filed" or end > before or (after is not None and end <= after):
+                continue
+            filed = f"filed on {ret['filed_on'].isoformat()}"
+            if ret.get("reference"):
+                filed += f" ({ret['reference']})"
+            raise BooksLocked(
+                end,
+                before,
+                f"The tax year {ret['year']} has a return {filed}, so its books, to {end}, "
+                "stay closed. Post a correction after the lock date; if the return itself "
+                "has to change, record the amendment and why first "
+                "(`salli tax returns record --status amended --reason ...`).",
+            )
 
     async def allowed_tax_roles(self, user_id: str) -> tuple[str, ...]:
         """The tax roles this user's accounts may carry: every role their own
@@ -665,9 +691,92 @@ class LedgerService:
                 entry_date=on,
                 description=f"Reversal of {original.description}: {reason}",
                 source="reversal",
+                reverses=original.id,
                 postings=reversed_postings,
             )
             refuse_if_locked(on, locked)
-            reversing_id = await uow.ledger.save_entry(user_id, reversing)
-            await uow.ledger.set_reversed_by(entry_id, reversing_id)
-        return reversing_id
+            # The original is never written to: its `reversed_by` is read
+            # from this entry's `reverses`.
+            return await uow.ledger.save_entry(user_id, reversing)
+
+    async def verify_chain(self, user_id: str) -> dict[str, Any]:
+        """Whether the user's entries are as they were posted: their hash
+        chain checked from the first (`domain.accounting.chain.verify`)."""
+        async with self._uow_factory() as uow:
+            return await uow.ledger.verify_chain(user_id)
+
+    async def set_retained_earnings(self, user_id: str, account_id: str) -> None:
+        """Make an equity account the one a year-end close moves earnings to.
+        KeyError for an account that isn't the user's; ValueError for one
+        that isn't equity."""
+        async with self._uow_factory() as uow:
+            account = await uow.ledger.get_account(user_id, account_id)
+            if account is None:
+                raise KeyError(account_id)
+            if account.type != "equity":
+                raise ValueError(
+                    f"Retained earnings are equity; {account.name} is a {account.type} account."
+                )
+            await uow.ledger.set_retained_earnings(user_id, account_id)
+
+    async def close_year(self, user_id: str, period_end: str) -> dict[str, Any]:
+        """Close the income and expense accounts into retained earnings: one
+        entry, dated `period_end` with source `year_end_close`, that brings
+        each one's balance on that day (in the base currency, everything not
+        already closed) to zero against the user's `retained_earnings`
+        account. Locking the books comes after, as ever. ValueError with no
+        such account or nothing to close; BooksLocked on a closed day."""
+        dt.date.fromisoformat(period_end)
+        async with self._uow_factory() as uow:
+            refuse_if_locked(period_end, await self._lock_date(uow, user_id))
+            accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
+            retained = next((a for a in accounts if a.equity_role == "retained_earnings"), None)
+            if retained is None:
+                raise ValueError(
+                    "Say which equity account holds retained earnings first "
+                    "(`salli ledger retained-earnings <account>`)."
+                )
+            base = await uow.user_profiles.base_currency(user_id)
+            flows = {a.id for a in accounts if a.type in ("income", "expense")}
+            balances = ledger_ops.trial_balance(
+                await uow.ledger.get_entries(user_id, to_date=period_end)
+            )
+            legs: list[Posting] = []
+            for account_id in sorted(flows):
+                amount = quantize(balances.get(account_id, Decimal(0)), base, strict=False)
+                if amount:
+                    legs.append(
+                        Posting(
+                            account_id=account_id,
+                            direction=Direction.CREDIT if amount > 0 else Direction.DEBIT,
+                            amount=abs(amount),
+                            currency=base,
+                        )
+                    )
+            if not legs:
+                raise ValueError(f"There is nothing to close on {period_end}.")
+            earnings = -sum((p.base_signed for p in legs), Decimal(0))
+            if earnings:
+                legs.append(
+                    Posting(
+                        account_id=retained.id,
+                        direction=Direction.DEBIT if earnings > 0 else Direction.CREDIT,
+                        amount=abs(earnings),
+                        currency=base,
+                    )
+                )
+            entry = JournalEntry(
+                entry_date=period_end,
+                description=f"Year-end close to {period_end}",
+                source="year_end_close",
+                postings=legs,
+            )
+            entry_id = await uow.ledger.save_entry(user_id, entry)
+        # Credits to retained earnings are earnings: shown as a positive gain.
+        return {
+            "entry_id": entry_id,
+            "period_end": period_end,
+            "currency": base,
+            "earnings": str(quantize(-earnings, base)),
+            "retained_earnings_account_id": retained.id,
+        }

@@ -89,6 +89,17 @@ class JournalEntry(BaseModel):
     external_ref: str | None
     #: The entry that reversed this one; null while it stands.
     reversed_by: str | None
+    #: For a reversal, the entry it reverses.
+    reverses: str | None = None
+    #: Who posted it: the signed-in person's user id, and how they came in
+    #: (console, cli, mobile, mcp:<client>, oauth:<client>, token, import,
+    #: automation; "unrecorded" for entries posted before Salli kept it).
+    created_by: str | None = None
+    created_via: str | None = None
+    #: Its place in the ledger's hash chain, and its hash
+    #: (`GET /v1/ledger/verify`).
+    seq: int | None = None
+    hash: str | None = None
     postings: list[Posting]
 
 
@@ -167,6 +178,11 @@ def _entry(e: StoredJournalEntry) -> JournalEntry:
         source=e.source,
         external_ref=e.external_ref,
         reversed_by=e.reversed_by,
+        reverses=e.reverses,
+        created_by=e.created_by,
+        created_via=e.created_via,
+        seq=e.seq,
+        hash=e.hash,
         postings=[_posting(p) for p in e.postings],
     )
 

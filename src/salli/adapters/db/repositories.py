@@ -65,11 +65,14 @@ from salli.adapters.db.models import (
     StatementORM,
     TagORM,
     TaxComputationORM,
+    TaxReturnORM,
+    TaxReturnPaymentORM,
     TaxRuleSetORM,
     TaxRuleSetVersionORM,
     UserLlmCredentialORM,
     UserProfileORM,
 )
+from salli.application.entry_author import current_author
 from salli.application.ports import (
     AccountCodeTaken,
     AccountNotFound,
@@ -108,6 +111,7 @@ from salli.application.ports import (
     StatementRepository,
     UserProfileRepository,
 )
+from salli.domain.accounting import chain
 from salli.domain.accounting.models import (
     Account,
     Direction,
@@ -169,8 +173,40 @@ def _entry_from_orm(row: JournalEntryORM) -> StoredJournalEntry:
         description=row.description,
         source=row.source,  # type: ignore[arg-type]
         external_ref=row.external_ref,
-        reversed_by=row.reversed_by,
+        reverses=row.reverses_id,
+        reversed_by=row.reversed_by,  # type: ignore[attr-defined]
+        created_by=row.created_by,
+        created_via=row.created_via,
+        seq=row.seq,
+        hash=row.hash,
         postings=[_posting_from_orm(p) for p in row.postings],
+    )
+
+
+def _chain_content(row: JournalEntryORM) -> dict[str, Any]:
+    """An entry as stored now, as the hash chain covers it."""
+    return chain.content(
+        seq=row.seq,
+        prev_hash=row.prev_hash,
+        entry_id=row.id,
+        user_id=row.user_id,
+        entry_date=row.entry_date,
+        description=row.description,
+        source=row.source,
+        external_ref=row.external_ref,
+        reverses=row.reverses_id,
+        created_by=row.created_by,
+        created_via=row.created_via,
+        postings=[
+            {
+                "account_id": p.account_id,
+                "direction": p.direction,
+                "amount_minor": p.amount_minor,
+                "currency": p.currency,
+                "fx_rate": chain.rate_text(Decimal(str(p.fx_rate))),
+            }
+            for p in row.postings
+        ],
     )
 
 
@@ -198,6 +234,7 @@ def _account_from_orm(row: AccountORM) -> Account:
         is_active=row.is_active,
         tax_role=row.tax_role,  # type: ignore[arg-type]
         asset_role=row.asset_role,  # type: ignore[arg-type]
+        equity_role=row.equity_role,  # type: ignore[arg-type]
     )
 
 
@@ -344,6 +381,23 @@ class SQLLedgerRepository(LedgerRepository):
         if named - owned:
             raise AccountNotFound(named - owned)
 
+        # The user's chain is extended one entry at a time: the lock holds
+        # until this transaction ends, so two entries never claim one place.
+        await self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": "ledger:" + user_id}
+        )
+        last = (
+            await self._session.execute(
+                select(JournalEntryORM.seq, JournalEntryORM.hash)
+                .where(JournalEntryORM.user_id == user_id)
+                .order_by(JournalEntryORM.seq.desc())
+                .limit(1)
+            )
+        ).first()
+        seq, prev_hash = (last[0] + 1, last[1]) if last else (1, None)
+        author = current_author()
+        created_by = author.user_id or user_id
+        created_via = "import" if entry.source in ("statement", "sms") else author.via
         orm_entry = JournalEntryORM(
             id=entry_id,
             user_id=user_id,
@@ -351,6 +405,36 @@ class SQLLedgerRepository(LedgerRepository):
             description=entry.description,
             source=entry.source,
             external_ref=entry.external_ref,
+            reverses_id=entry.reverses,
+            created_by=created_by,
+            created_via=created_via,
+            seq=seq,
+            prev_hash=prev_hash,
+        )
+        orm_entry.hash = chain.entry_hash(
+            chain.content(
+                seq=seq,
+                prev_hash=prev_hash,
+                entry_id=entry_id,
+                user_id=user_id,
+                entry_date=entry.entry_date,
+                description=entry.description,
+                source=entry.source,
+                external_ref=entry.external_ref,
+                reverses=entry.reverses,
+                created_by=created_by,
+                created_via=created_via,
+                postings=[
+                    {
+                        "account_id": p.account_id,
+                        "direction": p.direction.value,
+                        "amount_minor": to_minor(p.amount, p.currency),
+                        "currency": p.currency,
+                        "fx_rate": chain.rate_text(p.fx_rate),
+                    }
+                    for p in entry.postings
+                ],
+            )
         )
 
         wanted = {(kind, slug) for p in entry.postings for kind, slug in p.tags.items()}
@@ -513,8 +597,8 @@ class SQLLedgerRepository(LedgerRepository):
     async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
         # A reversed entry and its reversal net to nothing: neither says when
         # the record of money in and out began.
-        reversals = select(JournalEntryORM.reversed_by).where(
-            JournalEntryORM.user_id == user_id, JournalEntryORM.reversed_by.is_not(None)
+        reversals = select(JournalEntryORM.reverses_id).where(
+            JournalEntryORM.user_id == user_id, JournalEntryORM.reverses_id.is_not(None)
         )
         stmt = (
             select(func.min(JournalEntryORM.entry_date))
@@ -524,7 +608,7 @@ class SQLLedgerRepository(LedgerRepository):
                 JournalEntryORM.user_id == user_id,
                 AccountORM.user_id == user_id,
                 AccountORM.type.in_(("income", "expense")),
-                JournalEntryORM.reversed_by.is_(None),
+                JournalEntryORM.reverses_id.is_(None),
                 JournalEntryORM.id.not_in(reversals),
             )
         )
@@ -576,12 +660,16 @@ class SQLLedgerRepository(LedgerRepository):
         row = result.scalar_one_or_none()
         return _entry_from_orm(row) if row else None
 
-    async def set_reversed_by(self, entry_id: str, reversing_id: str) -> None:
-        stmt = select(JournalEntryORM).where(JournalEntryORM.id == entry_id)
-        result = await self._session.execute(stmt)
-        row = result.scalar_one_or_none()
-        if row:
-            row.reversed_by = reversing_id
+    async def verify_chain(self, user_id: str) -> dict[str, Any]:
+        result = await self._session.execute(
+            select(JournalEntryORM)
+            .where(JournalEntryORM.user_id == user_id)
+            .options(selectinload(JournalEntryORM.postings))
+            .order_by(JournalEntryORM.seq)
+        )
+        return chain.verify(
+            chain.Link(_chain_content(row), row.hash) for row in result.scalars().all()
+        )
 
     async def update_account(
         self,
@@ -605,6 +693,20 @@ class SQLLedgerRepository(LedgerRepository):
             row.currency = currency
             row.tax_role = tax_role
             row.asset_role = asset_role
+
+    async def set_retained_earnings(self, user_id: str, account_id: str) -> None:
+        await self._session.execute(
+            update(AccountORM)
+            .where(AccountORM.user_id == user_id, AccountORM.id != account_id)
+            .where(AccountORM.equity_role == "retained_earnings")
+            .values(equity_role=None)
+        )
+        await self._session.flush()
+        await self._session.execute(
+            update(AccountORM)
+            .where(AccountORM.user_id == user_id, AccountORM.id == account_id)
+            .values(equity_role="retained_earnings")
+        )
 
     async def deactivate_account(self, user_id: str, account_id: str) -> None:
         stmt = select(AccountORM).where(AccountORM.id == account_id, AccountORM.user_id == user_id)
@@ -2889,6 +2991,9 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(HoldingPriceORM, HoldingPriceORM.user_id)
         await _delete(PolicyORM, PolicyORM.user_id)
         await _delete(InsuranceTargetORM, InsuranceTargetORM.user_id)
+        # Returns point at computations, payments at returns.
+        await _delete(TaxReturnPaymentORM, TaxReturnPaymentORM.user_id)
+        await _delete(TaxReturnORM, TaxReturnORM.user_id)
         await _delete(TaxComputationORM, TaxComputationORM.user_id)
         # After tax_computations, which may point at a version. A set is
         # deleted before its versions (its active version points back at it),
