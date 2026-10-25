@@ -106,3 +106,26 @@ export function todayIso(now: Date = new Date()): string {
   const pad = (n: number): string => String(n).padStart(2, '0');
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
+
+/** The ISO day `days` after (or before, when negative) `iso`. */
+export function addDays(iso: string, days: number): string {
+  // eslint-disable-next-line no-restricted-syntax -- not money: a date's year, month and day
+  const [y, m, d] = [Number(iso.slice(0, 4)), Number(iso.slice(5, 7)), Number(iso.slice(8, 10))];
+  return todayIso(new Date(y, m - 1, d + days));
+}
+
+/** The month `by` months from `month` (YYYY-MM). */
+export function addMonths(month: string, by: number): string {
+  // eslint-disable-next-line no-restricted-syntax -- not money: a date's year and month
+  const at = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1 + by, 1);
+  return todayIso(at).slice(0, 7);
+}
+
+/** A month's days as a calendar grid, Monday first: blanks (null) before the 1st. */
+export function monthGrid(month: string): (string | null)[] {
+  // eslint-disable-next-line no-restricted-syntax -- not money: a date's year and month
+  const [y, m] = [Number(month.slice(0, 4)), Number(month.slice(5, 7))];
+  const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const days = new Date(y, m, 0).getDate();
+  return [...Array<null>(lead).fill(null), ...Array.from({ length: days }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`)];
+}

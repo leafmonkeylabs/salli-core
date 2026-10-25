@@ -280,7 +280,14 @@ def owner_check() -> Check:
         return Check("Owner", "fail", f"could not read: {type(exc).__name__}")
     if owner is None:
         return Check("Owner", "warn", "none yet: run `salli-server setup`")
-    return Check("Owner", "ok", "set up")
+    if owner.get("totp_enabled_at") is None:
+        return Check(
+            "Owner",
+            "warn",
+            "two-step sign-in is off: turn it on (`salli totp enable`); "
+            "adding and inviting members is refused until then",
+        )
+    return Check("Owner", "ok", "set up, with two-step sign-in")
 
 
 #: How recently `salli-server jobs send-digests` should have run, with a notifier.

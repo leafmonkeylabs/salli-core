@@ -31,6 +31,16 @@
 - **examples/entitlements**: a reference `EntitlementPolicy` mapping tiers to
   the hypotheses in business/thesis.md.
 
+- **Household basics in the phone app.** Add picks the entry's day (Today,
+  Yesterday or a calendar) instead of always today; an entry's category can
+  be changed beside Reverse (a sheet of the same kind of accounts, then the
+  server's recategorise); first run asks what you owe on its own step, with
+  an optional rate and minimum payment; a Debts screen (Attention's debt
+  signals open it) reads the baseline's debts and debt-free months; Cash
+  links to a Budget screen (this month's limits, left, the month gone, six
+  months of spending) and its edit screen (limit, rollover); More ›
+  Notifications turns push alerts on for this phone, registering its Expo
+  push token (`expo-notifications`).
 - **A withdrawal rate over your own drawdown.** A derived withdrawal rate
   must last from your FI month to your planning age (the FI plan's new
   `planning_age`; a labelled 95 without one, a labelled 30 years without a
@@ -340,6 +350,27 @@
 
 ### Security
 
+- **Invitations leave nothing identifying in the audit log.** `member.invite`
+  records the invitation's token hash and a keyed hash of the email, not
+  the email, since the log outlives an erased account.
+- **The push relay is authenticated.** `SALLI_PUSH_RELAY_URL` must be HTTPS
+  (localhost in development), and each post carries an HMAC-signed,
+  timestamped bearer from the new `SALLI_PUSH_RELAY_SECRET`
+  (docs/self-host.md#push-alerts).
+- **Push devices only from Salli's own apps.** `POST`/`DELETE /v1/devices`
+  answer 403 to any client but the app, the console and the CLI, and both
+  are audited (`device.add`, `device.remove`).
+- **The owner's two-step sign-in.** `salli-server setup` asks for it,
+  `doctor` warns without it, and `members add`/`invite` refuse until it is on.
+- **Shorter sign-ins.** Sessions last 12 hours and end after two idle hours
+  (`SALLI_SESSION_IDLE_MINUTES`); refresh tokens last 14 days.
+- **Supply chain.** compose.yaml's third-party images are pinned by digest;
+  the image is scanned with Trivy on every build and signed with cosign,
+  keyless, on release; npm packages and the server's wheel carry CycloneDX
+  SBOMs.
+- **Lock-screen amounts.** Every widget amount is marked privacy-sensitive,
+  so the system redacts it while the phone is locked.
+
 - **A hash-chained audit trail.** Every `audit_logs` row on an instance is
   numbered and carries the previous row's hash and its own (core_0046;
   `salli-server audit verify` reports the first break). Sign-ins (succeeded
@@ -367,6 +398,12 @@
 - **The consent and device pages send `allow`, one per part ticked**, in place
   of `allow_changes`; an MCP write refused for want of its part says which
   part to tick.
+
+- `SALLI_SESSION_TTL_DAYS` is now `SALLI_SESSION_TTL_HOURS` (default 12),
+  and `MCP_REFRESH_TOKEN_TTL_SECONDS` defaults to 14 days. With
+  `SALLI_PUSH_RELAY_URL` set, the server needs `SALLI_PUSH_RELAY_SECRET` and
+  an HTTPS URL to start.
+
 - **A CMA pack's `history` needs ten years.** At least 120 months (and,
   as before, a source); a shorter one is refused on import.
 

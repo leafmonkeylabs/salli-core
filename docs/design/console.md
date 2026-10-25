@@ -115,7 +115,7 @@ constrains it.
   `McpOAuthService.exchange_refresh_token` revokes the used token and issues a
   new pair; a rotated token presented again is simply "invalid or expired",
   and the grant lives on. Each new refresh token runs
-  `MCP_REFRESH_TOKEN_TTL_SECONDS` (30 days) from its own issue, so a grant has
+  `MCP_REFRESH_TOKEN_TTL_SECONDS` (14 days) from its own issue, so a grant has
   no absolute lifetime.
 - **There is no grant id.** `revoke_token_by_value` revokes one token;
   `revoke_client_grant(user_id, client_id, resource)` revokes every grant a

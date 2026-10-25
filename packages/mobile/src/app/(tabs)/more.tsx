@@ -35,6 +35,7 @@ export default function More() {
         <Tile icon="server" title={t.serversShort} status={host} hint={t.serversBody(host)} onPress={() => router.push('/sign-ins')} />
         <Tile icon="independence" title={strings.fi.title} onPress={() => router.push('/fi')} />
         <Tile icon="attention" title={strings.attention.title} onPress={() => router.push('/attention')} />
+        <Tile icon="message" title={strings.notifications.title} onPress={() => router.push('/notifications')} />
         {consoleUrl
           ? PLACES.map((place) => (
               <Tile

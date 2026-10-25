@@ -3327,7 +3327,8 @@ export const devicesList = <ThrowOnError extends boolean = false>(options?: Opti
  *
  * Take push alerts on this phone: budget lines over their limit, the
  * cash forecast below zero, reminders due. Registering the same token again
- * replaces it. 503 when this server sends no push alerts.
+ * replaces it. 403 from a client not Salli's own; 503 when this server
+ * sends no push alerts.
  */
 export const devicesAdd = <ThrowOnError extends boolean = false>(options: Options<DevicesAddData, ThrowOnError>): RequestResult<DevicesAddResponses, DevicesAddErrors, ThrowOnError> => (options.client ?? client).post<DevicesAddResponses, DevicesAddErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -3342,7 +3343,7 @@ export const devicesAdd = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Remove Device
  *
- * Stop push alerts to a device.
+ * Stop push alerts to a device. 403 from a client not Salli's own.
  */
 export const devicesRemove = <ThrowOnError extends boolean = false>(options: Options<DevicesRemoveData, ThrowOnError>): RequestResult<DevicesRemoveResponses, DevicesRemoveErrors, ThrowOnError> => (options.client ?? client).delete<DevicesRemoveResponses, DevicesRemoveErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

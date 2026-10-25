@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, todayIso } from '../src/lib/display';
+import { addDays, addMonths, amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthGrid, monthNameOf, monthOf, todayIso } from '../src/lib/display';
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib/pkce';
-import { placeLabels, stepChart } from '../src/lib/chart';
+import { monthBars, placeLabels, shareOf, stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
 import { groupsOf } from '../src/lib/accounts';
 import { blocksOfMarkdown, spansOf } from '../src/lib/markdown';
@@ -623,5 +623,33 @@ describe('server names', () => {
     const cleared = named(home, 'https://money.example.org', '');
     expect(listOf(cleared)[0]?.name).toBeUndefined();
     expect(labelOf('https://money.example.org', undefined)).toBe('money.example.org');
+  });
+});
+
+describe('a calendar', () => {
+  it('starts on Monday with blanks before the 1st', () => {
+    const grid = monthGrid('2026-10');
+    expect(grid.slice(0, 4)).toEqual([null, null, null, '2026-10-01']);
+    expect(grid.at(-1)).toBe('2026-10-31');
+    expect(monthGrid('2026-02').filter(Boolean)).toHaveLength(28);
+  });
+
+  it('steps days and months across their ends', () => {
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
+    expect(addDays('2026-12-31', 1)).toBe('2027-01-01');
+    expect(addMonths('2026-01', -1)).toBe('2025-12');
+    expect(addMonths('2026-12', 1)).toBe('2027-01');
+  });
+});
+
+describe('budget bars', () => {
+  it('reach a share of the whole, never past it', () => {
+    expect(shareOf('50.00', '200.00')).toBe(0.25);
+    expect(shareOf('300.00', '200.00')).toBe(1);
+    expect(shareOf('5.00', '0.00')).toBe(1);
+  });
+
+  it('size each month against the tallest', () => {
+    expect(monthBars([{ spent: ['10.00', '20.00'] }, { spent: ['10.00', '20.00'] }], 2)).toEqual([0.5, 1]);
   });
 });

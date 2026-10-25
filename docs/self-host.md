@@ -213,9 +213,11 @@ is needed to start.
 |---|---|---|
 | `ANTHROPIC_API_KEY` | none | The server's own key. Every AI feature runs on it, unless a person brings their own key or ChatGPT plan. |
 | `SALLI_DEFAULT_CURRENCY` | `USD` | The base currency for a new account when none is named (ISO 4217). |
-| `SALLI_PUSH_RELAY_URL` | none | Where push alerts to the phone app go: a relay that forwards Expo push messages. Needs `BYOK_ENCRYPTION_KEYS` to seal device tokens. See [Push alerts](#push-alerts). |
+| `SALLI_PUSH_RELAY_URL` | none | Where push alerts to the phone app go: a relay that forwards Expo push messages. Needs `BYOK_ENCRYPTION_KEYS` to seal device tokens. `https://` (plain `http` only to localhost with `ENVIRONMENT=development`). See [Push alerts](#push-alerts). |
+| `SALLI_PUSH_RELAY_SECRET` | none | Signs each post to the relay; required with `SALLI_PUSH_RELAY_URL` (the server refuses to start without it). Any long random value, shared with the relay. |
 | `ALLOWED_ORIGINS` | none | Web origins whose pages may call the API from a browser, comma-separated. The CLI, scripts and MCP clients need none. |
-| `SALLI_SESSION_TTL_DAYS` | `30` | How long a session lasts from sign-in, however much it is used. |
+| `SALLI_SESSION_TTL_HOURS` | `12` | How long a session lasts from sign-in, however much it is used (1 to 720). |
+| `SALLI_SESSION_IDLE_MINUTES` | `120` | A session unused this long ends sooner (5 to 1440). |
 | `SALLI_CONSOLE` | `true` | Whether to serve [the console](#the-console). `false`: no `/console`, and the console's sign-in refuses everyone. |
 | `SALLI_CONSOLE_DIR` | `/opt/salli-console` in the image | Where the console's built files are (`index.html` and `assets/`). Without them, no console is served: from a source checkout, build it (`npm run build --workspace @leafmonkeylabs/salli-console`) and point this at `packages/console/dist`. |
 | `SALLI_CONSOLE_SIGN_IN_HOURS` | `12` | How long a console sign-in lasts after its password, however often it refreshes (1 to 168). The CLI's sign-ins are not affected. |
@@ -230,7 +232,7 @@ is needed to start.
 | `ENVIRONMENT` | `production` in the image | `development` serves API docs at `/docs` and allows the development sign-in. Never on a server others can reach. |
 | `MCP_CONSENT_URL` | Salli's own page | Where people approve an MCP connection, if you run your own web app for it. |
 | `MCP_ACCESS_TOKEN_TTL_SECONDS` | `3600` | How long an OAuth access token lasts (the CLI's, an AI client's). |
-| `MCP_REFRESH_TOKEN_TTL_SECONDS` | `2592000` | How long a refresh token lasts (30 days). Each refresh issues a new one; a sign-in lasts while it keeps refreshing, except the console's (above) and an AI client's (below). |
+| `MCP_REFRESH_TOKEN_TTL_SECONDS` | `1209600` | How long a refresh token lasts (14 days). Each refresh issues a new one; a sign-in lasts while it keeps refreshing, except the console's (above) and an AI client's (below). |
 | `MCP_GRANT_LIFETIME_DAYS` | `90` | How long an AI client's connection lasts after the person approved it, however often it refreshes (1 to 365); then the person connects it again. Salli's own CLI and app are not affected. |
 | `MCP_AUTH_CODE_TTL_SECONDS`, `MCP_ART_TTL_SECONDS` | `120`, `1800` | How long an authorisation code, and a pending approval, last. |
 | `SALLI_EXTENSIONS` | none | Extensions to load, comma-separated. They must be installed in the image. |
@@ -426,7 +428,13 @@ a name or anything from the ledger.
 **The relay.** Salli never holds Apple's or Google's keys. Set
 `SALLI_PUSH_RELAY_URL` to a service you run that forwards Expo push
 messages: each alert is one POST of a JSON list of `{to, title, body,
-data}`, one per device, and any 2xx answer counts as sent. Device tokens are
+data}`, one per device, and any 2xx answer counts as sent. The relay must
+be `https://`, and each POST carries `Authorization: Bearer
+t=<unix seconds>,v1=<hex>`, where `v1` is HMAC-SHA256, keyed with
+`SALLI_PUSH_RELAY_SECRET`, of `<t>.` followed by the raw request body. A
+relay recomputes it over the body as received, compares in constant time,
+and refuses a `t` more than five minutes from its clock, so a captured post
+can't be replayed or altered. Device tokens are
 sealed with `BYOK_ENCRYPTION_KEYS` and found by their SHA-256 hash; without
 a relay and a key, registering a device answers 503 and nothing is sent.
 

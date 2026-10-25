@@ -1,6 +1,8 @@
 // The figure widgets (design 35): the cash forecast, this month's spending,
 // net worth, what is coming up, and the days to the next income. Like the others, they show
 // only what the snapshot carries: figures, never a name from the books.
+// Amounts are privacySensitive: wherever these show while the phone is locked
+// (the lock screen, StandBy), the system redacts them; the app shows them.
 import SwiftUI
 import WidgetKit
 
@@ -121,7 +123,7 @@ struct ForecastView: View {
           HStack(alignment: .firstTextBaseline) {
             Text(forecast.label).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
             Spacer()
-            Text(forecast.low).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
+            Text(forecast.low).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted).privacySensitive()
           }
           .accessibilityElement(children: .ignore)
           .accessibilityLabel(forecast.spoken)
@@ -147,12 +149,13 @@ struct SpentView: View {
           Text(spent.label).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
           Spacer(minLength: 0)
           Text(spent.figure)
+            .privacySensitive()
             .font(.custom("Geist-Medium", size: 24))
             .foregroundStyle(look.ink)
             .minimumScaleFactor(0.6)
             .lineLimit(1)
           if !spent.then.isEmpty {
-            Text(spent.then).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
+            Text(spent.then).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted).privacySensitive()
           }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -177,6 +180,7 @@ struct NetWorthView: View {
         VStack(alignment: .leading, spacing: 6) {
           Text(worth.label).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
           Text(worth.figure)
+            .privacySensitive()
             .font(.custom("Geist-Medium", size: 24))
             .foregroundStyle(look.ink)
             .minimumScaleFactor(0.6)
@@ -213,6 +217,7 @@ struct ComingUpView: View {
               Text(row.title).font(.custom("Geist-Regular", size: 14)).foregroundStyle(look.ink).lineLimit(1)
               Spacer(minLength: 4)
               Text(row.amount)
+                .privacySensitive()
                 .font(.custom("Geist-Medium", size: 14))
                 .foregroundStyle(row.in ? look.accent : look.ink)
                 .monospacedDigit()
