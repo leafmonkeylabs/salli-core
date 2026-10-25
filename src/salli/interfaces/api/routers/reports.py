@@ -19,8 +19,9 @@ _VALID_REPORT_TYPES = ("balance-sheet", "net-worth", "goal-progress")
 
 
 class BalanceSheetLine(BaseModel):
-    #: Null for a debt the ledger doesn't hold, at its declared principal
-    #: (its code is then empty).
+    #: Null for a debt the ledger doesn't hold, at its declared principal,
+    #: and for current-year earnings (income less expenses not yet closed
+    #: into retained earnings); its code is then empty.
     account_id: str | None
     code: str
     name: str

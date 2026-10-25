@@ -82,6 +82,10 @@ export type Account = {
      * Asset Role
      */
     asset_role?: 'cash' | 'savings' | 'investment' | 'other' | null;
+    /**
+     * Equity Role
+     */
+    equity_role?: 'retained_earnings' | null;
 };
 
 /**
@@ -117,7 +121,7 @@ export type AccountActivity = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
     /**
      * External Ref
      */
@@ -2180,6 +2184,39 @@ export type CategorizedTransactions = {
 };
 
 /**
+ * ChainBreak
+ */
+export type ChainBreak = {
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Entry Id
+     */
+    entry_id: string;
+    /**
+     * Reason
+     */
+    reason: 'missing' | 'link' | 'content';
+};
+
+/**
+ * ChainCheck
+ */
+export type ChainCheck = {
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * Checked
+     */
+    checked: number;
+    first_break: ChainBreak | null;
+};
+
+/**
  * ChangePasswordRequest
  */
 export type ChangePasswordRequest = {
@@ -3002,6 +3039,15 @@ export type DataExport = {
      * the rule set version that computed it, its inputs and every line.
      */
     tax_computations?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Tax Returns
+     *
+     * Every version of every return, as `tax.returnRecords.list` shows one:
+     * its status, filing, snapshot and payments.
+     */
+    tax_returns?: Array<{
         [key: string]: unknown;
     }>;
     /**
@@ -4416,7 +4462,7 @@ export type EntryProvenance = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
     /**
      * External Ref
      */
@@ -4600,6 +4646,10 @@ export type ExportedAccount = {
      * Tax Role
      */
     tax_role?: string | null;
+    /**
+     * Equity Role
+     */
+    equity_role?: 'retained_earnings' | null;
 };
 
 /**
@@ -4639,15 +4689,35 @@ export type ExportedJournalEntry = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
     /**
      * External Ref
      */
     external_ref: string | null;
     /**
+     * Reverses
+     */
+    reverses?: string | null;
+    /**
      * Reversed By
      */
     reversed_by: string | null;
+    /**
+     * Created By
+     */
+    created_by?: string | null;
+    /**
+     * Created Via
+     */
+    created_via?: string | null;
+    /**
+     * Seq
+     */
+    seq?: number | null;
+    /**
+     * Hash
+     */
+    hash?: string | null;
     /**
      * Postings
      */
@@ -6465,7 +6535,7 @@ export type JournalEntry = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
     /**
      * External Ref
      */
@@ -6474,6 +6544,26 @@ export type JournalEntry = {
      * Reversed By
      */
     reversed_by: string | null;
+    /**
+     * Reverses
+     */
+    reverses?: string | null;
+    /**
+     * Created By
+     */
+    created_by?: string | null;
+    /**
+     * Created Via
+     */
+    created_via?: string | null;
+    /**
+     * Seq
+     */
+    seq?: number | null;
+    /**
+     * Hash
+     */
+    hash?: string | null;
     /**
      * Postings
      */
@@ -8953,6 +9043,16 @@ export type ResumeRequest = {
      * Persona
      */
     persona?: 'scrooge' | 'buddy';
+};
+
+/**
+ * RetainedEarningsRequest
+ */
+export type RetainedEarningsRequest = {
+    /**
+     * Account Id
+     */
+    account_id: string;
 };
 
 /**
@@ -11748,6 +11848,56 @@ export type TaxReturnDraft = {
 };
 
 /**
+ * TaxReturnPayment
+ */
+export type TaxReturnPayment = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Paid On
+     */
+    paid_on: string;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Reference
+     */
+    reference: string | null;
+};
+
+/**
+ * TaxReturnPaymentIn
+ */
+export type TaxReturnPaymentIn = {
+    /**
+     * Paid On
+     */
+    paid_on: string;
+    /**
+     * Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    amount: string;
+    /**
+     * Reference
+     */
+    reference?: string | null;
+};
+
+/**
  * TaxReturnPending
  */
 export type TaxReturnPending = {
@@ -11805,6 +11955,116 @@ export type TaxReturnPrepared = {
      */
     error: string;
     draft: TaxReturnDraft | null;
+};
+
+/**
+ * TaxReturnRecord
+ *
+ * One version of a year's return. Nothing about it changes once
+ * recorded: a later version supersedes it.
+ */
+export type TaxReturnRecord = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Country
+     *
+     * ISO 3166-1 alpha-2 country code
+     */
+    country: string;
+    /**
+     * Region
+     */
+    region: string | null;
+    /**
+     * Year
+     */
+    year: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Status
+     */
+    status: 'draft' | 'filed' | 'amended';
+    /**
+     * Supersedes Id
+     */
+    supersedes_id: string | null;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Reference
+     */
+    reference: string | null;
+    /**
+     * Filed On
+     */
+    filed_on: string | null;
+    /**
+     * Computation Id
+     */
+    computation_id: string;
+    /**
+     * Rule Set Version Id
+     */
+    rule_set_version_id: string;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    snapshot: TaxComputation;
+    /**
+     * Snapshot Hash
+     */
+    snapshot_hash: string;
+    /**
+     * Payments
+     */
+    payments: Array<TaxReturnPayment>;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * TaxReturnRecordIn
+ */
+export type TaxReturnRecordIn = {
+    /**
+     * Computation Id
+     */
+    computation_id: string;
+    /**
+     * Status
+     */
+    status: 'draft' | 'filed' | 'amended';
+    /**
+     * Reference
+     */
+    reference?: string | null;
+    /**
+     * Filed On
+     */
+    filed_on?: string | null;
+    /**
+     * Reason
+     */
+    reason?: string | null;
 };
 
 /**
@@ -13043,6 +13303,46 @@ export type Updated = {
 };
 
 /**
+ * YearEndClose
+ */
+export type YearEndClose = {
+    /**
+     * Entry Id
+     */
+    entry_id: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Earnings
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    earnings: string;
+    /**
+     * Retained Earnings Account Id
+     */
+    retained_earnings_account_id: string;
+};
+
+/**
+ * YearEndCloseRequest
+ */
+export type YearEndCloseRequest = {
+    /**
+     * Period End
+     */
+    period_end: string;
+};
+
+/**
  * Body_oauth.deviceAuthorization
  */
 export type DeviceAuthorization2 = {
@@ -14083,6 +14383,89 @@ export type LedgerLockDateSetResponses = {
 
 export type LedgerLockDateSetResponse = LedgerLockDateSetResponses[keyof LedgerLockDateSetResponses];
 
+export type LedgerCloseYearData = {
+    body: YearEndCloseRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/ledger/year-end-close';
+};
+
+export type LedgerCloseYearErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerCloseYearError = LedgerCloseYearErrors[keyof LedgerCloseYearErrors];
+
+export type LedgerCloseYearResponses = {
+    /**
+     * Successful Response
+     */
+    201: YearEndClose;
+};
+
+export type LedgerCloseYearResponse = LedgerCloseYearResponses[keyof LedgerCloseYearResponses];
+
+export type LedgerRetainedEarningsSetData = {
+    body: RetainedEarningsRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/ledger/retained-earnings';
+};
+
+export type LedgerRetainedEarningsSetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerRetainedEarningsSetError = LedgerRetainedEarningsSetErrors[keyof LedgerRetainedEarningsSetErrors];
+
+export type LedgerRetainedEarningsSetResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type LedgerRetainedEarningsSetResponse = LedgerRetainedEarningsSetResponses[keyof LedgerRetainedEarningsSetResponses];
+
+export type LedgerVerifyData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/ledger/verify';
+};
+
+export type LedgerVerifyErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerVerifyError = LedgerVerifyErrors[keyof LedgerVerifyErrors];
+
+export type LedgerVerifyResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChainCheck;
+};
+
+export type LedgerVerifyResponse = LedgerVerifyResponses[keyof LedgerVerifyResponses];
+
 export type TagsListData = {
     body?: never;
     path?: never;
@@ -14383,6 +14766,139 @@ export type TaxReturnsResumeResponses = {
 };
 
 export type TaxReturnsResumeResponse = TaxReturnsResumeResponses[keyof TaxReturnsResumeResponses];
+
+export type TaxReturnRecordsListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Year
+         */
+        year?: string | null;
+    };
+    url: '/v1/tax/return-records';
+};
+
+export type TaxReturnRecordsListErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnRecordsListError = TaxReturnRecordsListErrors[keyof TaxReturnRecordsListErrors];
+
+export type TaxReturnRecordsListResponses = {
+    /**
+     * Response Tax.Returnrecords.List
+     *
+     * Successful Response
+     */
+    200: Array<TaxReturnRecord>;
+};
+
+export type TaxReturnRecordsListResponse = TaxReturnRecordsListResponses[keyof TaxReturnRecordsListResponses];
+
+export type TaxReturnRecordsCreateData = {
+    body: TaxReturnRecordIn;
+    path?: never;
+    query?: never;
+    url: '/v1/tax/return-records';
+};
+
+export type TaxReturnRecordsCreateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnRecordsCreateError = TaxReturnRecordsCreateErrors[keyof TaxReturnRecordsCreateErrors];
+
+export type TaxReturnRecordsCreateResponses = {
+    /**
+     * Successful Response
+     */
+    201: TaxReturnRecord;
+};
+
+export type TaxReturnRecordsCreateResponse = TaxReturnRecordsCreateResponses[keyof TaxReturnRecordsCreateResponses];
+
+export type TaxReturnRecordsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Return Id
+         */
+        return_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/return-records/{return_id}';
+};
+
+export type TaxReturnRecordsGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnRecordsGetError = TaxReturnRecordsGetErrors[keyof TaxReturnRecordsGetErrors];
+
+export type TaxReturnRecordsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxReturnRecord;
+};
+
+export type TaxReturnRecordsGetResponse = TaxReturnRecordsGetResponses[keyof TaxReturnRecordsGetResponses];
+
+export type TaxReturnRecordsPaymentsCreateData = {
+    body: TaxReturnPaymentIn;
+    path: {
+        /**
+         * Return Id
+         */
+        return_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/return-records/{return_id}/payments';
+};
+
+export type TaxReturnRecordsPaymentsCreateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnRecordsPaymentsCreateError = TaxReturnRecordsPaymentsCreateErrors[keyof TaxReturnRecordsPaymentsCreateErrors];
+
+export type TaxReturnRecordsPaymentsCreateResponses = {
+    /**
+     * Successful Response
+     */
+    201: TaxReturnRecord;
+};
+
+export type TaxReturnRecordsPaymentsCreateResponse = TaxReturnRecordsPaymentsCreateResponses[keyof TaxReturnRecordsPaymentsCreateResponses];
 
 export type TaxSchemaData = {
     body?: never;

@@ -54,6 +54,7 @@ from mcp.types import CallToolResult, ContentBlock, TextContent, ToolAnnotations
 from mcp.types import Tool as MCPTool
 from pydantic import AnyHttpUrl, BaseModel, Field, ValidationError
 
+from salli.application.entry_author import set_author
 from salli.application.permissions import Actor
 from salli.application.ports import (
     AccountNotFound,
@@ -407,6 +408,7 @@ class _SalliMCP(FastMCP[Any]):
             await self._audit(record, "refused")
             _fail("scope", READ_ONLY)
         outcome = "failed"
+        set_author(record.user_id, f"mcp:{record.client_id}")
         token = pending_audit.set(record)
         try:
             result = await self._run(name, arguments)
@@ -500,6 +502,7 @@ def _entry_view(e: Any) -> dict[str, Any]:
         "date": e.entry_date,
         "description": untrusted(e.description),
         "reversed_by": e.reversed_by,
+        "posted_via": e.created_via,
         "postings": [
             {
                 "account_id": p.account_id,
@@ -826,6 +829,28 @@ def build_mcp_server(
         except (LookupError, ValueError) as exc:
             _refused(exc)
         return _jsonable(computation_for_agent(result))
+
+    @mcp.tool(annotations=READS)
+    async def list_tax_returns(year: str | None = None) -> dict[str, Any]:
+        """The user's recorded tax returns (of `year`, as the rules name it),
+        newest year first: each version's status (draft, filed, amended),
+        the authority's reference, the filing date, why it was amended, the
+        figures recorded with it (net, tax payable, refund due, in its
+        currency) and the payments made against it. A filed return keeps its
+        year's books closed. Quote these figures exactly."""
+        returns = await tax_svc.list_returns(_current_user_id(), year or None)
+        keep = ("net", "tax_payable", "refund_due", "currency", "rule_set_version_id", "version")
+        return _jsonable(
+            {
+                "returns": [
+                    {
+                        **{k: v for k, v in r.items() if k != "snapshot"},
+                        "figures": {k: r["snapshot"].get(k) for k in keep},
+                    }
+                    for r in returns
+                ]
+            }
+        )
 
     @mcp.tool(annotations=READS)
     async def explain_tax_line(

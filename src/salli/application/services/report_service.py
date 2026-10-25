@@ -29,7 +29,8 @@ class ReportService:
         each asset and liability account at today's published rate (one
         without a rate is left out, and said in `notes`), a debt the ledger
         doesn't hold at its declared principal, and the totals with each
-        account judged on its own sign. Equity as the trial balance keeps it."""
+        account judged on its own sign. Equity as the trial balance keeps it, with
+        the income and expenses not yet closed as current-year earnings."""
         [now] = await self._baselines.worth(user_id, [self._baselines.today()])
         currency = now.currency
 
@@ -70,6 +71,21 @@ class ReportService:
                     }
                 )
                 total_equity += magnitude
+        # Income less expenses not yet closed into retained earnings
+        # (LedgerService.close_year): the books balance without a close.
+        earnings = -sum(
+            (balances.get(a.id, Decimal(0)) for a in accounts if a.type in ("income", "expense")),
+            Decimal(0),
+        )
+        equity.append(
+            {
+                "account_id": None,
+                "code": "",
+                "name": "Current-year earnings",
+                "balance": money(earnings),
+            }
+        )
+        total_equity += earnings
 
         return {
             "currency": currency,

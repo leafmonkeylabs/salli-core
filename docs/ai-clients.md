@@ -147,6 +147,7 @@ own, with their sources, replace the placeholders.
 | Tool | What it does |
 |---|---|
 | `get_tax_computation` | Your tax for a year (your current one by default), computed from your active rules and your ledger: every line with its expression and source, and the net payable or refund. Nothing is stored. |
+| `list_tax_returns` | Your recorded returns: each version (draft, filed, amended), its filing date and reference, why it was amended, the figures recorded with it and the payments made. |
 | `explain_tax_line` | Where one line came from: its expression, the ledger totals, answers and lines it used, any band table, the source it cites, and what uses it. |
 
 ### Tax rule tools

@@ -74,6 +74,9 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/ledger/trial-balance"): "ledger.trialBalance",
     ("GET", "/ledger/income-statement"): "ledger.incomeStatement",
     ("PUT", "/ledger/lock-date"): "ledger.lockDate.set",
+    ("POST", "/ledger/year-end-close"): "ledger.closeYear",
+    ("PUT", "/ledger/retained-earnings"): "ledger.retainedEarnings.set",
+    ("GET", "/ledger/verify"): "ledger.verify",
     # tax
     ("POST", "/tax/compute"): "tax.compute",
     ("GET", "/tax/latest"): "tax.latest",
@@ -81,6 +84,10 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/tax/explain"): "tax.explain",
     ("POST", "/tax/returns/prepare"): "tax.returns.prepare",
     ("POST", "/tax/returns/resume"): "tax.returns.resume",
+    ("GET", "/tax/return-records"): "tax.returnRecords.list",
+    ("POST", "/tax/return-records"): "tax.returnRecords.create",
+    ("GET", "/tax/return-records/{return_id}"): "tax.returnRecords.get",
+    ("POST", "/tax/return-records/{return_id}/payments"): "tax.returnRecords.payments.create",
     ("GET", "/tax/returns/{thread_id}"): "tax.returns.get",
     # tax rule sets: the user's own rules (docs/taxrules.md)
     ("GET", "/tax/schema"): "tax.schema",

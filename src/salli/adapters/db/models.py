@@ -25,10 +25,17 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    column_property,
+    mapped_column,
+    relationship,
+)
 
 
 def _uuid() -> str:
@@ -68,12 +75,26 @@ class AccountORM(Base):
     # (`domain.accounting.models.AssetRole`). Every asset account has one;
     # no other account does.
     asset_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # An equity account's role (`domain.accounting.models.EquityRole`): only
+    # `retained_earnings`, on at most one account of a user's.
+    equity_role: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
 
     __table_args__ = (
         UniqueConstraint("user_id", "code", name="uq_accounts_user_code"),
+        CheckConstraint(
+            "equity_role IS NULL OR (type = 'equity' AND equity_role = 'retained_earnings')",
+            name="ck_accounts_equity_role",
+        ),
+        Index(
+            "uq_accounts_user_equity_role",
+            "user_id",
+            "equity_role",
+            unique=True,
+            postgresql_where=text("equity_role IS NOT NULL"),
+        ),
         CheckConstraint(
             "type IN ('asset','liability','equity','income','expense')",
             name="ck_accounts_type",
@@ -105,9 +126,19 @@ class JournalEntryORM(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(String(20), nullable=False)
     external_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    reversed_by: Mapped[str | None] = mapped_column(
+    # For a reversal: the entry it reverses (once: a unique index). The
+    # original's `reversed_by` is read from here, never written on it.
+    reverses_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("journal_entries.id"), nullable=True
     )
+    # Who posted it: the signed-in person, and how they came in.
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_via: Mapped[str] = mapped_column(String(120), nullable=False)
+    # The user's hash chain (domain/accounting/chain.py): its place, the
+    # previous entry's hash and its own.
+    seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    prev_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    hash: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -118,8 +149,15 @@ class JournalEntryORM(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "source IN ('manual','statement','sms','system','reversal')",
+            "source IN ('manual','statement','sms','system','reversal','year_end_close')",
             name="ck_journal_entries_source",
+        ),
+        UniqueConstraint("user_id", "seq", name="uq_journal_entries_user_seq"),
+        Index(
+            "uq_journal_entries_reverses",
+            "reverses_id",
+            unique=True,
+            postgresql_where=text("reverses_id IS NOT NULL"),
         ),
         Index("ix_journal_entries_user_date", "user_id", "entry_date"),
         # A client_ref books once, even sent twice at the same time
@@ -132,6 +170,15 @@ class JournalEntryORM(Base):
             postgresql_where=text("source = 'manual' AND external_ref LIKE 'client-ref:%'"),
         ),
     )
+
+
+_reversal = JournalEntryORM.__table__.alias("reversal")
+JournalEntryORM.reversed_by = column_property(  # type: ignore[attr-defined]
+    select(_reversal.c.id)
+    .where(_reversal.c.reverses_id == JournalEntryORM.id)
+    .correlate_except(_reversal)
+    .scalar_subquery()
+)
 
 
 class PostingORM(Base):
@@ -358,6 +405,89 @@ class TaxComputationORM(Base):
 
 #: A version's lifecycle (application/services/tax_rule_service.py).
 RULE_SET_STATUSES = ("draft", "validated", "proposed", "active", "superseded", "invalid")
+
+
+class TaxReturnORM(Base):
+    """One version of a user's return for a jurisdiction and tax year
+    (docs/taxrules.md, "Returns"): a draft, what was filed, or an amendment.
+    It keeps a snapshot of the computation it was made from, with that
+    snapshot's canonical-JSON hash, so what was filed is kept whatever is
+    computed later. Append-only (core_0037's trigger): a later version
+    supersedes one before it (`supersedes_id`) and an amendment says why
+    (`reason`)."""
+
+    __tablename__ = "tax_returns"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    country: Mapped[str] = mapped_column(String(2), nullable=False)
+    region: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    year: Mapped[str] = mapped_column(String(32), nullable=False)
+    period_start: Mapped[date] = mapped_column(Date, nullable=False)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False)
+    supersedes_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("tax_returns.id"), nullable=True
+    )
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    computation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("tax_computations.id"), nullable=False
+    )
+    rule_set_version_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    snapshot_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    # The authority's reference for what was filed, and the day it was.
+    reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    filed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','filed','amended')", name="ck_tax_returns_status"),
+        CheckConstraint(
+            "status <> 'filed' OR filed_on IS NOT NULL", name="ck_tax_returns_filed_on"
+        ),
+        CheckConstraint(
+            "status <> 'amended' OR (reason IS NOT NULL AND supersedes_id IS NOT NULL)",
+            name="ck_tax_returns_amendment",
+        ),
+        # One line of versions a year: each supersedes one, once.
+        UniqueConstraint("supersedes_id", name="uq_tax_returns_supersedes"),
+        Index(
+            "uq_tax_returns_year_version",
+            "user_id",
+            "country",
+            text("coalesce(region, '')"),
+            "year",
+            "version",
+            unique=True,
+        ),
+    )
+
+
+class TaxReturnPaymentORM(Base):
+    """A payment made against a return version, in the computation's
+    currency. Append-only, like the returns."""
+
+    __tablename__ = "tax_return_payments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    return_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("tax_returns.id"), nullable=False, index=True
+    )
+    paid_on: Mapped[date] = mapped_column(Date, nullable=False)
+    amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (CheckConstraint("amount_minor > 0", name="ck_tax_return_payments_amount"),)
 
 
 class TaxRuleSetORM(Base):

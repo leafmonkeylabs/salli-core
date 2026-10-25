@@ -53,6 +53,7 @@ from salli.adapters.db.repositories import (
     SQLUserProfileRepository,
 )
 from salli.adapters.db.tax_computations import SQLTaxComputationRepository
+from salli.adapters.db.tax_returns import SQLTaxReturnRepository
 from salli.adapters.db.tax_rule_sets import SQLTaxRuleSetRepository
 from salli.application.ports import (
     AccessGrantRepository,
@@ -88,6 +89,7 @@ from salli.application.ports import (
     RuleRepository,
     StatementRepository,
     TaxComputationRepository,
+    TaxReturnRepository,
     TaxRuleSetRepository,
     UserProfileRepository,
 )
@@ -115,6 +117,7 @@ pending_audit: ContextVar[AuditRecord | None] = ContextVar("pending_audit", defa
 class UnitOfWork:
     ledger: LedgerRepository
     tax_computations: TaxComputationRepository
+    tax_returns: TaxReturnRepository
     tax_rule_sets: TaxRuleSetRepository
     statements: StatementRepository
     reminders: ReminderRepository
@@ -162,6 +165,7 @@ class UnitOfWork:
         self._session = self._factory()
         self.ledger = SQLLedgerRepository(self._session)
         self.tax_computations = SQLTaxComputationRepository(self._session)
+        self.tax_returns = SQLTaxReturnRepository(self._session)
         self.tax_rule_sets = SQLTaxRuleSetRepository(self._session)
         self.statements = SQLStatementRepository(self._session)
         self.reminders = SQLReminderRepository(self._session)
