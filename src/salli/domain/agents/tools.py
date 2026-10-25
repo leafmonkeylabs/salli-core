@@ -73,13 +73,28 @@ _HOW_TO_READ = (
     "negative. Quote figures exactly, refer to lines by their label, and call "
     "explain_tax_line(key) to say what a line used and the source it cites. Never "
     "recompute, estimate or adjust a figure, and never bring in a rate or threshold the "
-    "rules don't contain."
+    "rules don't contain. When there is a provisional_warning, quote it with the figures."
 )
+
+
+def provisional_warning(provisional: list[dict[str, Any]]) -> dict[str, str]:
+    """`{"provisional_warning": ...}` for a tax read using values its rules
+    mark provisional, else {}: the agent quotes the sentence with the figures."""
+    if not provisional:
+        return {}
+    keys = ", ".join(sorted({p["key"] for p in provisional}))
+    return {
+        "provisional_warning": (
+            f"These figures use values the tax rules mark provisional ({keys}), not yet "
+            "confirmed from a primary source: they may change."
+        )
+    }
 
 
 def computation_for_agent(c: dict[str, Any]) -> dict[str, Any]:
     """A computation (TaxService's view) as the agents and AI clients see it."""
     return {
+        **provisional_warning(c.get("provisional") or []),
         "country": c["country"],
         "region": c["region"],
         "year": c["year"],
@@ -149,7 +164,8 @@ def make_read_tools(ledger_svc: Any, tax_svc: Any) -> list[Any]:
         """
         Compute the user's tax with their own active tax rules, from their
         ledger (nothing is stored). Numbers here are authoritative: narrate
-        them line by line, do NOT recompute or adjust them. If the user has no
+        them line by line, do NOT recompute or adjust them; quote any
+        provisional_warning with them. If the user has no
         active rules, the answer says so and what they can do.
         """
         user_id = _current_user.get()

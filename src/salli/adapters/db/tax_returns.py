@@ -31,6 +31,7 @@ _FIELDS = (
     "snapshot",
     "snapshot_hash",
     "chain_head_hash",
+    "provisional_note",
     "reference",
     "filed_on",
 )

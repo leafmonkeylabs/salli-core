@@ -2,8 +2,8 @@
 
 Additive: a new table, empty on an existing instance.
 
-Revision ID: core_0044_mcp_client_refs
-Revises: core_0043_invitations
+Revision ID: core_0045_mcp_client_refs
+Revises: core_0044_return_provisional
 Create Date: 2026-10-25
 """
 
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision: str = "core_0044_mcp_client_refs"
-down_revision: str | None = "core_0043_invitations"
+revision: str = "core_0045_mcp_client_refs"
+down_revision: str | None = "core_0044_return_provisional"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

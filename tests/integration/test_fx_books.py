@@ -134,3 +134,26 @@ async def test_opening_balances_post_on_the_day_the_books_start(uow_factory):
     )
     [entry] = [e for e in await ledger.get_entries("ines") if e.id == entry_id]
     assert entry.entry_date == "2031-03-01"
+
+
+async def test_the_books_start_cannot_move_past_their_first_entry(uow_factory):
+    from unittest.mock import MagicMock
+
+    from salli.application.services.user_profile_service import UserProfileService
+
+    ledger = await _ledger(uow_factory)
+    profile = UserProfileService(uow_factory, ledger, MagicMock(), MagicMock())
+    await profile.update_identity("ines", {"books_start": "2031-03-01"})
+    bank = await ledger.add_account("ines", "1000", "Bank", "asset")
+    food = await ledger.add_account("ines", "5000", "Food", "expense")
+    legs = [
+        {"account_id": food, "direction": Direction.DEBIT, "amount": Decimal("5")},
+        {"account_id": bank, "direction": Direction.CREDIT, "amount": Decimal("5")},
+    ]
+    await ledger.add_entry("ines", "2031-03-10", "Lunch", "manual", legs)
+
+    with pytest.raises(ValueError, match="entries from 2031-03-10, before 2031-04-01"):
+        await profile.update_identity("ines", {"books_start": "2031-04-01"})
+    # Its own day, or earlier, is fine.
+    await profile.update_identity("ines", {"books_start": "2031-03-10"})
+    await profile.update_identity("ines", {"books_start": "2031-01-01"})
