@@ -6,7 +6,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from salli.application.services.login_service import SignedIn, SignInRefused, SignInThrottled
+from salli.application.services.login_service import (
+    CodeNeeded,
+    SignedIn,
+    SignInRefused,
+    SignInThrottled,
+)
 from salli.application.services.mcp_oauth_service import ConsentError
 
 pytestmark = pytest.mark.asyncio
@@ -84,9 +89,35 @@ async def test_allow_signs_in_enables_mcp_and_redirects_to_the_client(
     assert r.status_code == 303
     assert r.headers["location"] == "https://client.test/cb?code=abc"
     # Checked against Salli's own accounts, throttled by where it came from.
-    mock_services.logins.authenticate.assert_awaited_once_with("a@b.c", "pw", address="127.0.0.1")
+    mock_services.logins.authenticate.assert_awaited_once_with(
+        "a@b.c", "pw", address="127.0.0.1", code=None
+    )
     consent.set_mcp_enabled.assert_awaited_once_with("owner", True)
     consent.complete_consent.assert_awaited_once_with("t", "owner", True, password_checked=True)
+
+
+async def test_an_authenticator_code_goes_with_the_password(client, consent, mock_services):
+    page = await client.get(PAGE, params={"rt": "t"})
+    assert "<label for=code>Authenticator code" in page.text
+    r = await client.post(
+        PAGE,
+        data={"rt": "t", "decision": "allow", "email": "a@b.c", "password": "pw", "code": "123456"},
+    )
+    assert r.status_code == 303
+    mock_services.logins.authenticate.assert_awaited_once_with(
+        "a@b.c", "pw", address="127.0.0.1", code="123456"
+    )
+
+
+async def test_a_missing_code_shows_the_form_again_and_says_so(client, consent, mock_services):
+    mock_services.logins.authenticate.side_effect = CodeNeeded()
+    r = await client.post(
+        PAGE, data={"rt": "t", "decision": "allow", "email": "a@b.c", "password": "pw-1234"}
+    )
+    assert r.status_code == 401
+    assert "Enter the code from your authenticator app" in r.text
+    assert "pw-1234" not in r.text
+    consent.complete_consent.assert_not_awaited()
 
 
 async def test_a_non_member_cannot_approve(client, consent, mock_services):

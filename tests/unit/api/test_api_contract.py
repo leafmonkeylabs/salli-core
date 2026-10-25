@@ -5,6 +5,8 @@ and the public server description.
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from tests.unit.api.conftest import AUTH
@@ -33,7 +35,8 @@ async def test_meta_is_public_and_describes_the_server(client):
     assert len(body["default_currency"]) == 3
 
 
-async def test_health_and_identity_keep_their_shapes(client):
+async def test_health_and_identity_keep_their_shapes(client, mock_services):
+    mock_services.logins.get_login = AsyncMock(return_value=None)
     health = await client.get("/healthz")
     assert health.status_code == 200
     assert set(health.json()) == {"status", "version"}
@@ -46,6 +49,8 @@ async def test_health_and_identity_keep_their_shapes(client):
         "email": None,
         "method": "dev",
         "permissions": ["tax:activate"],
+        # And, since two-step sign-in, whether it is on.
+        "totp_enabled": False,
     }
 
 

@@ -3622,9 +3622,13 @@ class SQLLoginRepository(LoginRepository):
             "is_owner": row.is_owner,
             "password_changed_at": row.password_changed_at,
             "created_at": row.created_at,
+            "totp_enabled_at": row.totp_enabled_at,
+            "totp_recovery_codes_left": len(row.totp_recovery_codes or []),
         }
         if with_hash:
             login["password_hash"] = row.password_hash
+            login["totp_secret"] = row.totp_secret
+            login["totp_key_version"] = row.totp_key_version
         return login
 
     @staticmethod
@@ -3755,6 +3759,53 @@ class SQLLoginRepository(LoginRepository):
             where.append(LoginSessionORM.id != keep)
         result = await self._s.execute(update(LoginSessionORM).where(*where).values(revoked_at=at))
         return cast(Any, result).rowcount or 0
+
+    async def set_totp(self, user_id: str, sealed: str | None, key_version: int | None) -> None:
+        await self._s.execute(
+            update(LoginORM)
+            .where(LoginORM.user_id == user_id)
+            .values(
+                totp_secret=sealed,
+                totp_key_version=key_version,
+                totp_enabled_at=None,
+                totp_last_step=None,
+                totp_recovery_codes=[],
+            )
+        )
+
+    async def enable_totp(
+        self, user_id: str, recovery_hashes: list[str], *, step: int, at: datetime
+    ) -> bool:
+        result = await self._s.execute(
+            update(LoginORM)
+            .where(
+                LoginORM.user_id == user_id,
+                LoginORM.totp_secret.is_not(None),
+                LoginORM.totp_enabled_at.is_(None),
+            )
+            .values(totp_enabled_at=at, totp_last_step=step, totp_recovery_codes=recovery_hashes)
+        )
+        return bool(cast(Any, result).rowcount)
+
+    async def use_totp_step(self, user_id: str, step: int) -> bool:
+        # One statement, so two requests with the same code can't both pass.
+        result = await self._s.execute(
+            update(LoginORM)
+            .where(
+                LoginORM.user_id == user_id,
+                or_(LoginORM.totp_last_step.is_(None), LoginORM.totp_last_step < step),
+            )
+            .values(totp_last_step=step)
+        )
+        return bool(cast(Any, result).rowcount)
+
+    async def use_recovery_code(self, user_id: str, code_hash: str) -> bool:
+        result = await self._s.execute(
+            update(LoginORM)
+            .where(LoginORM.user_id == user_id, LoginORM.totp_recovery_codes.has_key(code_hash))
+            .values(totp_recovery_codes=LoginORM.totp_recovery_codes.op("-")(code_hash))
+        )
+        return bool(cast(Any, result).rowcount)
 
     async def record_failure(self, key_hash: str, at: datetime) -> None:
         self._s.add(LoginFailureORM(key_hash=key_hash, at=at))

@@ -365,6 +365,12 @@ def members_reset_password(
         help="Also revoke their OAuth sign-ins (the CLI, AI connectors) and personal "
         "access tokens, for an account you think was taken over",
     ),
+    clear_totp: bool = typer.Option(
+        False,
+        "--clear-totp",
+        help="Also turn off their two-step sign-in, for someone who has lost their "
+        "authenticator app and their recovery codes",
+    ),
 ):
     """Set a new password for someone who has forgotten theirs. Ends their sessions."""
     from salli.application.services.login_service import LoginNotFound
@@ -372,7 +378,7 @@ def members_reset_password(
     password = read_password(password_stdin, f"A new password for {email}")
     logins = services().logins
     try:
-        login = asyncio.run(logins.reset_password(email, password))
+        login = asyncio.run(logins.reset_password(email, password, clear_totp=clear_totp))
     except (LoginNotFound, ValueError) as exc:  # PasswordRejected is a ValueError
         console.print(f"[red]{escape(str(exc))}[/red]")
         raise typer.Exit(1) from exc
@@ -380,9 +386,18 @@ def members_reset_password(
     if sign_out_everywhere:
         ended = asyncio.run(logins.sign_out_everywhere(str(login["user_id"])))
         ended["sessions"] += int(login["sessions_ended"])
-    if emit({"user_id": login["user_id"], "email": login["email"], "revoked": ended}):
+    if emit(
+        {
+            "user_id": login["user_id"],
+            "email": login["email"],
+            "revoked": ended,
+            "totp_cleared": login["totp_cleared"],
+        }
+    ):
         return
     console.print(f"[green]Password reset[/green] for {escape(login['email'])}.")
+    if login["totp_cleared"]:
+        console.print("  Two-step sign-in is off; they can turn it on again.")
     console.print("  Ended: " + ", ".join(f"{n} {k.replace('_', ' ')}" for k, n in ended.items()))
     if not sign_out_everywhere:
         console.print(

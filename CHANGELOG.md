@@ -9,6 +9,20 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Added
 
+- **Two-step sign-in.** Turn it on with `salli totp enable` or in the
+  console's Settings: add the secret to an authenticator app, enter a code,
+  and keep the ten recovery codes, shown once. From then on every sign-in
+  with your password (Salli's sign-in, consent and device pages, so the
+  console's step-up too; `POST /v1/auth/sessions`; `salli password`) also
+  needs the app's code, or a recovery code, each good once; wrong codes are
+  throttled like wrong passwords. `POST /v1/auth/totp`, `POST
+  /v1/auth/totp/confirm` and `DELETE /v1/auth/totp` (the password and a
+  code) turn it on and off, behind the step-up; `GET /v1/auth/me` says
+  whether it is on (`totp_enabled`). The secret is sealed with
+  `BYOK_ENCRYPTION_KEYS`. The owner turns it off for someone who has lost
+  both with `salli-server members reset-password --clear-totp`. The app
+  signs in on the same pages, so it asks for the code there. Migration
+  `core_0028_totp`.
 - **Your AI starts from where you stand, and can find what you booked.**
   MCP `get_overview` is one small read of Salli's figures: net worth, cash,
   free until payday and its low point, signals, the FI month and progress,

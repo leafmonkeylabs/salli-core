@@ -49,13 +49,14 @@ common criteria, C confidentiality, PI processing integrity, P privacy.
 | Control | What Salli does | Where | Criteria |
 |---|---|---|---|
 | Passwords | argon2id (RFC 9106: 64 MiB, three passes, four lanes), rehashed when the parameters change; at least 12 characters | `adapters/auth/passwords.py`, `application/services/login_service.py` | CC6.1 |
+| Two-step sign-in | Optional per person: once on, every password check (the sign-in, consent and device pages, so the step-up too; a session; changing the password) also needs an authenticator app's code (RFC 6238, each used once) or one of ten single-use recovery codes, kept as hashes; the app's secret is sealed like the secrets below; wrong codes are throttled like wrong passwords; turning it on or off goes through the step-up, and off needs the password and a code; the owner can clear it (`members reset-password --clear-totp`) | `application/totp.py`, `application/services/login_service.py`, `routers/auth.py` | CC6.1 |
 | Sign-in throttling | 5 failures an email or 50 an address in 15 minutes refuse further sign-ins unchecked; counted by hashes, so the count reveals no account | `application/services/login_service.py` | CC6.1 |
 | Hashed tokens | Sessions, personal access tokens and OAuth tokens are random and stored only as SHA-256 hashes | `login_service.py`, `personal_access_token_service.py`, `mcp_oauth_service.py` | CC6.1 |
 | OAuth | PKCE (S256 only); the console's and the app's redirects matched exactly, the CLI's to loopback only; refresh tokens rotate, and a reused one revokes its whole grant | `application/services/mcp_oauth_service.py` | CC6.1, CC7.2 |
 | Step-up | Activating tax rules needs a password checked in the last five minutes in the console and the app; AI connectors never can | `application/permissions.py` | CC6.1, CC6.3 |
 | Scoped tokens | A personal access token holds only the permissions it was made with, and no sign-in can mint one more capable than itself | `application/permissions.py`, `personal_access_token_service.py` | CC6.3 |
 | Accounts and sign-ins | No sign-up; the owner adds members and resets passwords; a person lists and ends every sign-in (`/v1/auth/sign-ins`) and AI connection (`/v1/mcp/connections`) | `interfaces/cli/setup.py`, `interfaces/api/routers/auth.py`, `routers/mcp_oauth.py` | CC6.2 |
-| Sealed secrets | AI keys, ChatGPT sign-ins and bank feed URLs sealed with AES-GCM, bound to their user and row; versioned keys for rotation; without a key Salli refuses to store one rather than keep it in plain text | `adapters/crypto/keyring.py` | CC6.1, C1.1 |
+| Sealed secrets | AI keys, ChatGPT sign-ins, bank feed URLs and authenticator secrets sealed with AES-GCM, bound to their user and row; versioned keys for rotation; without a key Salli refuses to store one rather than keep it in plain text | `adapters/crypto/keyring.py` | CC6.1, C1.1 |
 | Web hardening | CSP with Trusted Types, `frame-ancestors 'none'`, `no-referrer`, `Cache-Control: no-store` on API responses | `interfaces/api/console.py` | CC6.6 |
 | Outbound requests | Public addresses only, connecting to the address checked (no DNS rebinding), redirects vetted, size and time capped | `adapters/net/guard.py`, `adapters/net/fetch.py` | CC6.6 |
 | Ledger integrity | The database checks every entry balances at commit; no route edits or deletes a posted entry, which is corrected by a reversing entry; money is `Decimal`, never a float | `migrations/versions/core_0001_baseline.py`, `application/services/ledger_service.py` | PI1 |
@@ -70,7 +71,6 @@ common criteria, C confidentiality, PI processing integrity, P privacy.
 | Change management | Every pull request runs lint, type checks, the tests (including the API contract) and the console's browser tests | `.github/workflows/ci.yml` | CC8.1 |
 | Disclosure | Private reporting, response times, supported versions | `SECURITY.md` | CC2.3, CC7.3 |
 | Processors | Who else sees personal data, what and when | `docs/privacy.md` | CC9.2 |
-| **Not yet:** two-factor sign-in | Signing in is a password alone, and the step-up asks for the password again | | CC6.1 |
 | **Not yet:** enforced MCP scopes | An AI connection reaches every MCP tool, reads and writes; the grant's scope is recorded but not checked per tool | `interfaces/api/mcp_server.py` | CC6.3 |
 | **Not yet:** encryption at rest | Only the secrets above are sealed. The database and uploaded files are as encrypted as the operator's disk and backups | | CC6.1, C1.1 |
 | **Not yet:** database-enforced ledger and audit log | Entries and the audit log are kept unchanged by the code, not by a trigger as the decision journal is | | PI1, CC7.2 |

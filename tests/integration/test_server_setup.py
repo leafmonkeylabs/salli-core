@@ -161,6 +161,7 @@ def test_setup_makes_the_owner_once_and_members_are_added_listed_and_reset(
         "partner@example.org",
         "--password-stdin",
         "--sign-out-everywhere",
+        "--clear-totp",
         "--json",
         stdin="a brand new password\n",
     )
@@ -170,6 +171,8 @@ def test_setup_makes_the_owner_once_and_members_are_added_listed_and_reset(
         "oauth_tokens": 0,
         "personal_access_tokens": 0,
     }
+    # They had no two-step sign-in to turn off.
+    assert json.loads(out)["totp_cleared"] is False
     code, out, err = run(
         monkeypatch,
         capsys,

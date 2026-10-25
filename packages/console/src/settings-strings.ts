@@ -16,6 +16,24 @@ export const settingsStrings = {
     done: 'I have copied it',
   },
 
+  twoStep: {
+    title: 'Two-step sign-in',
+    help: 'A code from an authenticator app after your password, wherever you sign in with it.',
+    on: 'On. Every sign-in with your password also asks for a code.',
+    off: 'Off. Your password alone signs you in.',
+    turnOn: 'Turn on two-step sign-in',
+    starting: 'Starting…',
+    link: 'For your authenticator app',
+    typeIn: 'Or type this secret into the app:',
+    code: 'The code your app shows now',
+    confirm: 'Turn it on',
+    confirming: 'Turning it on…',
+    codeMissing: 'Enter the six digits your app shows.',
+    done: 'Two-step sign-in is on.',
+    recovery: 'Recovery codes, each good once in place of a code',
+    turnOff: 'To turn it off, use salli totp disable: it asks for your password, which the console never does.',
+  },
+
   tokens: {
     title: 'Personal access tokens',
     description:

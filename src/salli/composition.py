@@ -346,12 +346,15 @@ def _build_logins(settings: Settings, uow_factory) -> LoginService:
     from datetime import timedelta
 
     from salli.adapters.auth.passwords import Argon2PasswordHasher
+    from salli.adapters.crypto.keyring import KeyRing
 
     return LoginService(
         uow_factory,
         Argon2PasswordHasher(),
         session_ttl=timedelta(days=settings.salli_session_ttl_days),
         default_currency=settings.salli_default_currency,
+        # Seals authenticator secrets, as it seals stored AI keys.
+        keyring=KeyRing(settings.byok_encryption_keys),
     )
 
 

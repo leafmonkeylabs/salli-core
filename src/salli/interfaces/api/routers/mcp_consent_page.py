@@ -17,7 +17,9 @@ authenticated by the password submitted with it, so there is no cookie for a
 cross-site request to ride on. The password is never written back into the
 page. The only place the console's password is typed is here: the console
 has no sign-in form of its own, and comes back here (`prompt=login`) for the
-password again before activating tax rules.
+password again before activating tax rules. Beside the password is a field
+for an authenticator app's code (or a recovery code), which a login with
+two-step sign-in on must fill in; for anyone else it stays empty.
 """
 
 from __future__ import annotations
@@ -192,6 +194,9 @@ def _who(dev: bool, autofocus: bool = True) -> str:
         f"<input id=email name=email type=email autocomplete=username required{focus}>"
         "<label for=password>Password</label>"
         "<input id=password name=password type=password autocomplete=current-password required>"
+        "<label for=code>Authenticator code, if you've turned on two-step sign-in</label>"
+        "<input id=code name=code autocomplete=one-time-code autocapitalize=none "
+        "spellcheck=false maxlength=64>"
     )
 
 
@@ -285,7 +290,13 @@ class _Refusal:
 
 
 async def _signed_in(
-    svc: Any, settings: Settings, request: Request, email: str, password: str, user_id: str
+    svc: Any,
+    settings: Settings,
+    request: Request,
+    email: str,
+    password: str,
+    user_id: str,
+    code: str = "",
 ) -> str | _Refusal:
     """The user id these credentials belong to, or why not."""
     if insecure_dev_auth(settings):
@@ -295,7 +306,10 @@ async def _signed_in(
     else:
         try:
             who = await svc.logins.authenticate(
-                email, password, address=request.client.host if request.client else None
+                email,
+                password,
+                address=request.client.host if request.client else None,
+                code=code or None,
             )
         except SignInRefused as exc:
             return _Refusal(str(exc))
@@ -328,6 +342,7 @@ async def consent_page_decision(
     email: Annotated[str, Form()] = "",
     password: Annotated[str, Form()] = "",
     user_id: Annotated[str, Form()] = "",
+    code: Annotated[str, Form(max_length=64)] = "",
 ):
     try:
         info = await svc.mcp_oauth.get_consent_info(rt, user_id="")
@@ -340,7 +355,7 @@ async def consent_page_decision(
 
     approve = decision == "allow"
     if approve:
-        who = await _signed_in(svc, settings, request, email, password, user_id)
+        who = await _signed_in(svc, settings, request, email, password, user_id, code)
         if isinstance(who, _Refusal):
             return again(who)
         caller = who
@@ -409,6 +424,7 @@ async def device_page_decision(
     email: Annotated[str, Form()] = "",
     password: Annotated[str, Form()] = "",
     user_id: Annotated[str, Form()] = "",
+    code: Annotated[str, Form(max_length=64)] = "",
 ):
     dev = insecure_dev_auth(settings)
     info = await svc.mcp_oauth.device_request(user_code)
@@ -429,7 +445,7 @@ async def device_page_decision(
     approve = decision == "allow"
     caller = ""
     if approve:
-        who = await _signed_in(svc, settings, request, email, password, user_id)
+        who = await _signed_in(svc, settings, request, email, password, user_id, code)
         if isinstance(who, _Refusal):
             return again(who)
         caller = who
