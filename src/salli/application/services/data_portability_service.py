@@ -3,18 +3,20 @@ DataPortabilityService — export everything a user has stored, or permanently
 delete it all. Composes over the already-existing per-domain services for
 export (no new reads); delete_account deletes via the dedicated
 DataPortabilityRepository, which handles the constraint-driven table
-ordering (see adapters/db/repositories.py's SQLDataPortabilityRepository).
+ordering (see adapters/db/repositories.py's SQLDataPortabilityRepository),
+then the person's uploaded files and their conversations with the AI.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from salli.domain.export import plaintext
 
 if TYPE_CHECKING:
+    from salli.application.ports import ConversationStore, StoragePort
     from salli.extensions import UserDataExporter
 
 _log = logging.getLogger(__name__)
@@ -39,6 +41,8 @@ class DataPortabilityService:
         exporters: Sequence[UserDataExporter] = (),
         chatgpt: Any = None,
         notifications: Any = None,
+        storage: StoragePort | None = None,
+        conversations: ConversationStore | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._profile = profile_svc
@@ -60,6 +64,10 @@ class DataPortabilityService:
         self._chatgpt = chatgpt
         # NotificationService: the digest's preferences and delivery log.
         self._notifications = notifications
+        # Uploaded files, and the AI's conversations (none without a
+        # Postgres checkpointer: then nothing outlives the process).
+        self._storage = storage
+        self._conversations = conversations
 
     async def export_plaintext(self, user_id: str, fmt: str) -> str:
         """The whole ledger as a Beancount file or an hledger journal.
@@ -81,12 +89,9 @@ class DataPortabilityService:
         dict. Reuses each domain's existing read methods rather than querying
         tables directly.
 
-        Known scope limits, documented rather than silently incomplete:
-        - tax_computations: every stored computation, newest first, each with
-          the rule set version that computed it and its inputs
-        - chat message content lives in the LangGraph checkpointer (Postgres,
-          managed by AsyncPostgresSaver), not in these domain tables — it is
-          not included here
+        tax_computations are every stored computation, newest first, each
+        with the rule set version that computed it and its inputs;
+        conversations are read from the LangGraph checkpointer.
         """
         entries = await self._ledger.get_entries(user_id)
         computations = await self._tax.list_computations(user_id)
@@ -153,6 +158,9 @@ class DataPortabilityService:
             "bank_connections": await self._bank_connections(user_id),
             "tax_rule_sets": await self._tax_rule_sets(user_id),
             **await self._decisions(user_id),
+            "conversations": (
+                await self._conversations.export(user_id) if self._conversations else []
+            ),
         }
         data.update(
             await self._notifications.export(user_id)
@@ -233,11 +241,17 @@ class DataPortabilityService:
         ]
 
     async def delete_account(self, user_id: str) -> dict[str, int]:
-        """Permanently delete every row belonging to this user. Irreversible.
+        """Permanently delete every row belonging to this user, then their
+        uploaded files and conversations. Irreversible.
 
         A connected ChatGPT plan is signed out first, so its renewable session
         ends with OpenAI rather than outliving the account; best effort, since
-        the deletion must go ahead regardless."""
+        the deletion must go ahead regardless.
+
+        The rows go first, in one transaction, so a file or a thread that
+        can't be deleted never leaves the database half erased: the counts
+        then say `stored_files_failed` or `conversations_failed` (1), for the
+        operator to finish by hand."""
         if self._chatgpt is not None:
             try:
                 await self._chatgpt.disconnect(user_id)
@@ -246,4 +260,25 @@ class DataPortabilityService:
         async with self._uow_factory() as uow:
             counts = await uow.data_portability.delete_all(user_id)
         self._profile.forget(user_id)
+        if self._storage is not None:
+            await self._erase(counts, "stored_files", self._storage.delete_user, user_id)
+        if self._conversations is not None:
+            await self._erase(counts, "conversations", self._conversations.delete_all, user_id)
         return counts
+
+    @staticmethod
+    async def _erase(
+        counts: dict[str, int],
+        name: str,
+        delete: Callable[[str], Awaitable[int]],
+        user_id: str,
+    ) -> None:
+        try:
+            counts[name] = await delete(user_id)
+        except Exception as exc:  # noqa: BLE001 — the rows are gone already; say what is left
+            # The type only: an exception's text may quote the person's data.
+            # The id is what the operator needs to finish the erasure.
+            _log.warning(
+                "erase_incomplete user=%s part=%s error=%s", user_id, name, type(exc).__name__
+            )
+            counts[f"{name}_failed"] = 1

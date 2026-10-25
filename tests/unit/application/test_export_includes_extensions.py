@@ -14,7 +14,9 @@ from salli.application.services.data_portability_service import DataPortabilityS
 pytestmark = pytest.mark.asyncio
 
 
-def _service(exporters=(), statements=(), banks=(), rule_sets=(), strategies=()):
+def _service(
+    exporters=(), statements=(), banks=(), rule_sets=(), strategies=(), conversations=None
+):
     # profile, ledger, tax, budget, debt, portfolio, subscription, insurance,
     # fi, advisor, documents, reminders
     from contextlib import asynccontextmanager
@@ -35,7 +37,7 @@ def _service(exporters=(), statements=(), banks=(), rule_sets=(), strategies=())
             decisions=SimpleNamespace(list_full=AsyncMock(return_value=[])),
         )
 
-    return DataPortabilityService(uow, *svcs, exporters=exporters)
+    return DataPortabilityService(uow, *svcs, exporters=exporters, conversations=conversations)
 
 
 async def test_without_extensions_the_export_is_salli_only():
@@ -99,3 +101,26 @@ async def test_past_fire_strategies_are_exported_as_stored():
     stored = [{"version": 2, "created_at": "2026-01-01T00:00:00+00:00", "swr": 0.04}]
     data = await _service(strategies=stored).export_all("u1")
     assert data["fire_strategies"] == stored
+
+
+async def test_conversations_with_the_ai_are_exported():
+    chat = {
+        "thread_id": "t1",
+        "updated_at": "2026-10-20T09:00:00+00:00",
+        "messages": [
+            {"role": "user", "text": "What did I spend on food?", "tools": []},
+            {"role": "assistant", "text": "", "tools": ["search_entries"]},
+            {"role": "assistant", "text": "Your food spending is in the ledger.", "tools": []},
+        ],
+    }
+    store = AsyncMock()
+    store.export.return_value = [chat]
+
+    data = await _service(conversations=store).export_all("u1")
+
+    store.export.assert_awaited_once_with("u1")
+    assert data["conversations"] == [chat]
+
+
+async def test_without_a_checkpointer_there_are_no_conversations_to_export():
+    assert (await _service().export_all("u1"))["conversations"] == []

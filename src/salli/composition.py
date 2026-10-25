@@ -14,6 +14,7 @@ from salli.adapters.db.session import make_session_factory
 from salli.adapters.fx.chain import default_fx_rates
 from salli.application.ports import (
     ChatGPTPlanPolicy,
+    ConversationStore,
     EntitlementPolicy,
     FxRatePort,
     StoragePort,
@@ -295,6 +296,8 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         exporters=extensions.user_data_exporters,
         chatgpt=chatgpt,
         notifications=notifications,
+        storage=storage,
+        conversations=_build_conversations(checkpointer),
     )
 
     return Services(
@@ -479,6 +482,18 @@ def _build_llm_credentials(
         chatgpt=chatgpt,
         plan_allowed=plan_allowed,
     )
+
+
+def _build_conversations(checkpointer: Any) -> ConversationStore | None:
+    """The agents' conversations, where they outlive the process: in
+    Postgres. The in-memory fallback keeps nothing to export or erase."""
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+    from salli.adapters.db.conversations import CheckpointConversations
+
+    if not isinstance(checkpointer, AsyncPostgresSaver):
+        return None
+    return CheckpointConversations(checkpointer)
 
 
 def _build_storage(settings: Settings) -> StoragePort:

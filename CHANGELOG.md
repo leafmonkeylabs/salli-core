@@ -62,6 +62,16 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 - **Day one on the phone.** With nothing in the books, Home's Needs attention
   shows one row, Import a statement, in place of "Nothing needs attention".
 
+- **Erasing an account leaves nothing behind, and the export has your
+  conversations.** `DELETE /v1/onboarding/account` deletes the rows first,
+  then the person's uploaded files and every conversation and review
+  workflow thread in LangGraph's checkpoint tables; `counts` adds
+  `stored_files` and `conversations`, or `stored_files_failed` or
+  `conversations_failed` when some are left for the operator.
+  `GET /v1/onboarding/export` adds `conversations`: each thread, newest
+  first, with its messages in order (role, text, and the tools called, by
+  name only).
+
 ### Breaking
 
 #### Changed

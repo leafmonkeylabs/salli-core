@@ -5,12 +5,13 @@ own disk, under one root: SALLI_STORAGE_DIR, or ~/.salli/storage.
 A file's key is its path relative to the root (`<user id>/<key>`), so the
 root can move — a restore onto another machine, a different volume — without
 rewriting what the database holds. Back the root up with the database
-(docs/self-host.md).
+(docs/self-host.md). Erasing an account deletes the user's folder.
 """
 
 from __future__ import annotations
 
 import pathlib
+import shutil
 
 from salli.application.ports import StoragePort
 
@@ -44,3 +45,15 @@ class LocalStorageAdapter(StoragePort):
         if path == root or not path.is_relative_to(root):
             raise ValueError(f"Storage key is outside the storage root: {key!r}")
         return path.read_bytes()
+
+    async def delete_user(self, user_id: str) -> int:
+        # Everything upload() wrote for the user is in their folder.
+        root = self._root.resolve()
+        folder = (root / user_id).resolve()
+        if folder == root or not folder.is_relative_to(root):
+            raise ValueError(f"User id names no folder of its own: {user_id!r}")
+        if not folder.exists():
+            return 0
+        files = sum(1 for path in folder.rglob("*") if path.is_file())
+        shutil.rmtree(folder)
+        return files

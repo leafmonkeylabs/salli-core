@@ -64,18 +64,25 @@ rotates them.
 - **Export:** `GET /v1/onboarding/export` (`salli profile export`) is one
   JSON document of what Salli stores about the person, an extension's data
   included; `GET /v1/export/beancount` and `/v1/export/hledger` give the books
-  as plain text. No credential is ever in it. It leaves out conversation
-  messages, the uploaded files themselves, the sorting rules, the audit log
-  and sign-in records.
+  as plain text. No credential is ever in it. Conversations with Salli's AI
+  are in it (`conversations`: each thread's messages in order, the tools the
+  AI called by name only, read from the checkpoint tables). It leaves out the
+  uploaded files themselves, the sorting rules, the audit log and sign-in
+  records.
 - **Erasure:** `DELETE /v1/onboarding/account` (`salli profile
   delete-account`), with the person's email typed again, deletes their rows in
   every table above, the decision journal and an extension's tables included,
   after ending a connected ChatGPT plan's sign-in with OpenAI
   (`data_portability_service.py`, `repositories.py`
-  `SQLDataPortabilityRepository.delete_all`). **Not yet:** it leaves the
-  conversation messages in the checkpoint tables and the uploaded files in
-  `SALLI_STORAGE_DIR`, which the operator has to remove, and data already
-  sent to the recipients above.
+  `SQLDataPortabilityRepository.delete_all`). Once those rows are gone, in
+  one transaction, it deletes the person's uploaded files (their folder in
+  `SALLI_STORAGE_DIR`) and every thread of theirs in the checkpoint tables,
+  conversations and review workflows alike (`adapters/db/conversations.py`).
+  If either can't be deleted, the response's `counts` say
+  `stored_files_failed` or `conversations_failed` and the server logs
+  `erase_incomplete` with the person's id, for the operator to remove what is
+  left by hand. It can't reach data already sent to the recipients above,
+  or the operator's backups until they are rotated.
 
 ## Impact assessment template
 
@@ -100,7 +107,7 @@ why each recipient is needed; what you turned off to send less (no
 | Someone else reads a person's books | | | Passwords, throttling, hashed tokens, HTTPS, sign-in review ([security.md](security.md#controls)) | |
 | A provider keeps or misuses what it is sent | | | Only the features above send; the briefing sends figures and signals, not transactions; people choose their own provider | |
 | A person acts on a wrong figure or on AI wording | | | The AI never computes money; briefings are labelled as the AI's and as not financial advice | |
-| Data outlives an erasure | | | The erasure route; the known gaps above, handled by hand | |
+| Data outlives an erasure | | | The erasure route, files and conversations included; an `erase_incomplete` log line handled by hand; backups rotated | |
 | Data is lost | | | Backups as [self-host.md](self-host.md#backup-and-restore) says | |
 
 **4. Sign-off.** Who assessed it, who approved it, the date, and when it is

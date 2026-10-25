@@ -3098,6 +3098,15 @@ export type DataExport = {
         [key: string]: unknown;
     };
     /**
+     * Conversations
+     *
+     * Every conversation with Salli's AI, newest first: the person's and
+     * the assistant's messages in order. Empty where the server keeps none
+     * (no Postgres checkpointer). A briefing or return awaiting review is
+     * working state made from the data above, not a conversation.
+     */
+    conversations?: Array<ExportedConversation>;
+    /**
      * Notification Preferences
      *
      * The digest's preferences as stored (null while never set); the time
@@ -4537,6 +4546,24 @@ export type ExportedAccount = {
 };
 
 /**
+ * ExportedConversation
+ */
+export type ExportedConversation = {
+    /**
+     * Thread Id
+     */
+    thread_id: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Messages
+     */
+    messages: Array<ExportedMessage>;
+};
+
+/**
  * ExportedJournalEntry
  */
 export type ExportedJournalEntry = {
@@ -4568,6 +4595,24 @@ export type ExportedJournalEntry = {
      * Postings
      */
     postings: Array<ExportedPosting>;
+};
+
+/**
+ * ExportedMessage
+ */
+export type ExportedMessage = {
+    /**
+     * Role
+     */
+    role: 'user' | 'assistant';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Tools
+     */
+    tools?: Array<string>;
 };
 
 /**
