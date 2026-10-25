@@ -496,6 +496,11 @@ class TaxReturnRecord(BaseModel):
     #: ledger verify` checks the chain); null for a version recorded
     #: before it was kept, or with no entries.
     chain_head_hash: str | None = None
+    #: The values of its rules not yet confirmed from a primary source, as
+    #: the computation used them; empty when none.
+    provisional: list[TaxRuleProvisional] = []
+    #: Why it was filed on them anyway, in the filer's words; null otherwise.
+    provisional_note: str | None = None
     payments: list[TaxReturnPayment]
     created_at: str
 
@@ -509,6 +514,10 @@ class TaxReturnRecordIn(BaseModel):
     filed_on: date | None = None
     #: Required for `amended`.
     reason: Annotated[str | None, Field(max_length=1000)] = None
+    #: To file (or amend) on a computation with provisional values: true,
+    #: with `provisional_note` saying why. 422 without it.
+    acknowledge_provisional: bool = False
+    provisional_note: Annotated[str | None, Field(max_length=1000)] = None
 
 
 @router.get("/return-records")
@@ -527,7 +536,8 @@ async def record_return(
     """Record a version of a year's return from a stored computation: a
     draft, what was filed, or an amendment of a filed one (with its reason).
     It supersedes the year's latest version; after a filed one, only an
-    amendment may follow. 422 when this version can't follow the latest."""
+    amendment may follow. 422 when this version can't follow the latest, or
+    when filing on provisional values without acknowledging them."""
     result = await svc.tax.record_return(
         user_id,
         body.computation_id,
@@ -535,6 +545,8 @@ async def record_return(
         reference=body.reference,
         filed_on=body.filed_on,
         reason=body.reason,
+        acknowledge_provisional=body.acknowledge_provisional,
+        provisional_note=body.provisional_note,
     )
     return TaxReturnRecord.model_validate(result)
 

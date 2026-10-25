@@ -242,3 +242,36 @@ async def test_a_break_in_a_filed_year_is_reported(filed, db):
         engine.dispose()
     check = await ledger.verify_chain(A)
     assert check["first_break"]["filed_years"] == ["2031/32"]
+
+
+async def test_a_return_on_provisional_values_is_filed_only_when_acknowledged(uow_factory, rules):
+    doc = remitland()
+    doc["lines"][0] |= {"provisional": True, "note": "Rate awaits the gazette"}
+    await _activate(rules, doc)
+    await _book(uow_factory, A, local="1000.000")
+    tax = TaxService(uow_factory, rules, clock=lambda: LATER)
+    computation = await tax.compute_tax(A, country="XG", year="2031/32")
+    on = datetime.date(2032, 6, 1)
+
+    with pytest.raises(ValueError, match=r"provisional \(lines.tax_before_credits\)"):
+        await tax.record_return(A, computation["id"], "filed", filed_on=on)
+    with pytest.raises(ValueError, match="provisional"):
+        await tax.record_return(
+            A, computation["id"], "filed", filed_on=on, acknowledge_provisional=True
+        )
+    draft = await tax.record_return(A, computation["id"], "draft")
+    assert draft["provisional_note"] is None
+    assert draft["provisional"] == [
+        {"key": "lines.tax_before_credits", "note": "Rate awaits the gazette"}
+    ]
+
+    ret = await tax.record_return(
+        A,
+        computation["id"],
+        "filed",
+        filed_on=on,
+        acknowledge_provisional=True,
+        provisional_note="Filed by the deadline; will amend if the rate changes",
+    )
+    assert ret["provisional_note"].startswith("Filed by the deadline")
+    assert (await tax.get_return(A, ret["id"]))["provisional"] == draft["provisional"]
