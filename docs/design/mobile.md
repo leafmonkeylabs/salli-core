@@ -137,6 +137,13 @@ total is shown, since the app adds no money.
 
 ## Servers and this phone
 
+- **Where the books live.** The first screen (and Add a server) offers
+  Salli's server, by invitation during the pilot, or your own. An invitation
+  link (`https://<host>/join?t=…`, from `salli-server members invite`) is
+  pasted; its page opens in the secure browser sheet, where the person sets
+  a password and two-step code, and the app then signs in to that host as to
+  any other. A link opened outside the app opens the browser instead: a
+  universal link would need every server to vouch for the app.
 - **More than one server.** Each sign-in is its own keychain item
   (`salli.sign-in.` and the server's address, escaped to the characters a
   key takes); an index beside them (`salli.servers`, no secret in it) lists

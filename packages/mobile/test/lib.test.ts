@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addDays, addMonths, amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthGrid, monthNameOf, monthOf, todayIso } from '../src/lib/display';
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib/pkce';
 import { monthBars, placeLabels, shareOf, stepChart } from '../src/lib/chart';
-import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
+import { checkServer, invitationOf, isThisMachine, serverUrlOf } from '../src/lib/server';
 import { groupsOf } from '../src/lib/accounts';
 import { blocksOfMarkdown, spansOf } from '../src/lib/markdown';
 import { blocksOf, changeOf, keepNewest, modelsOf, pendingOf, providerOf, readsOf, titleOf } from '../src/lib/ai';
@@ -38,6 +38,21 @@ function meta(oauth: Record<string, string> = {}, apiVersion = '1') {
     },
   };
 }
+
+describe('an invitation link', () => {
+  it('opens the join page and signs in to its server', () => {
+    expect(invitationOf(' https://money.example.org/join?t=abc ')).toEqual({ link: 'https://money.example.org/join?t=abc', server: 'https://money.example.org' });
+    expect(invitationOf('money.example.org/salli/join?t=abc')).toEqual({ link: 'https://money.example.org/salli/join?t=abc', server: 'https://money.example.org/salli' });
+    expect(invitationOf('localhost:8000/join?t=abc')).toEqual({ link: 'http://localhost:8000/join?t=abc', server: 'http://localhost:8000' });
+  });
+
+  it('refuses what is not one', () => {
+    expect(invitationOf('')).toBeUndefined();
+    expect(invitationOf('money.example.org')).toBeUndefined();
+    expect(invitationOf('https://money.example.org/join')).toBeUndefined();
+    expect(invitationOf('https://money.example.org/joined?t=abc')).toBeUndefined();
+  });
+});
 
 describe('a typed address', () => {
   it('gains https:// and loses /console and slashes', () => {
