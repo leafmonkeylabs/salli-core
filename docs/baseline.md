@@ -344,7 +344,7 @@ The format, as JSON Schema (draft 2020-12):
         "type": "object", "required": ["real_return", "volatility"],
         "properties": {
           "label": {"type": "string"},
-          "real_return": {"$ref": "#/$defs/figure"},
+          "real_return": {"$ref": "#/$defs/rate"},
           "volatility": {"$ref": "#/$defs/figure"}
         }
       }
@@ -357,7 +357,7 @@ The format, as JSON Schema (draft 2020-12):
         "properties": {"a": {"type": "string"}, "b": {"type": "string"}}
       }
     },
-    "cash_yield": {"$ref": "#/$defs/figure"},
+    "cash_yield": {"$ref": "#/$defs/rate"},
     "inflation": {"$ref": "#/$defs/figure"},
     "degrees_of_freedom": {"$ref": "#/$defs/figure"},
     "history": {
@@ -381,6 +381,11 @@ The format, as JSON Schema (draft 2020-12):
     }
   },
   "$defs": {
+    "rate": {
+      "allOf": [{"$ref": "#/$defs/figure"}],
+      "required": ["basis"],
+      "properties": {"basis": {"enum": ["real", "nominal"]}}
+    },
     "figure": {
       "type": "object", "required": ["value", "source", "date"],
       "properties": {
@@ -392,6 +397,12 @@ The format, as JSON Schema (draft 2020-12):
   }
 }
 ```
+
+Every return and the cash yield says its `basis`. The engine works after
+inflation, so `"real"` is taken as written and `"nominal"` is deflated at
+import by the pack's inflation, (1 + nominal) / (1 + inflation) − 1, to four
+places, its source noting so; a nominal rate in a pack without inflation is
+refused.
 
 Values are yearly fractions in decimal strings ("0.05" is 5%): a real return
 from -0.10 to 0.20, a volatility from 0 to 0.80, a cash yield from -0.10 to
@@ -411,16 +422,16 @@ for a fictional market XA:
   "name": "XA reference", "version": "2031-06",
   "asset_classes": {
     "equity": {"label": "Equity",
-      "real_return": {"value": "0.05", "source": "XA statistics", "date": "2031-05-31"},
+      "real_return": {"value": "0.05", "basis": "real", "source": "XA statistics", "date": "2031-05-31"},
       "volatility": {"value": "0.18", "source": "XA statistics", "date": "2031-05-31"}},
     "bonds": {"label": "Bonds",
-      "real_return": {"value": "0.01", "source": "XA statistics", "date": "2031-05-31"},
+      "real_return": {"value": "0.01", "basis": "real", "source": "XA statistics", "date": "2031-05-31"},
       "volatility": {"value": "0.06", "source": "XA statistics", "date": "2031-05-31"}}
   },
   "correlations": [
     {"a": "equity", "b": "bonds", "value": "0.2", "source": "XA", "date": "2031-05-31"}
   ],
-  "cash_yield": {"value": "0.01", "source": "XA bank", "date": "2031-05-31"},
+  "cash_yield": {"value": "0.01", "basis": "real", "source": "XA bank", "date": "2031-05-31"},
   "mix": {"equity": "0.6", "bonds": "0.4"}
 }
 ```

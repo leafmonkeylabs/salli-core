@@ -4,6 +4,12 @@
 
 ### Added
 
+- **The risk read discloses its method.** `GET /v1/ips/risk-profile` (and
+  `salli ips risk`) carries `method`: the score buckets and the equity and
+  needed-return bands, citing docs/risk.md.
+- **Parametric odds say so.** The odds' `headline` says when they are
+  Student-t draws with no history of returns behind them.
+
 - **A withdrawal rate over your own drawdown.** A derived withdrawal rate
   must last from your FI month to your planning age (the FI plan's new
   `planning_age`; a labelled 95 without one, a labelled 30 years without a
@@ -23,7 +29,9 @@
   the owner). Changing a category after booking: `POST
   /v1/entries/{id}/recategorise` (`salli entries recategorise`, MCP
   `recategorise_entry`) books the entry's reversal and a corrected copy,
-  source `recategorise`, in one transaction, dated as a reversal is. Owe
+  which keeps the original's source and external_ref (its provenance) and
+  names it in `corrects` (in reads, provenance and exports), in one
+  transaction; an inactive account is refused, dated as a reversal is. Owe
   lines in first run may carry `rate` and `minimum_payment`, declaring a debt
   linked to the account; the payoff plan's debts carry `apr`,
   `minimum_payment` and `payoff_month`. A monthly budget with optional
@@ -332,6 +340,12 @@
 ### Breaking
 
 #### Changed
+
+- **Capital-market packs say each rate's basis.** In `salli.cma/1`, every
+  asset class's `real_return` and the `cash_yield` need `"basis": "real"` or
+  `"nominal"`; a nominal rate is deflated at import by the pack's inflation,
+  (1 + n) / (1 + i) − 1, and refused in a pack without inflation. A pack
+  without `basis` no longer imports.
 
 - **A CMA pack's `history` needs ten years.** At least 120 months (and,
   as before, a source); a shorter one is refused on import.

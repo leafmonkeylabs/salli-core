@@ -24407,6 +24407,17 @@
             ],
             "title": "External Ref"
           },
+          "corrects": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrects"
+          },
           "statement": {
             "anyOf": [
               {
@@ -24895,6 +24906,17 @@
               }
             ],
             "title": "Reverses"
+          },
+          "corrects": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrects"
           },
           "reversed_by": {
             "anyOf": [
@@ -29784,6 +29806,9 @@
             "examples": [
               "10.5"
             ]
+          },
+          "method": {
+            "$ref": "#/components/schemas/RiskMethod"
           }
         },
         "type": "object",
@@ -29792,7 +29817,8 @@
           "capacity",
           "need",
           "profile",
-          "equity_max"
+          "equity_max",
+          "method"
         ],
         "title": "InvestorRiskProfile"
       },
@@ -29855,6 +29881,17 @@
               }
             ],
             "title": "Reverses"
+          },
+          "corrects": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrects"
           },
           "created_by": {
             "anyOf": [
@@ -35678,6 +35715,59 @@
         ],
         "title": "RiskFigures",
         "description": "From the period's monthly time-weighted returns. Fractions of one."
+      },
+      "RiskMethod": {
+        "properties": {
+          "doc": {
+            "type": "string",
+            "title": "Doc"
+          },
+          "score_buckets": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Score Buckets"
+          },
+          "equity_max": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string, exact; never a float.",
+              "examples": [
+                "10.5"
+              ]
+            },
+            "type": "object",
+            "title": "Equity Max"
+          },
+          "need_max": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string, exact; never a float.",
+              "examples": [
+                "10.5"
+              ]
+            },
+            "type": "object",
+            "title": "Need Max"
+          },
+          "says": {
+            "type": "string",
+            "title": "Says"
+          }
+        },
+        "type": "object",
+        "required": [
+          "doc",
+          "score_buckets",
+          "equity_max",
+          "need_max",
+          "says"
+        ],
+        "title": "RiskMethod",
+        "description": "The method's cut-offs, disclosed beside every read (docs/risk.md)."
       },
       "RiskNeed": {
         "properties": {

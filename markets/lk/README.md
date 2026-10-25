@@ -97,12 +97,13 @@ an assumption too: the real return a plan uses is the mix's.
 
 | Asset class | Real return | Volatility | Basis |
 |---|---|---|---|
-| Rupee cash and deposits | 1.8% | 1% | Deposit rate 6.86% (April 2026) less the 5% target |
-| Government securities | 3.3% | 5% | 1-year bill 8.49% (May 2026) less the 5% target |
+| Rupee cash and deposits | 1.8% | 1% | Deposit rate 6.86% (April 2026) deflated by the 5% target: 1.0686 / 1.05 − 1 |
+| Government securities | 3.3% | 5% | 1-year bill 8.49% (May 2026) deflated by the 5% target: 1.0849 / 1.05 − 1 |
 | Local equities | 6% | 25% | Assumption |
 | Global equities, USD | 5% | 16% | Assumption, in US-dollar terms |
 
-Inflation: 5%, the Central Bank's target. Every volatility and correlation is
+Cash yield: 1.8%, the deposit rate deflated as above (every rate in the pack
+says `"basis": "real"`). Inflation: 5%, the Central Bank's target. Every volatility and correlation is
 an assumption.
 
 ### Pensions

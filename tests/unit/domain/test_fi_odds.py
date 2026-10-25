@@ -36,19 +36,29 @@ def pack(**over: Any) -> dict[str, Any]:
         "asset_classes": {
             "equity": {
                 "label": "Equity",
-                "real_return": {"value": "0.05", "source": "XA statistics", "date": "2031-05-31"},
+                "real_return": {
+                    "value": "0.05",
+                    "basis": "real",
+                    "source": "XA statistics",
+                    "date": "2031-05-31",
+                },
                 "volatility": {"value": "0.18", "source": "XA statistics", "date": "2031-05-31"},
             },
             "bonds": {
                 "label": "Bonds",
-                "real_return": {"value": "0.01", "source": "XA statistics", "date": "2031-05-31"},
+                "real_return": {
+                    "value": "0.01",
+                    "basis": "real",
+                    "source": "XA statistics",
+                    "date": "2031-05-31",
+                },
                 "volatility": {"value": "0.06", "source": "XA statistics", "date": "2031-05-31"},
             },
         },
         "correlations": [
             {"a": "equity", "b": "bonds", "value": "0.2", "source": "XA", "date": "2031-05-31"}
         ],
-        "cash_yield": {"value": "0.01", "source": "XA bank", "date": "2031-05-31"},
+        "cash_yield": {"value": "0.01", "basis": "real", "source": "XA bank", "date": "2031-05-31"},
         "mix": {"equity": "0.6", "bonds": "0.4"},
     }
     doc.update(over)
@@ -92,13 +102,36 @@ def test_a_pack_gives_its_mix_expected_return_and_volatility() -> None:
         ({"format": "salli.cma/2"}, "format"),
         ({"mix": {"equity": "0.6"}}, "sum to 1"),
         ({"mix": {"gold": "1"}}, "not one of the asset classes"),
-        ({"cash_yield": {"value": "0.01", "date": "2031-05-31"}}, "cash_yield.source"),
-        ({"cash_yield": {"value": 0.01, "source": "x", "date": "2031-05-31"}}, "decimal string"),
+        (
+            {"cash_yield": {"value": "0.01", "basis": "real", "date": "2031-05-31"}},
+            "cash_yield.source",
+        ),
+        (
+            {"cash_yield": {"value": 0.01, "basis": "real", "source": "x", "date": "2031-05-31"}},
+            "decimal string",
+        ),
+        (
+            {"cash_yield": {"value": "0.01", "source": "x", "date": "2031-05-31"}},
+            "cash_yield.basis",
+        ),
     ],
 )
 def test_a_pack_that_is_wrong_says_why(over: dict[str, Any], says: str) -> None:
     with pytest.raises(ValueError, match=says):
         cma.parse(pack(**over))
+
+
+def test_a_nominal_rate_is_deflated_by_the_packs_inflation_or_refused() -> None:
+    nominal = {"value": "0.0686", "basis": "nominal", "source": "XA bank", "date": "2031-05-31"}
+    inflation = {"value": "0.05", "source": "XA statistics", "date": "2031-05-31"}
+    parsed = cma.parse(pack(cash_yield=nominal, inflation=inflation))
+    assert parsed.cash_yield.value == Decimal("0.0177")
+    assert "deflated" in parsed.cash_yield.source
+    with pytest.raises(ValueError, match="must give inflation"):
+        cma.parse(pack(cash_yield=nominal))
+    # A pack stored before `basis` was required still reads, as real.
+    legacy = pack(cash_yield={"value": "0.01", "source": "XA bank", "date": "2031-05-31"})
+    assert cma.stored(legacy, "p1", "h").cash_yield.value == Decimal("0.01")
 
 
 def test_an_active_pack_sets_the_return_and_cash_earns_its_yield() -> None:

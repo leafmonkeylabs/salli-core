@@ -211,6 +211,7 @@ Examples:
                 ['Date', displayDate(entry.entry_date, out.locale)],
                 ['Source', entry.source],
                 ['Reversed by', entry.reversed_by, c.yellow],
+                ['Corrects', entry.corrects],
                 ['ID', entry.id, c.dim],
               ]),
             );

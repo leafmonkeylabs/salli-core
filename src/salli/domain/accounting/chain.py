@@ -48,10 +48,12 @@ def content(
     created_by: str,
     created_via: str,
     postings: Iterable[Mapping[str, Any]],
+    corrects: str | None = None,
 ) -> dict[str, Any]:
     """What an entry's hash covers. Each posting is its `account_id`,
     `direction` (1 or -1), `amount_minor`, `currency` and `fx_rate` (text,
-    `rate_text`); their order doesn't matter."""
+    `rate_text`); their order doesn't matter. `corrects` is covered only
+    when set, so entries stored before it keep their hashes."""
     legs = [
         {
             "account_id": p["account_id"],
@@ -63,7 +65,7 @@ def content(
         for p in postings
     ]
     legs.sort(key=lambda leg: json.dumps(leg, sort_keys=True))
-    return {
+    covered = {
         "schema": SCHEMA,
         "seq": seq,
         "prev_hash": prev_hash,
@@ -78,6 +80,9 @@ def content(
         "created_via": created_via,
         "postings": legs,
     }
+    if corrects is not None:
+        covered["corrects"] = corrects
+    return covered
 
 
 def entry_hash(entry_content: Mapping[str, Any]) -> str:

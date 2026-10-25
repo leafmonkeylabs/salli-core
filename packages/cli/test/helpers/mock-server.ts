@@ -858,6 +858,11 @@ export class MockSalli {
         need: { required_return: '0.0380', category: 'balanced' as const, above_profile: false, says: 'The yearly real return your plan needs.' },
         profile: 'balanced' as const,
         equity_max: '0.70',
+        method: {
+          doc: 'docs/risk.md', score_buckets: { conservative: '0-39', balanced: '40-69', aggressive: '70-100' },
+          equity_max: { conservative: '0.40', balanced: '0.70', aggressive: '1.00' }, need_max: { conservative: '0.02', balanced: '0.045', aggressive: '0.20' },
+          says: 'Tolerance and capacity each score 0-100: under 40 conservative, under 70 balanced, else aggressive.',
+        },
       };
       const version = {
         id: uid(1501), version: 2, created_at: '2026-10-01T09:00:00+00:00',

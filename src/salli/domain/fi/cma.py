@@ -225,7 +225,29 @@ def _figure(raw: object, what: str, kind: str) -> Figure:
     )
 
 
-def parse(document: object) -> CmaPack:
+def _rate(
+    raw: object, what: str, kind: str, inflation: Figure | None, stored: bool = False
+) -> Figure:
+    """A return or yield, which says its `basis`: "real" as it is, "nominal"
+    deflated by the pack's inflation, (1 + n) / (1 + i) - 1, so the engine
+    (which works after inflation) never reads a nominal rate as real. A pack
+    `stored` before `basis` was required reads as real, as it then meant."""
+    item: Mapping[str, Any] = cast("Mapping[str, Any]", raw) if isinstance(raw, Mapping) else {}
+    basis = item.get("basis", "real" if stored else None)
+    if basis not in ("real", "nominal"):
+        raise ValueError(f'{what}.basis must be "real" or "nominal"')
+    if basis == "real":
+        return _figure(item, what, kind)
+    if inflation is None:
+        raise ValueError(f"{what} is nominal: the pack must give inflation to deflate it")
+    nominal = _number(item.get("value"), f"{what}.value", "monthly_return")
+    real = ((1 + nominal) / (1 + inflation.value) - 1).quantize(Decimal("0.0001"))
+    figure = _figure({**item, "value": str(real)}, what, kind)
+    note = f" (nominal {nominal} deflated by the pack's inflation {inflation.value})"
+    return replace(figure, source=figure.source[: _MAX_TEXT - len(note)] + note)
+
+
+def parse(document: object, *, stored: bool = False) -> CmaPack:
     """A `salli.cma/1` document as a pack, or a ValueError saying what is
     wrong with it (the first problem found)."""
     if not isinstance(document, Mapping):
@@ -238,6 +260,8 @@ def parse(document: object) -> CmaPack:
         raise ValueError("asset_classes must be an object of at least one class")
     if len(cast("Mapping[str, Any]", raw_classes)) > _MAX_CLASSES:
         raise ValueError(f"A pack has at most {_MAX_CLASSES} asset classes")
+    raw_inflation = doc.get("inflation")
+    inflation = None if raw_inflation is None else _figure(raw_inflation, "inflation", "inflation")
     classes: list[AssetClass] = []
     for key, raw in cast("Mapping[str, Any]", raw_classes).items():
         if not isinstance(raw, Mapping):
@@ -247,7 +271,13 @@ def parse(document: object) -> CmaPack:
             AssetClass(
                 str(key),
                 _text(item.get("label", key), f"asset_classes.{key}.label"),
-                _figure(item.get("real_return"), f"asset_classes.{key}.real_return", "real_return"),
+                _rate(
+                    item.get("real_return"),
+                    f"asset_classes.{key}.real_return",
+                    "real_return",
+                    inflation,
+                    stored,
+                ),
                 _figure(item.get("volatility"), f"asset_classes.{key}.volatility", "volatility"),
             )
         )
@@ -284,7 +314,6 @@ def parse(document: object) -> CmaPack:
     if sum(mix.values(), Decimal(0)) != 1:
         raise ValueError("The mix's weights must sum to 1")
 
-    inflation = doc.get("inflation")
     tails = doc.get("degrees_of_freedom")
     raw_categories = doc.get("category_inflation", {})
     if (
@@ -301,8 +330,8 @@ def parse(document: object) -> CmaPack:
         version=_text(doc.get("version"), "version"),
         classes=tuple(classes),
         correlations=correlations,
-        cash_yield=_figure(doc.get("cash_yield"), "cash_yield", "cash_yield"),
-        inflation=None if inflation is None else _figure(inflation, "inflation", "inflation"),
+        cash_yield=_rate(doc.get("cash_yield"), "cash_yield", "cash_yield", inflation, stored),
+        inflation=inflation,
         mix=mix,
         degrees_of_freedom=None
         if tails is None
@@ -342,7 +371,7 @@ def content_hash(document: object) -> str:
 
 def stored(document: object, pack_id: str, digest: str) -> CmaPack:
     """A stored, valid document as a pack carrying its id and hash."""
-    return replace(parse(document), pack_id=pack_id, content_hash=digest)
+    return replace(parse(document, stored=True), pack_id=pack_id, content_hash=digest)
 
 
 def summary(pack: CmaPack) -> dict[str, Any]:

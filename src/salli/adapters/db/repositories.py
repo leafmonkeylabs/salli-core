@@ -183,6 +183,7 @@ def _entry_from_orm(row: JournalEntryORM) -> StoredJournalEntry:
         source=row.source,  # type: ignore[arg-type]
         external_ref=row.external_ref,
         reverses=row.reverses_id,
+        corrects=row.corrects_id,
         reversed_by=row.reversed_by,  # type: ignore[attr-defined]
         created_by=row.created_by,
         created_via=row.created_via,
@@ -204,6 +205,7 @@ def _chain_content(row: JournalEntryORM) -> dict[str, Any]:
         source=row.source,
         external_ref=row.external_ref,
         reverses=row.reverses_id,
+        corrects=row.corrects_id,
         created_by=row.created_by,
         created_via=row.created_via,
         postings=[
@@ -415,6 +417,7 @@ class SQLLedgerRepository(LedgerRepository):
             source=entry.source,
             external_ref=entry.external_ref,
             reverses_id=entry.reverses,
+            corrects_id=entry.corrects,
             created_by=created_by,
             created_via=created_via,
             seq=seq,
@@ -431,6 +434,7 @@ class SQLLedgerRepository(LedgerRepository):
                 source=entry.source,
                 external_ref=entry.external_ref,
                 reverses=entry.reverses,
+                corrects=entry.corrects,
                 created_by=created_by,
                 created_via=created_via,
                 postings=[
