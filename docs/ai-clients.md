@@ -116,6 +116,13 @@ A scenario may invest into one of your own holdings or sell part of one
 | `list_holdings` | Your holdings, by your own id, symbol and name, with their units, value at your last recorded price and the investment account each is linked to. |
 | `link_holding` | Links a holding to the investment account in your ledger that holds it (or unlinks it), so a scenario can sell it. A write: the AI shows you the holding and the account first. |
 
+Two reads describe your investments and cover without advising:
+
+| Tool | What it does |
+|---|---|
+| `get_investment_policy` | Your investment policy statement (targets with bands, rebalancing rule, horizon, objectives, constraints, review date), the drift against it, and your risk profile: tolerance from the questionnaire, capacity from your figures (emergency months, income stability, horizon, debt service), and the lower of the two. A policy whose equity target is above the profile's band is flagged; nothing is gated. |
+| `get_coverage_report` | Your cover against your targets, and `needs`: life cover from years of income, debts and goals less what you hold, against the life cover you have; income protection as a month's spending. Figures only, never a product. |
+
 The AI may mention your holdings as you named them, never one you don't
 hold, and never suggests buying or selling any of them or compares them as
 investments. Fees are yours: it asks for them rather than assuming any.

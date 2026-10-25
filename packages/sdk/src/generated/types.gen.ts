@@ -1689,6 +1689,31 @@ export type BaselineTotals = {
 };
 
 /**
+ * BenchmarkFigures
+ *
+ * A series of closes you record for any symbol, measured month by month
+ * over the same period.
+ */
+export type BenchmarkFigures = {
+    /**
+     * Symbol
+     */
+    symbol: string;
+    /**
+     * Yearly Return
+     */
+    yearly_return: string | null;
+    /**
+     * Volatility
+     */
+    volatility: string | null;
+    /**
+     * Max Drawdown
+     */
+    max_drawdown: string | null;
+};
+
+/**
  * BriefingAssumptions
  *
  * Whether the independence figures rest on placeholders.
@@ -4535,6 +4560,100 @@ export type DraftedTransactions = {
 };
 
 /**
+ * DriftClass
+ */
+export type DriftClass = {
+    /**
+     * Asset Class
+     */
+    asset_class: string;
+    /**
+     * Value
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    value: string;
+    /**
+     * Current Pct
+     *
+     * Decimal string, exact; never a float.
+     */
+    current_pct: string;
+    /**
+     * Target Pct
+     *
+     * Decimal string, exact; never a float.
+     */
+    target_pct: string;
+    /**
+     * Band
+     *
+     * Decimal string, exact; never a float.
+     */
+    band: string;
+    /**
+     * Drift Pct
+     *
+     * Decimal string, exact; never a float.
+     */
+    drift_pct: string;
+    /**
+     * Outside Band
+     */
+    outside_band: boolean;
+    /**
+     * To Target
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    to_target: string;
+    /**
+     * In Policy
+     */
+    in_policy: boolean;
+};
+
+/**
+ * DriftReport
+ */
+export type DriftReport = {
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Total Value
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_value: string;
+    /**
+     * Classes
+     */
+    classes: Array<DriftClass>;
+    /**
+     * Rebalance Due
+     */
+    rebalance_due: boolean;
+    /**
+     * Review Due
+     */
+    review_due: boolean;
+    risk_profile: InvestorRiskProfile;
+    equity_check: EquityCheck;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+};
+
+/**
  * DueReview
  */
 export type DueReview = {
@@ -4687,6 +4806,32 @@ export type EntryTotal = {
      * Decimal string in the currency's own precision; never a float.
      */
     net: string;
+};
+
+/**
+ * EquityCheck
+ */
+export type EquityCheck = {
+    /**
+     * Equity Target
+     *
+     * Decimal string, exact; never a float.
+     */
+    equity_target: string;
+    /**
+     * Profile
+     */
+    profile: 'conservative' | 'balanced' | 'aggressive';
+    /**
+     * Profile Equity Max
+     *
+     * Decimal string, exact; never a float.
+     */
+    profile_equity_max: string;
+    /**
+     * Above Profile
+     */
+    above_profile: boolean;
 };
 
 /**
@@ -5613,7 +5758,7 @@ export type FinanceSignal = {
     /**
      * Severity
      */
-    severity: 'high' | 'medium' | 'info';
+    severity: 'high' | 'medium' | 'low' | 'info';
     /**
      * Title
      */
@@ -5642,6 +5787,10 @@ export type FinanceSignal = {
      * Refs
      */
     refs: Array<string>;
+    /**
+     * Rationale
+     */
+    rationale?: string | null;
 };
 
 /**
@@ -5973,6 +6122,18 @@ export type Holding = {
      */
     account_id?: string | null;
     /**
+     * Cost Method
+     */
+    cost_method: 'fifo' | 'average';
+    /**
+     * Cost Method Source
+     */
+    cost_method_source: 'holding' | 'rule_set' | 'default';
+    /**
+     * Expense Ratio
+     */
+    expense_ratio?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -6097,6 +6258,10 @@ export type HoldingLots = {
      */
     base_currency: string;
     /**
+     * Cost Method
+     */
+    cost_method: 'fifo' | 'average';
+    /**
      * Quantity
      *
      * Decimal string, exact; never a float.
@@ -6192,6 +6357,14 @@ export type HoldingRequest = {
      * Account Id
      */
     account_id?: string | null;
+    /**
+     * Cost Method
+     */
+    cost_method?: 'fifo' | 'average' | null;
+    /**
+     * Expense Ratio
+     */
+    expense_ratio?: string | null;
 };
 
 /**
@@ -6530,6 +6703,14 @@ export type HoldingUpdateRequest = {
      * Account Id
      */
     account_id?: string | null;
+    /**
+     * Cost Method
+     */
+    cost_method?: 'fifo' | 'average' | null;
+    /**
+     * Expense Ratio
+     */
+    expense_ratio?: string | null;
 };
 
 /**
@@ -6783,6 +6964,72 @@ export type IncomeStreamOut = {
 };
 
 /**
+ * InsuranceNeeds
+ *
+ * A needs analysis from your own figures. Figures only: never a product.
+ */
+export type InsuranceNeeds = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Replacement Years
+     */
+    replacement_years: number;
+    /**
+     * Income Replacement
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    income_replacement: string;
+    /**
+     * Debts
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    debts: string;
+    /**
+     * Goals
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    goals: string;
+    /**
+     * Assets
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    assets: string;
+    /**
+     * Life Cover Need
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    life_cover_need: string;
+    /**
+     * Life Cover Held
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    life_cover_held: string;
+    /**
+     * Life Cover Gap
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    life_cover_gap: string;
+    /**
+     * Income Protection Monthly
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    income_protection_monthly: string;
+};
+
+/**
  * InsurancePolicy
  */
 export type InsurancePolicy = {
@@ -6893,6 +7140,111 @@ export type InvestChange = {
      * Label
      */
     label: string;
+};
+
+/**
+ * InvestmentPolicyContent
+ */
+export type InvestmentPolicyContent = {
+    /**
+     * Schema
+     */
+    schema: 'salli.ips/1';
+    /**
+     * Targets
+     */
+    targets: Array<PolicyTargetOut>;
+    rebalancing: RebalancingRule;
+    /**
+     * Horizon Years
+     */
+    horizon_years: number | null;
+    /**
+     * Objectives
+     */
+    objectives: string;
+    /**
+     * Constraints
+     */
+    constraints: string;
+    /**
+     * Review On
+     */
+    review_on: string | null;
+};
+
+/**
+ * InvestmentPolicyRequest
+ */
+export type InvestmentPolicyRequest = {
+    /**
+     * Targets
+     */
+    targets: Array<PolicyTargetIn>;
+    rebalancing?: RebalancingRule;
+    /**
+     * Horizon Years
+     */
+    horizon_years?: number | null;
+    /**
+     * Objectives
+     */
+    objectives?: string;
+    /**
+     * Constraints
+     */
+    constraints?: string;
+    /**
+     * Review On
+     */
+    review_on?: string | null;
+};
+
+/**
+ * InvestmentPolicyVersion
+ */
+export type InvestmentPolicyVersion = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Version
+     */
+    version: number;
+    content: InvestmentPolicyContent;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * InvestmentPolicyVersions
+ */
+export type InvestmentPolicyVersions = {
+    /**
+     * Versions
+     */
+    versions: Array<InvestmentPolicyVersion>;
+};
+
+/**
+ * InvestorRiskProfile
+ */
+export type InvestorRiskProfile = {
+    tolerance: RiskTolerance;
+    capacity: RiskCapacityFigures;
+    /**
+     * Profile
+     */
+    profile: 'conservative' | 'balanced' | 'aggressive';
+    /**
+     * Equity Max
+     *
+     * Decimal string, exact; never a float.
+     */
+    equity_max: string;
 };
 
 /**
@@ -8412,6 +8764,46 @@ export type PolicyRequest = {
 };
 
 /**
+ * PolicyTargetIn
+ */
+export type PolicyTargetIn = {
+    /**
+     * Asset Class
+     */
+    asset_class: string;
+    /**
+     * Target
+     */
+    target: string;
+    /**
+     * Band
+     */
+    band?: string;
+};
+
+/**
+ * PolicyTargetOut
+ */
+export type PolicyTargetOut = {
+    /**
+     * Asset Class
+     */
+    asset_class: string;
+    /**
+     * Target
+     *
+     * Decimal string, exact; never a float.
+     */
+    target: string;
+    /**
+     * Band
+     *
+     * Decimal string, exact; never a float.
+     */
+    band: string;
+};
+
+/**
  * PolicyUpdateRequest
  */
 export type PolicyUpdateRequest = {
@@ -8476,6 +8868,7 @@ export type PortfolioPerformance = {
      * Holdings
      */
     holdings: Array<HoldingPerformance>;
+    risk: RiskFigures;
     /**
      * Notes
      */
@@ -8524,6 +8917,11 @@ export type PortfolioSummary = {
      * Alerts
      */
     alerts: Array<RebalancingAlert>;
+    /**
+     * Target Source
+     */
+    target_source?: 'given' | 'policy' | null;
+    costs: RunningCosts;
     /**
      * Notes
      */
@@ -9220,6 +9618,20 @@ export type RebalancingAlert = {
 };
 
 /**
+ * RebalancingRule
+ */
+export type RebalancingRule = {
+    /**
+     * Rule
+     */
+    rule?: 'bands' | 'calendar' | 'both';
+    /**
+     * Every Months
+     */
+    every_months?: number | null;
+};
+
+/**
  * ReconcilableStatement
  */
 export type ReconcilableStatement = {
@@ -9815,6 +10227,83 @@ export type RiskBreakdown = {
 };
 
 /**
+ * RiskCapacityFigures
+ */
+export type RiskCapacityFigures = {
+    /**
+     * Score
+     */
+    score: number;
+    /**
+     * Category
+     */
+    category: 'conservative' | 'balanced' | 'aggressive';
+    /**
+     * Breakdown
+     */
+    breakdown: {
+        [key: string]: number;
+    };
+    /**
+     * Missing
+     */
+    missing: Array<string>;
+    /**
+     * Emergency Months
+     */
+    emergency_months: string | null;
+    /**
+     * Income Variation
+     */
+    income_variation: string | null;
+    /**
+     * Horizon Years
+     */
+    horizon_years: number | null;
+    /**
+     * Debt Service Ratio
+     */
+    debt_service_ratio: string | null;
+};
+
+/**
+ * RiskFigures
+ *
+ * From the period's monthly time-weighted returns. Fractions of one.
+ */
+export type RiskFigures = {
+    /**
+     * Months
+     */
+    months: number;
+    /**
+     * Yearly Return
+     */
+    yearly_return: string | null;
+    /**
+     * Volatility
+     */
+    volatility: string | null;
+    /**
+     * Max Drawdown
+     */
+    max_drawdown: string | null;
+    /**
+     * Sharpe
+     */
+    sharpe: string | null;
+    /**
+     * Hurdle
+     */
+    hurdle: string | null;
+    /**
+     * Hurdle Source
+     */
+    hurdle_source: 'cash_yield' | 'benchmark' | 'cma_pack' | null;
+    benchmark: BenchmarkFigures | null;
+};
+
+/**
  * RiskProfile
  *
  * The scored questionnaire, as saved to the profile.
@@ -9855,6 +10344,20 @@ export type RiskQuestionnaireRequest = {
      * Dependents Count
      */
     dependents_count?: number;
+};
+
+/**
+ * RiskTolerance
+ */
+export type RiskTolerance = {
+    /**
+     * Score
+     */
+    score: number | null;
+    /**
+     * Category
+     */
+    category: 'conservative' | 'balanced' | 'aggressive' | null;
 };
 
 /**
@@ -10048,6 +10551,34 @@ export type RuleUpdate = {
      * Enabled
      */
     enabled?: boolean | null;
+};
+
+/**
+ * RunningCosts
+ *
+ * The holdings' expense ratios (your own figures), rolled up.
+ */
+export type RunningCosts = {
+    /**
+     * Weighted Expense Ratio
+     */
+    weighted_expense_ratio: string | null;
+    /**
+     * Yearly Cost
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    yearly_cost: string;
+    /**
+     * Value Covered
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    value_covered: string;
+    /**
+     * Without Ratio
+     */
+    without_ratio: Array<string>;
 };
 
 /**
@@ -18890,6 +19421,18 @@ export type PortfolioPerformanceData = {
          * Last day of the period, YYYY-MM-DD. Omitted: today.
          */
         to_date?: string | null;
+        /**
+         * Benchmark
+         *
+         * A symbol whose recorded closes are the benchmark.
+         */
+        benchmark?: string | null;
+        /**
+         * Cash Yield
+         *
+         * A yearly cash yield for the Sharpe ratio, a fraction (0.03).
+         */
+        cash_yield?: string | null;
     };
     url: '/v1/portfolio/performance';
 };
@@ -19390,6 +19933,135 @@ export type HoldingsPerformanceResponses = {
 
 export type HoldingsPerformanceResponse = HoldingsPerformanceResponses[keyof HoldingsPerformanceResponses];
 
+export type IpsGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/ips';
+};
+
+export type IpsGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type IpsGetError = IpsGetErrors[keyof IpsGetErrors];
+
+export type IpsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InvestmentPolicyVersion;
+};
+
+export type IpsGetResponse = IpsGetResponses[keyof IpsGetResponses];
+
+export type IpsAdoptData = {
+    body: InvestmentPolicyRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/ips';
+};
+
+export type IpsAdoptErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type IpsAdoptError = IpsAdoptErrors[keyof IpsAdoptErrors];
+
+export type IpsAdoptResponses = {
+    /**
+     * Successful Response
+     */
+    201: InvestmentPolicyVersion;
+};
+
+export type IpsAdoptResponse = IpsAdoptResponses[keyof IpsAdoptResponses];
+
+export type IpsVersionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/ips/versions';
+};
+
+export type IpsVersionsErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type IpsVersionsError = IpsVersionsErrors[keyof IpsVersionsErrors];
+
+export type IpsVersionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: InvestmentPolicyVersions;
+};
+
+export type IpsVersionsResponse = IpsVersionsResponses[keyof IpsVersionsResponses];
+
+export type IpsDriftData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/ips/drift';
+};
+
+export type IpsDriftErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type IpsDriftError = IpsDriftErrors[keyof IpsDriftErrors];
+
+export type IpsDriftResponses = {
+    /**
+     * Successful Response
+     */
+    200: DriftReport;
+};
+
+export type IpsDriftResponse = IpsDriftResponses[keyof IpsDriftResponses];
+
+export type IpsRiskProfileData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/ips/risk-profile';
+};
+
+export type IpsRiskProfileErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type IpsRiskProfileError = IpsRiskProfileErrors[keyof IpsRiskProfileErrors];
+
+export type IpsRiskProfileResponses = {
+    /**
+     * Successful Response
+     */
+    200: InvestorRiskProfile;
+};
+
+export type IpsRiskProfileResponse = IpsRiskProfileResponses[keyof IpsRiskProfileResponses];
+
 export type SubscriptionsListData = {
     body?: never;
     path?: never;
@@ -19701,6 +20373,42 @@ export type InsuranceReportResponses = {
 };
 
 export type InsuranceReportResponse = InsuranceReportResponses[keyof InsuranceReportResponses];
+
+export type InsuranceNeedsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Replacement Years
+         *
+         * Years of income to replace.
+         */
+        replacement_years?: number;
+    };
+    url: '/v1/insurance/needs';
+};
+
+export type InsuranceNeedsErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type InsuranceNeedsError = InsuranceNeedsErrors[keyof InsuranceNeedsErrors];
+
+export type InsuranceNeedsResponses = {
+    /**
+     * Successful Response
+     */
+    200: InsuranceNeeds;
+};
+
+export type InsuranceNeedsResponse = InsuranceNeedsResponses[keyof InsuranceNeedsResponses];
 
 export type InsuranceTargetsListData = {
     body?: never;

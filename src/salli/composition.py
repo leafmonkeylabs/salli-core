@@ -35,6 +35,7 @@ from salli.application.services.entry_parse_service import EntryParseService
 from salli.application.services.fi_service import FiService
 from salli.application.services.insights_service import InsightsService
 from salli.application.services.insurance_service import InsuranceService
+from salli.application.services.investment_policy_service import InvestmentPolicyService
 from salli.application.services.ledger_service import LedgerService
 from salli.application.services.llm_credential_service import LlmCredentialService
 from salli.application.services.login_service import LoginService
@@ -112,6 +113,8 @@ class Services:
     # The user's own rules of thumb, checked against options, and the
     # append-only decision journal with its reviews (domain/decisions).
     principles: PrincipleService
+    # The investment policy statement, its drift report and the risk profile.
+    investment_policy: InvestmentPolicyService
     decisions: DecisionService
     # Common decisions as a few questions and the options they build.
     templates: TemplateService
@@ -204,8 +207,9 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     decisions = DecisionService(uow_factory, scenarios, principles)
     decision_templates = TemplateService(scenarios, principles)
     portfolio = PortfolioService(uow_factory, fx=fx)
+    investment_policy = InvestmentPolicyService(uow_factory, portfolio, baseline)
     subscription = SubscriptionService(uow_factory)
-    insurance = InsuranceService(uow_factory)
+    insurance = InsuranceService(uow_factory, baselines=baseline)
     profile = UserProfileService(
         uow_factory,
         ledger,
@@ -338,6 +342,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         baseline=baseline,
         scenarios=scenarios,
         principles=principles,
+        investment_policy=investment_policy,
         decisions=decisions,
         templates=decision_templates,
         notifications=notifications,

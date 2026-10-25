@@ -35,7 +35,7 @@ describe('Home', () => {
     expect(within(month).getByText('minus 1,750.99 euros')).toBeTruthy();
 
     const fiFigure = figure('Financial independence');
-    await waitFor(() => expect(within(fiFigure).getByText('57.59')).toBeTruthy());
+    await waitFor(() => expect(within(fiFigure).getByText('57.42')).toBeTruthy());
     expect(within(fiFigure).getByText('FI score · On track')).toBeTruthy();
 
     // Free until payday line by line: the server's figure under the double rule.
@@ -118,7 +118,7 @@ describe('Home', () => {
     await setup({ api });
     const fiFigure = figure('Financial independence');
     expect(await within(fiFigure).findByText('Needs two months of data')).toBeTruthy();
-    expect(within(fiFigure).queryByText('57.59')).toBeNull();
+    expect(within(fiFigure).queryByText('57.42')).toBeNull();
     expect(within(fiFigure).queryByText('FI score · On track')).toBeNull();
   });
 

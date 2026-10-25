@@ -171,8 +171,8 @@ export const INCOME_STATEMENT: IncomeStatement = {
 };
 
 export const FI_SCORE: FiScore = {
-  "pack_version": "3.0.0",
-  "overall_score": "57.59",
+  "pack_version": "4.0.0",
+  "overall_score": "57.42",
   "grade": "On track",
   "currency": "EUR",
   "monthly_income": "4000.00",
@@ -217,9 +217,9 @@ export const FI_SCORE: FiScore = {
     {
       "key": "debt",
       "label": "Debt load",
-      "score": "73.63",
+      "score": "72.13",
       "weight": "0.12",
-      "detail": "Debts cost 5.27% a year, averaged by balance"
+      "detail": "Debts cost 5.27% a year, averaged by balance; payments take 11.75% of income"
     }
   ],
   "assumptions": {
@@ -257,7 +257,7 @@ export const FI_SCORE: FiScore = {
     },
     "nominal_returns": null
   },
-  "inputs_hash": "e897489b46a508aae24e5a709a1b8e68fc53d02a465612a8b23d0dfe7e9cb238"
+  "inputs_hash": "e772b08e9f9a14eb8a3f9b0e7ad4e246440a894b9891839e6405199334b2e677"
 };
 
 export const REMINDERS: ReminderList = {
@@ -346,7 +346,8 @@ export const SIGNALS: FinanceSignals = {
       "date": "2026-09-30",
       "refs": [
         "0000232e-5a11-4000-8000-000000009006"
-      ]
+      ],
+      "rationale": null
     }
   ]
 };

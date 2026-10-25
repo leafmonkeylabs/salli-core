@@ -124,6 +124,13 @@ async def test_an_empty_portfolio_sums_to_zero_in_the_currencys_precision(client
         "total_gain_pct": "0.0000",
         "allocation": [],
         "alerts": [],
+        "target_source": None,
+        "costs": {
+            "weighted_expense_ratio": None,
+            "yearly_cost": "0.00",
+            "value_covered": "0.00",
+            "without_ratio": [],
+        },
         "notes": [],
     }
 

@@ -27,10 +27,16 @@ import {
   insurancePoliciesGet,
   insurancePoliciesList,
   insurancePoliciesUpdate,
+  insuranceNeeds,
   insuranceReport,
   insuranceTargetsDelete,
   insuranceTargetsList,
   insuranceTargetsSet,
+  ipsAdopt,
+  ipsDrift,
+  ipsGet,
+  ipsRiskProfile,
+  ipsVersions,
   portfolioSummary,
   subscriptionsCreate,
   subscriptionsDelete,
@@ -44,6 +50,8 @@ import {
   type Debt,
   type Holding,
   type InsurancePolicy,
+  type PolicyTargetIn,
+  type InvestorRiskProfile,
   type SalliClient,
   type Subscription,
   type SubscriptionReport,
@@ -432,9 +440,19 @@ function registerPortfolio(program: Command, app: App): void {
               ]),
             );
           }
+          if (d.costs.weighted_expense_ratio !== null) {
+            out.line();
+            out.line(
+              out.details([
+                ['Expense ratio', `${out.percent(d.costs.weighted_expense_ratio, 2)} weighted, on ${out.money(d.costs.value_covered, d.currency)}`],
+                ['Yearly cost', out.money(d.costs.yearly_cost, d.currency)],
+              ]),
+            );
+            if (d.costs.without_ratio.length) out.note(`No expense ratio for ${singleLine(d.costs.without_ratio.join(', '))}.`);
+          }
           if (d.alerts.length) {
             out.line();
-            out.line(out.heading('Rebalancing'));
+            out.line(out.heading(d.target_source === 'policy' ? 'Rebalancing (your investment policy)' : 'Rebalancing'));
             out.line(
               out.table(d.alerts, [
                 { header: 'ASSET CLASS', get: (a) => a.asset_class },
@@ -449,6 +467,7 @@ function registerPortfolio(program: Command, app: App): void {
     });
 
   registerInvestments(portfolio, app);
+  registerPolicy(program, app);
 
   const holdings = program.command('holdings').alias('holding').description('Investment holdings you track (values as you last entered them)');
 
@@ -505,6 +524,8 @@ function registerPortfolio(program: Command, app: App): void {
     .option('--invested <amount>', 'Declared: total amount invested (cost basis)')
     .option('--value <amount>', 'Declared: what it is worth now')
     .option('--account <account>', 'The investment account that holds it in your ledger (code, name or id)')
+    .addOption(new Option('--cost-method <method>', 'How its sales are costed (default: your tax rules’, else fifo)').choices(['fifo', 'average'] as const))
+    .option('--expense-ratio <fraction>', 'Its yearly running cost, e.g. 0.002 or 0.2%')
     .action(async (symbol, opts) => {
       const api = await app.api();
       const account = opts.account ? (await AccountBook.load(api)).resolve(opts.account) : undefined;
@@ -517,6 +538,8 @@ function registerPortfolio(program: Command, app: App): void {
           ...(opts.invested ? { cost_basis: amountArg(opts.invested, '--invested') } : {}),
           ...(opts.value ? { current_value: amountArg(opts.value, '--value') } : {}),
           ...(account ? { account_id: account.id } : {}),
+          ...(opts.costMethod ? { cost_method: opts.costMethod } : {}),
+          ...(opts.expenseRatio ? { expense_ratio: rateArg(opts.expenseRatio, '--expense-ratio') } : {}),
         },
       });
       if (app.out.machine) app.out.emit(created, { human: () => undefined });
@@ -539,6 +562,8 @@ function registerPortfolio(program: Command, app: App): void {
     .option('--active', 'Mark it active again')
     .option('--account <account>', 'Link it to the investment account that holds it in your ledger (code, name or id)')
     .option('--no-account', 'Unlink it from its account (a what-if can then invest into it, but not sell it)')
+    .addOption(new Option('--cost-method <method>', 'How its sales are costed; default: back to your tax rules’, else fifo').choices(['fifo', 'average', 'default'] as const))
+    .option('--expense-ratio <fraction>', 'Its yearly running cost, e.g. 0.002 or 0.2%; none clears it')
     .action(async (query, opts) => {
       const api = await app.api();
       const holding = await resolveHolding(api, query);
@@ -551,8 +576,10 @@ function registerPortfolio(program: Command, app: App): void {
         current_value: opts.value ? amountArg(opts.value, '--value') : undefined,
         is_active: opts.sold ? false : opts.active ? true : undefined,
         account_id: account ? account.id : opts.account === false ? null : undefined,
+        cost_method: opts.costMethod === 'default' ? null : opts.costMethod,
+        expense_ratio: opts.expenseRatio === undefined ? undefined : opts.expenseRatio === 'none' ? null : rateArg(opts.expenseRatio, '--expense-ratio'),
       });
-      requireChanges(body, '--symbol, --name, --class, --invested, --value, --sold, --active, --account or --no-account');
+      requireChanges(body, '--symbol, --name, --class, --invested, --value, --sold, --active, --account, --no-account, --cost-method or --expense-ratio');
       const result = await api.call(holdingsUpdate, { path: { holding_id: holding.id }, body });
       app.out.done(result, `Updated ${str(holding.symbol)}.`);
     });
@@ -883,6 +910,32 @@ function registerInsurance(program: Command, app: App): void {
     });
 
   insurance
+    .command('needs')
+    .description('Life cover and income protection, as figures from your money (never a product)')
+    .option('--years <n>', 'Years of income to replace', '10')
+    .action(async (opts) => {
+      const api = await app.api();
+      const r = await api.call(insuranceNeeds, { query: { replacement_years: countArg('--years')(opts.years) } });
+      app.out.emit(r, {
+        human: (d) => {
+          const m = (v: string): string => app.out.money(v, d.currency);
+          app.out.line(
+            app.out.details([
+              [`Income for ${d.replacement_years} years`, m(d.income_replacement)],
+              ['+ Debts', m(d.debts)],
+              ['+ Goals still to fund', m(d.goals)],
+              ['− Cash, savings, investments', m(d.assets)],
+              ['Life cover need', m(d.life_cover_need)],
+              ['Life cover held', m(d.life_cover_held)],
+              ['Gap', m(d.life_cover_gap)],
+              ['Income protection, a month', m(d.income_protection_monthly)],
+            ]),
+          );
+        },
+      });
+    });
+
+  insurance
     .command('report')
     .description('Cover against your targets, missing types, and policies expiring soon')
     .action(async () => {
@@ -914,6 +967,147 @@ function registerInsurance(program: Command, app: App): void {
           }
         },
       });
+    });
+}
+
+function riskRows(app: App, r: InvestorRiskProfile): Array<readonly [string, string]> {
+  const out = app.out;
+  const c = r.capacity;
+  return [
+    ['Tolerance', r.tolerance.category ? `${r.tolerance.category} (${r.tolerance.score ?? '—'})` : 'not answered (`salli onboarding risk`)'],
+    ['Capacity', `${c.category} (${c.score})${c.missing.length ? `, without ${c.missing.join(', ')}` : ''}`],
+    ['Profile', `${r.profile}: equity up to ${out.percent(r.equity_max)}`],
+  ];
+}
+
+// ── Investment policy ────────────────────────────────────────────────────────
+
+/** `CLASS:FRACTION[:BAND]`, for `salli ips set --target`. */
+function policyTarget(value: string): PolicyTargetIn {
+  const [cls, target, band] = value.split(':');
+  if (!cls || !target) throw new UsageError(`--target takes ASSET_CLASS:FRACTION[:BAND], e.g. equity:0.6:0.05 (got "${value}").`);
+  return { asset_class: cls, target: rateArg(target, '--target'), ...(band ? { band: rateArg(band, '--target') } : {}) };
+}
+
+function registerPolicy(program: Command, app: App): void {
+  const ips = program.command('ips').description('Your investment policy statement: targets with bands, rebalancing rule, horizon, review date; drift against it');
+
+  ips
+    .command('show', { isDefault: true })
+    .description('The policy in force')
+    .action(async () => {
+      const api = await app.api();
+      const p = await api.call(ipsGet);
+      app.out.emit(p, {
+        human: (d) => {
+          const out = app.out;
+          out.line(`${out.heading(`Investment policy, version ${d.version}`)} ${out.colors.dim(displayDate(d.created_at.slice(0, 10), out.locale))}`);
+          out.line(
+            out.table(d.content.targets, [
+              { header: 'ASSET CLASS', get: (t) => t.asset_class },
+              { header: 'TARGET', get: (t) => out.percent(t.target), align: 'right' },
+              { header: 'BAND ±', get: (t) => out.percent(t.band), align: 'right' },
+            ]),
+          );
+          const r = d.content.rebalancing;
+          out.line(
+            out.details([
+              ['Rebalancing', r.rule === 'bands' ? 'when a class leaves its band' : `${r.rule === 'both' ? 'when a class leaves its band, or ' : ''}every ${r.every_months ?? '?'} months`],
+              ['Horizon', d.content.horizon_years === null ? '—' : `${d.content.horizon_years} years`],
+              ['Objectives', str(d.content.objectives) || '—'],
+              ['Constraints', str(d.content.constraints) || '—'],
+              ['Review on', d.content.review_on ? displayDate(d.content.review_on, out.locale) : '—'],
+            ]),
+          );
+        },
+      });
+    });
+
+  ips
+    .command('history')
+    .description('Every version, oldest first')
+    .action(async () => {
+      const api = await app.api();
+      const data = await api.call(ipsVersions);
+      app.out.emit(data, {
+        records: (d) => d.versions,
+        human: (d) => {
+          if (!d.versions.length) return app.out.note('No investment policy yet: `salli ips set`.');
+          app.out.line(
+            app.out.table(d.versions, [
+              { header: 'VERSION', get: (v) => String(v.version), align: 'right' },
+              { header: 'ADOPTED', get: (v) => displayDate(v.created_at.slice(0, 10), app.out.locale) },
+              { header: 'TARGETS', get: (v) => v.content.targets.map((t) => `${t.asset_class} ${app.out.percent(t.target)}`).join(', '), shrink: true },
+            ]),
+          );
+        },
+      });
+    });
+
+  ips
+    .command('set')
+    .description('Adopt a new version (earlier ones are kept)')
+    .requiredOption('--target <class:fraction[:band]>', 'A target share and its band, e.g. equity:0.6:0.05 (repeatable; they add up to 1)', collect)
+    .addOption(new Option('--rebalance <rule>', 'When to rebalance').choices(['bands', 'calendar', 'both'] as const).default('bands' as const))
+    .option('--every-months <n>', 'For a calendar rule: how often')
+    .option('--horizon <years>', 'Years until the money is needed')
+    .option('--objectives <text>', 'What the money is for, in your words')
+    .option('--constraints <text>', 'Limits you set yourself')
+    .option('--review-on <date>', 'When to look at the policy again (YYYY-MM-DD)')
+    .action(async (opts) => {
+      const api = await app.api();
+      const now = app.runtime.now();
+      const stored = await api.call(ipsAdopt, {
+        body: {
+          targets: (opts.target ?? []).map(policyTarget),
+          rebalancing: { rule: opts.rebalance, ...(opts.everyMonths ? { every_months: countArg('--every-months')(opts.everyMonths) } : {}) },
+          ...(opts.horizon ? { horizon_years: countArg('--horizon')(opts.horizon) } : {}),
+          ...(opts.objectives ? { objectives: opts.objectives } : {}),
+          ...(opts.constraints ? { constraints: opts.constraints } : {}),
+          ...(opts.reviewOn ? { review_on: parseDate(opts.reviewOn, now, '--review-on') } : {}),
+        },
+      });
+      app.out.done(stored, `Adopted version ${stored.version} of your investment policy.`);
+    });
+
+  ips
+    .command('drift')
+    .description('The portfolio against the policy, with your risk profile beside it')
+    .action(async () => {
+      const api = await app.api();
+      const d = await api.call(ipsDrift);
+      app.out.emit(d, {
+        records: (r) => r.classes,
+        human: (r) => {
+          const out = app.out;
+          out.line(
+            out.table(r.classes, [
+              { header: 'ASSET CLASS', get: (c) => `${c.asset_class}${c.in_policy ? '' : ' (not in policy)'}` },
+              { header: 'NOW', get: (c) => out.percent(c.current_pct), align: 'right' },
+              { header: 'TARGET', get: (c) => `${out.percent(c.target_pct)} ±${out.percent(c.band)}`, align: 'right' },
+              { header: 'DRIFT', get: (c) => out.percent(c.drift_pct, 1), align: 'right', style: (t, c) => (c.outside_band ? out.colors.yellow(t) : t) },
+              { header: `TO TARGET (${r.currency})`, get: (c) => out.amount(c.to_target, r.currency), align: 'right' },
+            ]),
+          );
+          if (r.rebalance_due) out.line('Your policy’s rebalancing rule says it is time to rebalance.');
+          if (r.review_due) out.line('Your policy’s review date has come.');
+          out.line();
+          out.line(out.details(riskRows(app, r.risk_profile)));
+          if (r.equity_check.above_profile) {
+            out.line(`${out.colors.yellow('!')} The policy’s equity target (${out.percent(r.equity_check.equity_target)}) is above your ${r.equity_check.profile} profile’s ${out.percent(r.equity_check.profile_equity_max)}.`);
+          }
+          for (const note of r.notes) out.note(singleLine(note));
+        },
+      });
+    });
+
+  ips
+    .command('risk')
+    .description('Risk tolerance, risk capacity from your figures, and the profile (the lower)')
+    .action(async () => {
+      const api = await app.api();
+      const r = await api.call(ipsRiskProfile);
+      app.out.emit(r, { human: (d) => app.out.line(app.out.details(riskRows(app, d))) });
     });
 }
 

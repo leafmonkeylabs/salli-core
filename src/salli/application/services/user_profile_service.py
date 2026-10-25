@@ -335,6 +335,7 @@ class UserProfileService:
                 {
                     "risk_score": profile.score,
                     "risk_category": profile.category,
+                    "risk_horizon_years": answers.time_horizon_years,
                     "dependents_count": answers.dependents_count,
                 },
             )

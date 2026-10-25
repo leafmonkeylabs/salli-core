@@ -68,8 +68,9 @@ def value(
             value=None,
             value_base=h.declared_value,
             is_active=h.is_active,
+            cost_method=h.cost_method,
         )
-    position = replay(transactions).position
+    position = replay(transactions, method=h.cost_method).position
     valued = Pricing(transactions, closes).value(as_of, position, {})
     with localcontext(EXACT):
         worth = valued.value if valued.priced else None
@@ -92,6 +93,7 @@ def value(
         value=worth,
         value_base=worth_base,
         is_active=h.is_active,
+        cost_method=h.cost_method,
     )
 
 

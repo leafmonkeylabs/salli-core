@@ -288,7 +288,7 @@ class FinanceSignal(BaseModel):
         "emergency_fund_low",
         "expensive_debt",
     ]
-    severity: Literal["high", "medium", "info"]
+    severity: Literal["high", "medium", "low", "info"]
     title: str
     detail: str
     #: Where to look: see_forecast, see_recurring, see_spending, see_cash_flow,
@@ -308,6 +308,8 @@ class FinanceSignal(BaseModel):
     date: str | None
     #: What it rests on: journal entry, transaction, account or decision ids.
     refs: list[str]
+    #: Why Salli says so (the method and its line), apart from the plain detail.
+    rationale: str | None = None
 
 
 class FinanceSignals(BaseModel):

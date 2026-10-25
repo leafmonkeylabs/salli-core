@@ -2559,8 +2559,8 @@ export const HOLDING_RUN: ScenarioRun = {
   "as_of": "2031-06-30",
   "horizon_years": 20,
   "currency": "NZD",
-  "hash": "sha256:4915fab3c5871f35db19a52338591c0f88b6d46c68f3b5cd86ef7c4a77801a7e",
-  "baseline_fingerprint": "sha256:f15cd36061f33f57bb9e2347936e415c6c2cd15fc46803924c6bc892f99b29a6",
+  "hash": "sha256:1b1305b483ddd136eae684df54a073aaa21b13d367b0e4b9d0caf06b1aef73c5",
+  "baseline_fingerprint": "sha256:a311ca046d336aad5e6025b90e8288c401b549b9452ccb2e114fd62b1e201f27",
   "scenario": {
     "schema": "salli.scenario/1",
     "label": "Sell to top up",

@@ -400,6 +400,7 @@ class InsightsService:
                     "currency": sig.currency,
                     "date": sig.date,
                     "refs": list(sig.refs),
+                    "rationale": sig.rationale,
                 }
                 for sig in signal_rules.ranked(detected)
             ]

@@ -16,7 +16,7 @@ from salli.domain.accounting.models import Account, AssetRole, StoredJournalEntr
 from salli.domain.fi.assumptions import FiAssumptions, OwnAssumptions
 from salli.domain.fi.cma import CmaPack
 from salli.domain.fi.plan import NO_PLAN, FiPlan
-from salli.domain.portfolio.lots import Transaction
+from salli.domain.portfolio.lots import CostMethod, Transaction
 from salli.domain.portfolio.valuation import Close
 from salli.domain.reports.forecast import DeclaredCharge
 from salli.domain.reports.insights import Recurring
@@ -290,6 +290,8 @@ class HoldingInputs:
     closes: Sequence[Close] = ()
     declared_value: Decimal = Decimal(0)
     is_active: bool = True
+    #: How its sales are costed (its own `cost_method`, else fifo).
+    cost_method: CostMethod = "fifo"
 
 
 @dataclass(frozen=True)
@@ -329,6 +331,7 @@ class BaselineHolding:
     #: holding without transactions; None when it can't be known.
     value_base: Decimal | None
     is_active: bool = True
+    cost_method: CostMethod = "fifo"
 
 
 @dataclass(frozen=True)

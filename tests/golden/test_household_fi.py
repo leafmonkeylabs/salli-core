@@ -83,7 +83,8 @@ async def test_the_score(fi):
 
     # Was 84.96 and "FI-ready": the flat no longer counts towards FI. Was
     # 60.08: debt is scored by its rates, weighted by balance (pack 3.0.0).
-    assert score["overall_score"] == "57.59"
+    # Was 57.59: half the debt score is its payments' share of income (4.0.0).
+    assert score["overall_score"] == "57.42"
     # Was "Strong": under 50% of the way to FI, the top grades are not given.
     assert score["grade"] == "On track"
     assert score["monthly_surplus"] == "1962.91"  # was 1,734.55875

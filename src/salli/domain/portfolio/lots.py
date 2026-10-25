@@ -10,7 +10,9 @@ The transactions
                (`amount`). Opens a lot that cost that much.
   sell         `quantity` units at `price` per unit, less `fees`. Consumes lots:
                the oldest first (FIFO), or the ones `lots` names, in the
-               quantities it names.
+               quantities it names (specific lots); or, by the average-cost
+               method, a like share of every open lot, so the units sold
+               cost the holding's average cost per unit.
   dividend,    `amount` received before `withholding_tax`. Income; lots are
   interest     untouched, so it may arrive after everything was sold.
   split        every open lot's quantity × `split_to` / `split_from` (a 2-for-1
@@ -63,6 +65,7 @@ from decimal import (
     localcontext,
 )
 from enum import StrEnum
+from typing import Literal
 
 ZERO = Decimal(0)
 ONE = Decimal(1)
@@ -365,6 +368,12 @@ def scale(quantity: Decimal, split_to: Decimal, split_from: Decimal) -> Decimal:
         return (quantity * split_to / split_from).quantize(_STEP)
 
 
+#: How a sale picks the lots it consumes (see the module docstring): first
+#: in, first out unless the sale names lots; or the average cost.
+CostMethod = Literal["fifo", "average"]
+COST_METHODS: tuple[CostMethod, ...] = ("fifo", "average")
+
+
 class Replay:
     """A holding's history, applied a date at a time.
 
@@ -373,7 +382,8 @@ class Replay:
     pass over the history.
     """
 
-    def __init__(self, transactions: Iterable[Transaction]) -> None:
+    def __init__(self, transactions: Iterable[Transaction], method: CostMethod = "fifo") -> None:
+        self._method = method
         self._pending = ordered(transactions)
         self._next = 0
         self._lots: list[_OpenLot] = []
@@ -446,8 +456,14 @@ class Replay:
                 f"The sale on {tx.on} is of {plain(tx.quantity)} units, "
                 f"but only {plain(held)} are held then"
             )
+        if tx.lots and self._method == "average":
+            raise TransactionError(
+                f"The sale on {tx.on} names lots, but this holding's cost is its average cost"
+            )
         if tx.lots:
             picks = [(self._named_lot(tx, pick), pick.quantity) for pick in tx.lots]
+        elif self._method == "average":
+            picks = self._average(tx.quantity, held)
         else:
             picks = self._first_in_first_out(tx.quantity)
 
@@ -500,6 +516,22 @@ class Replay:
             "had opened by then"
         )
 
+    def _average(self, quantity: Decimal, held: Decimal) -> list[tuple[_OpenLot, Decimal]]:
+        """A like share of every open lot, so the units sold cost the average
+        cost per unit; the last lot takes what rounding leaves."""
+        open_lots = [lot for lot in self._lots if lot.quantity > 0]
+        picks: list[tuple[_OpenLot, Decimal]] = []
+        remaining = quantity
+        for i, lot in enumerate(open_lots):
+            if i == len(open_lots) - 1:
+                take = remaining
+            else:
+                take = min((lot.quantity * quantity / held).quantize(_STEP), remaining)
+            if take > 0:
+                picks.append((lot, take))
+            remaining -= take
+        return picks
+
     def _first_in_first_out(self, quantity: Decimal) -> list[tuple[_OpenLot, Decimal]]:
         picks: list[tuple[_OpenLot, Decimal]] = []
         remaining = quantity
@@ -514,11 +546,13 @@ class Replay:
         return picks
 
 
-def replay(transactions: Iterable[Transaction], until: date | None = None) -> Book:
+def replay(
+    transactions: Iterable[Transaction], until: date | None = None, method: CostMethod = "fifo"
+) -> Book:
     """The holding's lots, sales and income, from every transaction dated on or
     before `until` (all of them, by default). Raises TransactionError for a
     history that cannot have happened."""
-    return Replay(transactions).advance(until or date.max).book()
+    return Replay(transactions, method).advance(until or date.max).book()
 
 
 def split_factor(transactions: Iterable[Transaction], after: date, through: date) -> Decimal:

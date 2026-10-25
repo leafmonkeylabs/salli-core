@@ -36,14 +36,17 @@ from salli.application.market_data import StoredPriceHistory, symbol_key
 from salli.application.ownership import require_own_accounts
 from salli.application.ports import FxRatePort, FxUnavailableError
 from salli.domain.currency import normalize_currency, quantize, quantum
+from salli.domain.fi import cma
 from salli.domain.money import from_minor, to_minor
-from salli.domain.portfolio import engine, performance
+from salli.domain.portfolio import engine, performance, risk
 from salli.domain.portfolio.lots import (
+    COST_METHODS,
     EXACT,
     INCOME,
     ONE,
     PLACES,
     ZERO,
+    CostMethod,
     Kind,
     LotPick,
     Transaction,
@@ -260,7 +263,9 @@ async def realised_gains(
     """Each sale of the user's holdings dated `start` to `end` (both
     included), and the gain it realised in the base currency (proceeds less
     fees less the consumed lots' cost, each at its day's rate): (date, gain),
-    in date order. What a rule set's `realised_gain` role is filled from."""
+    in date order, each holding replayed by its cost method (its own, else its
+    rules', else fifo). What a rule set's `realised_gain` role is filled from."""
+    rules = await _rule_set_method(uow, user_id, end)
     holdings = await uow.holdings.list(user_id, active_only=False)
     rows = await uow.holding_transactions.list(user_id)
     gains: list[tuple[str, Decimal]] = []
@@ -268,20 +273,59 @@ async def realised_gains(
         mine = [r for r in rows if r["holding_id"] == holding["id"]]
         if not mine:
             continue
-        for sale in replay(history(mine, holding["currency"])).sales:
+        method = _cost_method(holding.get("cost_method")) or rules or "fifo"
+        for sale in replay(history(mine, holding["currency"]), method=method).sales:
             if start <= sale.on <= end:
                 gains.append((sale.on.isoformat(), sale.gain_base))
     return sorted(gains)
 
 
-def _check(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
+def _check(
+    rows: Iterable[dict[str, Any]], currency: str, method: CostMethod = "fifo"
+) -> list[Transaction]:
     """Refuse a history with a malformed transaction or one that cannot have
     happened. Returns it, as domain transactions."""
     transactions = history(rows, currency)
     for tx in transactions:
         validate(tx)
-    replay(transactions)
+    replay(transactions, method=method)
     return transactions
+
+
+async def _rule_set_method(uow: Any, user_id: str, today: date) -> CostMethod | None:
+    """The `cost_basis` of the active tax rule set in the user's residency
+    whose year covers `today`, if it says one."""
+    profile: dict[str, Any] = await uow.user_profiles.get(user_id) or {}
+    residency = profile.get("tax_residency")
+    if not residency:
+        return None
+    rows: list[dict[str, Any]] = await uow.tax_rule_sets.active_versions(user_id)
+    for row in rows:
+        version: dict[str, Any] = row.get("version") or {}
+        content: dict[str, Any] = version.get("content") or {}
+        year: dict[str, Any] = content.get("year") or {}
+        if row.get("country") != residency or content.get("cost_basis") not in COST_METHODS:
+            continue
+        if str(year.get("start", "")) <= today.isoformat() <= str(year.get("end", "")):
+            return cast(CostMethod, content["cost_basis"])
+    return None
+
+
+def _cost_method(value: object) -> CostMethod | None:
+    if value is None:
+        return None
+    if value not in COST_METHODS:
+        raise ValueError(f"cost_method is one of {', '.join(COST_METHODS)}, not {value!r}")
+    return value
+
+
+def _expense_ratio(value: object) -> Decimal | None:
+    if value is None:
+        return None
+    ratio = _decimal("expense_ratio", value)
+    if not 0 <= ratio < 1:
+        raise ValueError("expense_ratio is a yearly fraction of the value, 0 or more and under 1")
+    return ratio
 
 
 # ── Views ─────────────────────────────────────────────────────────────────────
@@ -363,6 +407,10 @@ class _Tracked:
     #: The rates every one of the user's transactions carries, by currency
     #: and day (shared by all of the user's holdings).
     recorded: dict[tuple[str, date], Decimal]
+    #: How its sales pick their lots: its own method, else its rules'.
+    method: CostMethod = "fifo"
+    #: Where the method comes from: "holding", "rule_set" or "default".
+    method_source: str = "default"
 
     @property
     def currency(self) -> str:
@@ -530,6 +578,13 @@ def _holding_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, Any]
         "current_value": valued["value_base"],
         "is_active": holding["is_active"],
         "account_id": holding.get("account_id"),
+        "cost_method": t.method,
+        "cost_method_source": t.method_source,
+        "expense_ratio": (
+            plain(Decimal(holding["expense_ratio"]))
+            if holding.get("expense_ratio") is not None
+            else None
+        ),
         "created_at": holding.get("created_at"),
         "updated_at": holding.get("updated_at"),
         "tracking": valued["tracking"],
@@ -606,6 +661,8 @@ class PortfolioService:
             if data.get("account_id"):
                 await check_holding_account(uow, user_id, data["account_id"])
                 holding["account_id"] = data["account_id"]
+            holding["cost_method"] = _cost_method(data.get("cost_method"))
+            holding["expense_ratio"] = _expense_ratio(data.get("expense_ratio"))
             return await uow.holdings.save(user_id, holding)
 
     async def list_holdings(self, user_id: str, active_only: bool = True) -> list[dict[str, Any]]:
@@ -652,6 +709,18 @@ class PortfolioService:
                 if data["account_id"]:
                     await check_holding_account(uow, user_id, data["account_id"])
                 updates["account_id"] = data["account_id"] or None
+            if "expense_ratio" in data:
+                updates["expense_ratio"] = _expense_ratio(data["expense_ratio"])
+            if "cost_method" in data:
+                # None returns it to its rules' method, else first in, first out.
+                method = _cost_method(data["cost_method"])
+                updates["cost_method"] = method
+                rows = await uow.holding_transactions.list(user_id, holding_id)
+                _check(
+                    rows,
+                    holding["currency"],
+                    method or await _rule_set_method(uow, user_id, self._today()) or "fifo",
+                )
             base = await uow.user_profiles.base_currency(user_id)
             if ("cost_basis" in data or "current_value" in data) and (
                 await uow.holding_transactions.list(user_id, holding_id)
@@ -688,6 +757,11 @@ class PortfolioService:
             await uow.holdings.delete(user_id, holding_id)
 
     # ── transactions ──────────────────────────────────────────────────────────
+
+    async def _method_of(self, uow: Any, user_id: str, holding: dict[str, Any]) -> CostMethod:
+        """The holding's own cost method, else its rules', else fifo."""
+        own = _cost_method(holding.get("cost_method"))
+        return own or await _rule_set_method(uow, user_id, self._today()) or "fifo"
 
     async def _holding_and_base(
         self, user_id: str, holding_id: str
@@ -736,7 +810,7 @@ class PortfolioService:
             # two sales of the same units cannot both pass the check.
             await uow.holdings.lock(user_id, holding_id)
             rows = await uow.holding_transactions.list(user_id, holding_id)
-            _check([*rows, row], currency)
+            _check([*rows, row], currency, await self._method_of(uow, user_id, holding))
             return await uow.holding_transactions.save(user_id, row)
 
     async def list_transactions(self, user_id: str, holding_id: str) -> list[dict[str, Any]] | None:
@@ -791,7 +865,11 @@ class PortfolioService:
         async with self._uow_factory() as uow:
             await uow.holdings.lock(user_id, holding_id)
             rows = await uow.holding_transactions.list(user_id, holding_id)
-            _check([{**r, **columns} if r["id"] == transaction_id else r for r in rows], currency)
+            _check(
+                [{**r, **columns} if r["id"] == transaction_id else r for r in rows],
+                currency,
+                await self._method_of(uow, user_id, holding),
+            )
             return await uow.holding_transactions.update(user_id, transaction_id, columns)
 
     async def delete_transaction(self, user_id: str, holding_id: str, transaction_id: str) -> bool:
@@ -805,7 +883,11 @@ class PortfolioService:
             rows = await uow.holding_transactions.list(user_id, holding_id)
             if transaction_id not in {r["id"] for r in rows}:
                 return False
-            _check([r for r in rows if r["id"] != transaction_id], holding["currency"])
+            _check(
+                [r for r in rows if r["id"] != transaction_id],
+                holding["currency"],
+                await self._method_of(uow, user_id, holding),
+            )
             return await uow.holding_transactions.delete(user_id, transaction_id)
 
     async def export_transactions(self, user_id: str) -> list[dict[str, Any]]:
@@ -829,8 +911,9 @@ class PortfolioService:
                 return None
             base = await uow.user_profiles.base_currency(user_id)
             rows = await uow.holding_transactions.list(user_id, holding_id)
+            method = await self._method_of(uow, user_id, holding)
         currency = holding["currency"]
-        book = replay(history(rows, currency))
+        book = replay(history(rows, currency), method=method)
         position = book.position
         with localcontext(EXACT):
             lots = [
@@ -880,6 +963,7 @@ class PortfolioService:
             "holding_id": holding_id,
             "currency": currency,
             "base_currency": base,
+            "cost_method": method,
             "quantity": plain(position.quantity),
             "cost": _money(position.cost, currency),
             "cost_base": _money(position.cost_base, base),
@@ -957,6 +1041,7 @@ class PortfolioService:
         everything = await uow.holdings.list(user_id, active_only=False)
         recorded = _recorded_rates(rows, {h["id"]: h["currency"] for h in everything})
         market = StoredPriceHistory(uow.holding_prices, user_id)
+        rules_method = await _rule_set_method(uow, user_id, self._today())
         quotes: dict[str, list[Any]] = {}
         tracked: list[_Tracked] = []
         for h in holdings:
@@ -974,6 +1059,12 @@ class PortfolioService:
                     Pricing(transactions, closes),
                     len(quotes[key]) - len(closes),
                     recorded,
+                    _cost_method(h.get("cost_method")) or rules_method or "fifo",
+                    "holding"
+                    if h.get("cost_method")
+                    else "rule_set"
+                    if rules_method
+                    else "default",
                 )
             )
         return tracked
@@ -1028,7 +1119,11 @@ class PortfolioService:
         price; None for one declared by value."""
         rates = await self._rates(base, tracked, [date.max])
         return [
-            t.pricing.value(date.max, replay(t.transactions).position, rates.get(t.currency, {}))
+            t.pricing.value(
+                date.max,
+                replay(t.transactions, method=t.method).position,
+                rates.get(t.currency, {}),
+            )
             if t.tracked
             else None
             for t in tracked
@@ -1055,12 +1150,17 @@ class PortfolioService:
         start: str | date | None = None,
         end: str | date | None = None,
         holding_id: str | None = None,
+        benchmark: str | None = None,
+        cash_yield: Decimal | None = None,
     ) -> dict[str, Any] | None:
         """Gains, income and returns from `start` to `end` inclusive (a tax
         year, say): per holding in its own currency and the base one, and for
         the portfolio (or just `holding_id`; None if there is no such holding)
         in the base one. With no `start`, since the first transaction; `end`
         defaults to today (or the latest transaction or price, if later).
+        `risk` holds the risk figures (domain/portfolio/risk.py), from
+        monthly returns, against `cash_yield` or the closes recorded for the
+        `benchmark` symbol; with neither, the active CMA pack's cash yield.
 
         Every holding counts, inactive ones too: a sale's gain belongs to its
         tax year however the holding is filed now. A holding declared by
@@ -1075,6 +1175,16 @@ class PortfolioService:
                 holdings = await uow.holdings.list(user_id, active_only=False)
             base = await uow.user_profiles.base_currency(user_id)
             tracked = await self._tracked(uow, user_id, holdings)
+            bench_rows: list[dict[str, Any]] = (
+                await uow.holding_prices.list(user_id, symbol_key(benchmark), None, None)
+                if benchmark
+                else []
+            )
+            pack = (
+                await uow.cma_packs.active(user_id)
+                if cash_yield is None and not benchmark
+                else None
+            )
 
         measured = [t for t in tracked if t.tracked]
         first = _date(start) if start else None
@@ -1094,18 +1204,57 @@ class PortfolioService:
             raise ValueError(f"The period starts ({first}) after it ends ({last})")
 
         histories = [
-            performance.History(t.holding["id"], t.transactions, t.pricing, {}) for t in measured
+            performance.History(t.holding["id"], t.transactions, t.pricing, {}, t.method)
+            for t in measured
         ]
-        days = performance.valuation_days(histories, first, last)
+        flows = performance.flow_days(histories, first, last)
+        opening = first or (flows[0] if flows else last)
+        windows = risk.month_windows(opening, last)
+        days = sorted(
+            {
+                *performance.valuation_days(histories, first, last),
+                *(d for w in windows for d in performance.valuation_days(histories, *w)),
+            }
+        )
         rates = await self._rates(base, measured, days)
         histories = [
-            performance.History(h.key, h.transactions, h.pricing, rates.get(t.currency, {}))
+            performance.History(
+                h.key, h.transactions, h.pricing, rates.get(t.currency, {}), t.method
+            )
             for h, t in zip(histories, measured, strict=True)
         ]
         result = performance.report(histories, first, last)
+        monthly = [
+            twr
+            for w in windows
+            if (twr := performance.report(histories, *w).portfolio.twr) is not None
+        ]
+        bench = (
+            risk.series_returns(
+                [(_date(r["price_date"]), Decimal(r["close"])) for r in bench_rows], windows
+            )
+            if benchmark
+            else None
+        )
+        bench_figures = risk.figures(bench, None) if bench else None
+        if cash_yield is not None:
+            hurdle, hurdle_source = cash_yield, "cash_yield"
+        elif bench_figures is not None and bench_figures.yearly_return is not None:
+            hurdle, hurdle_source = bench_figures.yearly_return, "benchmark"
+        elif pack is not None:
+            assumed = cma.stored(pack["content"], pack["id"], pack["content_hash"])
+            hurdle, hurdle_source = assumed.cash_yield.value, "cma_pack"
+        else:
+            hurdle, hurdle_source = None, None
+        own = risk.figures(monthly, hurdle)
 
         notes: list[str] = []
         declared = [t for t in tracked if not t.tracked]
+        if benchmark and bench is None:
+            notes.append(
+                f"No benchmark figures: {symbol_key(benchmark)} needs a recorded close on or "
+                "before the start of every month in the period"
+            )
         if declared:
             symbols = ", ".join(symbol_key(t.holding["symbol"]) for t in declared)
             notes.append(
@@ -1139,6 +1288,25 @@ class PortfolioService:
             "base_currency": base,
             "portfolio": _figures_view(result.portfolio, base, result.days),
             "holdings": holdings_view,
+            "risk": {
+                "months": own.months,
+                "yearly_return": _rate_view(own.yearly_return),
+                "volatility": _rate_view(own.volatility),
+                "max_drawdown": _rate_view(own.max_drawdown),
+                "sharpe": _rate_view(own.sharpe),
+                "hurdle": _rate_view(hurdle),
+                "hurdle_source": hurdle_source,
+                "benchmark": (
+                    {
+                        "symbol": symbol_key(benchmark),
+                        "yearly_return": _rate_view(bench_figures.yearly_return),
+                        "volatility": _rate_view(bench_figures.volatility),
+                        "max_drawdown": _rate_view(bench_figures.max_drawdown),
+                    }
+                    if benchmark and bench_figures
+                    else None
+                ),
+            },
             "notes": notes,
         }
 
@@ -1147,10 +1315,22 @@ class PortfolioService:
     async def get_summary(
         self, user_id: str, target_allocation: dict[str, Decimal] | None = None
     ) -> dict[str, Any]:
+        """Allocation, gain and costs. Without `target_allocation`, the
+        investment policy in force (if any) gives the targets and each class's
+        band; `target_source` says which."""
+        bands: dict[str, Decimal] | None = None
         async with self._uow_factory() as uow:
             currency = await uow.user_profiles.base_currency(user_id)
             holdings_data = await uow.holdings.list(user_id, active_only=True)
             tracked = await self._tracked(uow, user_id, holdings_data)
+            target_source = "given" if target_allocation else None
+            if target_allocation is None:
+                versions = await uow.investment_policies.list(user_id)
+                if versions:
+                    targets = versions[-1]["content"]["targets"]
+                    target_allocation = {t["asset_class"]: Decimal(t["target"]) for t in targets}
+                    bands = {t["asset_class"]: Decimal(t["band"]) for t in targets}
+                    target_source = "policy"
         valuations = await self._value_now(currency, tracked)
 
         # In the base currency: from transactions and prices where a holding
@@ -1175,7 +1355,14 @@ class PortfolioService:
         ]
         with localcontext(EXACT):
             summary = engine.compute_summary(
-                holdings, target_allocation, money_quantum=quantum(currency)
+                holdings, target_allocation, money_quantum=quantum(currency), bands=bands
+            )
+            costs = engine.running_costs(
+                [
+                    (h.symbol, h.current_value, _expense_ratio(t.holding.get("expense_ratio")))
+                    for h, t in zip(holdings, tracked, strict=True)
+                ],
+                quantum(currency),
             )
         notes = [
             note
@@ -1206,6 +1393,8 @@ class PortfolioService:
                 }
                 for alert in summary.alerts
             ],
+            "target_source": target_source,
+            "costs": costs,
             "notes": notes,
         }
 

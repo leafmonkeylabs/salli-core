@@ -162,6 +162,7 @@ def holding_inputs(
                 closes=tuple(sorted(closes, key=lambda c: c.on)),
                 declared_value=from_minor(h.get("current_value_minor") or 0, base),
                 is_active=bool(h.get("is_active", True)),
+                cost_method="average" if h.get("cost_method") == "average" else "fifo",
             )
         )
     return out

@@ -137,6 +137,10 @@ def snapshot_of(baseline: Baseline, goal_progress: Decimal | None) -> FinancialS
         goal_progress=goal_progress,
         currency=baseline.currency,
         debt_rates=tuple((d.apr, d.balance) for d in baseline.debts if d.source != "scenario"),
+        monthly_debt_payments=sum(
+            (d.minimum_payment for d in baseline.debts if d.source != "scenario" and d.balance > 0),
+            Decimal(0),
+        ),
         full_months=len(baseline.flows.months),
     )
 

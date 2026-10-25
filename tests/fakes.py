@@ -86,8 +86,10 @@ class FakeRecords:
             return
         row = self.rows[record_id]
         # As the SQL repositories do: None leaves a field as it is, except a
-        # reference to an account, where it removes the reference.
-        row.update({k: v for k, v in updates.items() if v is not None or k == "account_id"})
+        # reference to an account, where it removes the reference, and a
+        # holding's cost method and expense ratio, which it clears.
+        cleared = ("account_id", "cost_method", "expense_ratio")
+        row.update({k: v for k, v in updates.items() if v is not None or k in cleared})
         row["updated_at"] = datetime.now(UTC).isoformat()
 
     async def delete(self, user_id: str, record_id: str) -> None:
@@ -171,6 +173,32 @@ class FakeHoldings(FakeRecords):
             t for t, row in self.transactions.rows.items() if row["holding_id"] == record_id
         ]:
             del self.transactions.rows[transaction_id]
+
+
+class FakeInvestmentPolicies:
+    """Investment policy versions, added and never changed."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+
+    async def add(self, user_id: str, content: dict[str, Any]) -> dict[str, Any]:
+        version = 1 + sum(1 for r in self.rows if r["user_id"] == user_id)
+        row = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "version": version,
+            "content": content,
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+        self.rows.append(row)
+        return {k: v for k, v in row.items() if k != "user_id"}
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        return [
+            {k: v for k, v in r.items() if k != "user_id"}
+            for r in self.rows
+            if r["user_id"] == user_id
+        ]
 
 
 class FakeHoldingPrices:
@@ -289,9 +317,12 @@ class FakeRecordsUoW:
         self.holding_transactions = FakeHoldingTransactions()
         self.holdings = FakeHoldings(self.holding_transactions)
         self.holding_prices = FakeHoldingPrices()
+        self.investment_policies = FakeInvestmentPolicies()
         self.recurring_subscriptions = FakeRecords(is_active=True)
         self.policies = FakeRecords(is_active=True)
         self.insurance_targets = FakeInsuranceTargets()
+        self.tax_rule_sets = FakeActiveRuleSets()
+        self.cma_packs = FakeCmaPacks()
 
     async def __aenter__(self) -> FakeRecordsUoW:
         return self
@@ -1051,6 +1082,7 @@ class FakeUoW:
         self.holding_transactions = FakeHoldingTransactions()
         self.holdings = FakeHoldings(self.holding_transactions)
         self.holding_prices = FakeHoldingPrices()
+        self.investment_policies = FakeInvestmentPolicies()
         self.audit_log = FakeAuditLog()
         self.tax_returns = FakeTaxReturns()
 

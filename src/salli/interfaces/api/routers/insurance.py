@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, Ref, Updated
@@ -126,6 +126,40 @@ async def get_coverage_report(user_id: CurrentUser, svc: AppServices) -> Coverag
     and policies expiring within the next 30 days."""
     today = datetime.date.today().isoformat()
     return CoverageReport.model_validate(await svc.insurance.get_report(user_id, today))
+
+
+class InsuranceNeeds(BaseModel):
+    """A needs analysis from your own figures. Figures only: never a product."""
+
+    currency: CurrencyCode
+    replacement_years: int
+    #: Monthly income × 12 × replacement_years.
+    income_replacement: Amount
+    #: Everything owed.
+    debts: Amount
+    #: What the active goals still need.
+    goals: Amount
+    #: Cash, savings and investments.
+    assets: Amount
+    #: income_replacement + debts + goals − assets, never below zero.
+    life_cover_need: Amount
+    #: The active life policies' cover.
+    life_cover_held: Amount
+    #: Need − held, never below zero.
+    life_cover_gap: Amount
+    #: A month's average spending: what an income-protection benefit replaces.
+    income_protection_monthly: Amount
+
+
+@router.get("/needs")
+async def get_needs(
+    user_id: CurrentUser,
+    svc: AppServices,
+    replacement_years: int = Query(10, ge=0, le=50, description="Years of income to replace."),
+) -> InsuranceNeeds:
+    """Life cover from income replacement years, debts and goals less assets;
+    income protection from spending. Policies of type "life" count as held."""
+    return InsuranceNeeds.model_validate(await svc.insurance.get_needs(user_id, replacement_years))
 
 
 @router.get("/targets")

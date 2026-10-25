@@ -29,6 +29,9 @@ from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
+#: How a holding's sales are costed (domain/portfolio/lots.py).
+CostMethod = Literal["fifo", "average"]
+
 
 class HoldingRequest(BaseModel):
     symbol: str
@@ -46,6 +49,13 @@ class HoldingRequest(BaseModel):
     #: one source of balances; a scenario can sell a holding only from the
     #: account that holds it.
     account_id: str | None = None
+    #: How its sales are costed: fifo (first in, first out; a sale may name
+    #: its lots) or average (average cost). Omitted: your tax rules' method,
+    #: else fifo.
+    cost_method: CostMethod | None = None
+    #: Its yearly running cost as a fraction of its value ("0.0020" is
+    #: 0.20%), your own figure.
+    expense_ratio: DecimalIn | None = None
 
 
 class HoldingUpdateRequest(BaseModel):
@@ -62,6 +72,11 @@ class HoldingUpdateRequest(BaseModel):
     #: Link it to this investment account; null unlinks it. Omitted:
     #: unchanged.
     account_id: str | None = None
+    #: null returns it to your tax rules' method, else fifo. Refused when its
+    #: sales could not have happened that way (sales naming lots, under average).
+    cost_method: CostMethod | None = None
+    #: null clears it.
+    expense_ratio: DecimalIn | None = None
 
 
 class QuotedPrice(BaseModel):
@@ -107,6 +122,12 @@ class Holding(BaseModel):
     #: isn't linked to one (a scenario can then invest into it, but not sell
     #: it).
     account_id: str | None = None
+    #: How its sales are costed, and where that comes from: the holding's
+    #: own choice, the active tax rule set's `cost_basis`, or the default.
+    cost_method: CostMethod
+    cost_method_source: Literal["holding", "rule_set", "default"]
+    #: Its yearly running cost as a fraction of its value; null if not given.
+    expense_ratio: DecimalOut | None = None
     created_at: str
     updated_at: str
     #: "transactions" when the figures come from the holding's transactions,
@@ -157,6 +178,19 @@ class RebalancingAlert(BaseModel):
     drift_pct: str
 
 
+class RunningCosts(BaseModel):
+    """The holdings' expense ratios (your own figures), rolled up."""
+
+    #: Weighted by value, over the holdings that have one; null if none has.
+    weighted_expense_ratio: DecimalOut | None
+    #: What they take in a year, at today's values.
+    yearly_cost: Amount
+    #: The value of the holdings that have a ratio.
+    value_covered: Amount
+    #: Symbols of the holdings without one.
+    without_ratio: list[str]
+
+
 class PortfolioSummary(BaseModel):
     """The active holdings, each valued as `holdings.list` values it."""
 
@@ -168,8 +202,12 @@ class PortfolioSummary(BaseModel):
     #: The gain over the cost basis; zero when nothing was invested.
     total_gain_pct: str
     allocation: list[AllocationSlice]
-    #: Empty unless a target allocation was given.
+    #: Empty unless there are targets: given, or the investment policy's.
     alerts: list[RebalancingAlert]
+    #: Where the targets came from: "given" in the request, the investment
+    #: "policy" in force (its bands then the thresholds), or none.
+    target_source: Literal["given", "policy"] | None = None
+    costs: RunningCosts
     #: Any holding carried at cost, and why.
     notes: list[str]
 
@@ -338,6 +376,7 @@ class HoldingLots(BaseModel):
     #: The holding's currency.
     currency: CurrencyCode
     base_currency: CurrencyCode
+    cost_method: CostMethod
     #: Units held, and what they cost.
     quantity: DecimalOut
     cost: Amount
@@ -435,6 +474,37 @@ class HoldingPerformance(BaseModel):
     notes: list[str]
 
 
+class BenchmarkFigures(BaseModel):
+    """A series of closes you record for any symbol, measured month by month
+    over the same period."""
+
+    symbol: str
+    yearly_return: DecimalOut | None
+    volatility: DecimalOut | None
+    max_drawdown: DecimalOut | None
+
+
+class RiskFigures(BaseModel):
+    """From the period's monthly time-weighted returns. Fractions of one."""
+
+    #: Months with a return.
+    months: int
+    #: The monthly returns compounded to a year.
+    yearly_return: DecimalOut | None
+    #: Their standard deviation × √12; null under two months.
+    volatility: DecimalOut | None
+    #: The largest fall from a month-end high to a later month-end low.
+    max_drawdown: DecimalOut | None
+    #: (yearly_return − hurdle) ÷ volatility.
+    sharpe: DecimalOut | None
+    #: The yearly return the Sharpe ratio is measured against.
+    hurdle: DecimalOut | None
+    #: "cash_yield" (given), "benchmark" (its yearly return) or "cma_pack"
+    #: (the active pack's cash yield); null: none.
+    hurdle_source: Literal["cash_yield", "benchmark", "cma_pack"] | None
+    benchmark: BenchmarkFigures | None
+
+
 class PortfolioPerformance(BaseModel):
     #: The period's first day: `from_date`, or the first transaction's.
     start: str
@@ -446,6 +516,7 @@ class PortfolioPerformance(BaseModel):
     #: Every holding with transactions, inactive ones included: a sale's gain
     #: belongs to its tax year.
     holdings: list[HoldingPerformance]
+    risk: RiskFigures
     #: What is left out (holdings declared by value have no history).
     notes: list[str]
 
@@ -498,6 +569,12 @@ async def get_summary(
 
 _FROM = Query(None, description="First day of the period, YYYY-MM-DD. Omitted: inception.")
 _TO = Query(None, description="Last day of the period, YYYY-MM-DD. Omitted: today.")
+_BENCHMARK = Query(None, description="A symbol whose recorded closes are the benchmark.")
+_CASH_YIELD = Query(
+    None,
+    pattern=r"^-?\d+(\.\d+)?$",
+    description="A yearly cash yield for the Sharpe ratio, a fraction (0.03).",
+)
 
 
 @router.get("/performance")
@@ -506,10 +583,20 @@ async def get_performance(
     svc: AppServices,
     from_date: dt.date | None = _FROM,
     to_date: dt.date | None = _TO,
+    benchmark: str | None = _BENCHMARK,
+    cash_yield: str | None = _CASH_YIELD,
 ) -> PortfolioPerformance:
     """Gains, income and returns over a period (a tax year, say), per holding
-    in its own currency and the base one, and for the whole portfolio."""
-    report = await svc.portfolio.get_performance(user_id, from_date, to_date)
+    in its own currency and the base one, and for the whole portfolio; and
+    its volatility, largest fall and Sharpe ratio, against a cash yield or a
+    benchmark's recorded closes."""
+    report = await svc.portfolio.get_performance(
+        user_id,
+        from_date,
+        to_date,
+        benchmark=benchmark,
+        cash_yield=Decimal(cash_yield) if cash_yield is not None else None,
+    )
     return PortfolioPerformance.model_validate(report)
 
 
@@ -568,7 +655,7 @@ async def update_holding(
     changes = {
         k: v
         for k, v in body.model_dump(exclude_unset=True).items()
-        if v is not None or k == "account_id"
+        if v is not None or k in ("account_id", "cost_method", "expense_ratio")
     }
     await svc.portfolio.update_holding(user_id, holding_id, changes)
     return Updated(updated=True)

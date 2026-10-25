@@ -8,10 +8,15 @@ Coverage per policy type is the sum of active policies' coverage_amount for that
 type. A gap line is only produced for policy types the user has declared a target
 for (mirroring the budget engine's "only declared categories get a line"
 behaviour) — there is no universal "correct" coverage amount to assume otherwise.
+
+`needs` is a needs analysis from the person's own figures: life cover from
+income replacement years, debts and goals less assets; income protection from
+spending. Figures only: it names no product and no provider.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
@@ -74,4 +79,53 @@ def compute_report(
         lines=lines,
         missing_types=missing_types,
         expiring_soon=expiring_soon,
+    )
+
+
+@dataclass(frozen=True)
+class Needs:
+    """A needs analysis: figures, never a product. Every amount is in the
+    base currency."""
+
+    replacement_years: int
+    #: Income × 12 × the years it would be replaced for.
+    income_replacement: Decimal
+    debts: Decimal
+    goals: Decimal
+    #: Cash, savings and investments that would be there to draw on.
+    assets: Decimal
+    #: income_replacement + debts + goals − assets, never below zero.
+    life_cover_need: Decimal
+    #: The active life policies' cover.
+    life_cover_held: Decimal
+    #: Need − held, never below zero.
+    life_cover_gap: Decimal
+    #: A month's spending: what an income-protection benefit would replace.
+    income_protection_monthly: Decimal
+
+
+def needs(
+    monthly_income: Decimal,
+    monthly_expenses: Decimal,
+    debts: Decimal,
+    goals: Decimal,
+    assets: Decimal,
+    life_cover_held: Decimal,
+    replacement_years: int,
+) -> Needs:
+    """Life cover from replacing income for `replacement_years`, paying off
+    debts and funding goals, less what is already there; income protection
+    from monthly spending."""
+    replacement = max(monthly_income, Decimal(0)) * 12 * replacement_years
+    need = max(replacement + debts + goals - assets, Decimal(0))
+    return Needs(
+        replacement_years=replacement_years,
+        income_replacement=replacement,
+        debts=debts,
+        goals=goals,
+        assets=assets,
+        life_cover_need=need,
+        life_cover_held=life_cover_held,
+        life_cover_gap=max(need - life_cover_held, Decimal(0)),
+        income_protection_monthly=max(monthly_expenses, Decimal(0)),
     )

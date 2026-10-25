@@ -24,7 +24,7 @@ from typing import Literal
 from salli.domain.fi.assumptions import PLACEHOLDERS
 from salli.domain.reports.insights import MonthFlow, Recurring, SpendingLine
 
-Severity = Literal["high", "medium", "info"]
+Severity = Literal["high", "medium", "low", "info"]
 SignalKind = Literal[
     "low_balance_ahead",
     "price_change",
@@ -52,7 +52,7 @@ Action = Literal[
 #: country's figure.
 EXPENSIVE_DEBT_RATE = PLACEHOLDERS["real_return"].value + Decimal("0.04")
 
-_ORDER: dict[Severity, int] = {"high": 0, "medium": 1, "info": 2}
+_ORDER: dict[Severity, int] = {"high": 0, "medium": 1, "low": 2, "info": 3}
 
 
 @dataclass(frozen=True)
@@ -69,6 +69,9 @@ class Signal:
     date: str | None = None
     #: What it rests on: journal entry, transaction or account ids.
     refs: tuple[str, ...] = field(default_factory=tuple)
+    #: Why Salli says so (the method and its line), apart from the plain
+    #: words of `detail`; None when the detail says it all.
+    rationale: str | None = None
 
 
 def low_balance_ahead(
@@ -283,23 +286,29 @@ def emergency_fund_low(
 ) -> list[Signal]:
     """Cash and savings covering fewer than `target_months` of average
     spending (the FI method's emergency target), once a full month of
-    spending has been seen."""
+    spending has been seen. Graded: high under one month, medium under
+    three, low under the target; nothing at it."""
     if full_months < 1 or monthly_spending <= 0 or target_months <= 0:
         return []
     covered = liquid / monthly_spending
     if covered >= target_months:
         return []
+    severity: Severity = "high" if covered < 1 else "medium" if covered < 3 else "low"
     return [
         Signal(
             "emergency_fund_low",
-            "medium",
-            "Cash and savings cover few months",
-            f"Your cash and savings ({liquid} {currency}) cover {max(covered, Decimal(0)):.1f} "
-            f"months of your average spending ({monthly_spending} {currency} a month); the "
-            f"FI method's emergency target is {target_months} months.",
+            severity,
+            "Your savings would not last long",
+            f"If your income stopped, your cash and savings ({liquid} {currency}) would pay "
+            f"for about {max(covered, Decimal(0)):.1f} months of your usual spending "
+            f"({monthly_spending} {currency} a month).",
             "see_cash_flow",
             liquid,
             currency,
+            rationale=(
+                f"The FI method's emergency fund target is {target_months} months of average "
+                "spending: high under one month, medium under three, low under the target."
+            ),
         )
     ]
 
@@ -313,14 +322,17 @@ def expensive_debts(
         Signal(
             "expensive_debt",
             "medium",
-            f"{name} charges {rate:.1%} a year",
-            f"{name} ({balance} {currency} owed) charges {rate:.1%} a year, at or above "
-            f"{EXPENSIVE_DEBT_RATE:.0%}: Salli's line for a costly debt, the placeholder "
-            "real return plus a 4% margin, not any country's figure.",
+            f"{name} costs a lot to borrow",
+            f"You owe {balance} {currency} on {name}, and it adds {rate:.1%} of that in "
+            "interest each year.",
             "see_debts",
             balance,
             currency,
             refs=(debt_id,),
+            rationale=(
+                f"Salli calls a debt costly at {EXPENSIVE_DEBT_RATE:.0%} a year or more: the "
+                "placeholder real return plus a 4% margin, not any country's figure."
+            ),
         )
         for debt_id, name, rate, balance in debts
         if rate >= EXPENSIVE_DEBT_RATE and balance > 0

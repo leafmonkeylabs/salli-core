@@ -256,13 +256,12 @@ against another.
   changes from 1) that a later sale in the same scenario can sell. A sale
   sells `quantity` units, or `amount` (its value, in your base currency) /
   rate / price units, or the units of the `lots` it names.
-- **Lots.** First in, first out, unless the sale names lots (`lots`: each
-  `{lot, quantity}`, a lot's id as `salli portfolio lots` shows it). Salli
-  replays the holding's recorded transactions with the sale appended, in
-  memory (`lots.replay`, unchanged); nothing is written. A sale of more than
-  is held then, or of a lot that isn't, is refused at its path. There is no
-  average-cost pooling: where an authority matches sales by average cost,
-  the gain may differ, and Salli doesn't guess which method applies.
+- **Lots.** By the holding's `cost_method`: first in, first out (unless the
+  sale names lots: `lots`, each `{lot, quantity}`, a lot's id as `salli
+  portfolio lots` shows it) or average cost. Salli replays the holding's
+  recorded transactions with the sale appended, in memory (`lots.replay`,
+  unchanged); nothing is written. A sale of more than is held then, or of a
+  lot that isn't, is refused at its path.
 - **Fees** are your own figure (your broker's), in your base currency. Left
   out, they are zero, and the result says "no fees given".
 - **The gain** is the proceeds less fees less the consumed lots' cost, in the

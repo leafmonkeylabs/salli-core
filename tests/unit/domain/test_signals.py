@@ -125,9 +125,23 @@ def test_cash_covering_fewer_months_than_the_target_is_described_once_a_month_is
     low = emergency_fund_low(Decimal(500), Decimal(1000), 6, 1, "USD")
     assert [s.kind for s in low] == ["emergency_fund_low"]
     assert "0.5 months" in low[0].detail and low[0].action == "see_cash_flow"
+    assert "target" not in low[0].detail and "6 months" in (low[0].rationale or "")
     assert_never_urges([s.title for s in low] + [s.detail for s in low])
     assert emergency_fund_low(Decimal(500), Decimal(1000), 6, 0, "USD") == []
     assert emergency_fund_low(Decimal(6000), Decimal(1000), 6, 3, "USD") == []
+
+
+def test_the_emergency_fund_signal_is_graded_by_months_covered():
+    def grade(liquid: int) -> str:
+        return emergency_fund_low(Decimal(liquid), Decimal(1000), 6, 3, "USD")[0].severity
+
+    assert [grade(900), grade(1000), grade(2900), grade(3000), grade(5900)] == [
+        "high",
+        "medium",
+        "medium",
+        "low",
+        "low",
+    ]
 
 
 def test_a_debt_at_or_above_the_methods_line_is_described_with_its_source():
@@ -140,5 +154,7 @@ def test_a_debt_at_or_above_the_methods_line_is_described_with_its_source():
         "USD",
     )
     assert [(s.kind, s.refs, s.action) for s in found] == [("expensive_debt", ("d1",), "see_debts")]
-    assert "placeholder" in found[0].detail and "not any country's figure" in found[0].detail
+    assert "placeholder" in (found[0].rationale or "")
+    assert "not any country's figure" in (found[0].rationale or "")
+    assert "%" in found[0].detail and "placeholder" not in found[0].detail
     assert_never_urges([found[0].title, found[0].detail])

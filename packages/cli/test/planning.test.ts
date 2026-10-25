@@ -151,12 +151,42 @@ describe('investments, subscriptions and insurance', () => {
       equity         11,250.40  79.6%
       bond            2,890.10  20.4%
 
+      Expense ratio  0.03% weighted, on USD 11,250.40
+      Yearly cost    USD 3.38
+
       Rebalancing
       ASSET CLASS    NOW  TARGET  DRIFT
       equity       79.6%     60%  19.6%
       "
     `);
     expect(mock.requestsTo('GET', '/v1/portfolio/summary')[0]?.query.getAll('target')).toEqual(['equity:0.6', 'bond:0.4']);
+  });
+
+  it('keeps an investment policy and reports drift beside the risk profile', async () => {
+    const set = await run(['ips', 'set', '--target', 'equity:0.8:0.05', '--target', 'bond:20%', '--rebalance', 'both', '--every-months', '12', '--horizon', '12', '--review-on', '2027-10-01']);
+    expect(set.code).toBe(0);
+    expect(lastBody('/v1/ips')).toEqual({
+      targets: [{ asset_class: 'equity', target: '0.8', band: '0.05' }, { asset_class: 'bond', target: '0.2' }],
+      rebalancing: { rule: 'both', every_months: 12 },
+      horizon_years: 12,
+      review_on: '2027-10-01',
+    });
+    const drift = await run(['ips', 'drift']);
+    expect(drift.stdout).toContain('Capacity');
+    expect(drift.stdout).toContain('above your balanced profile');
+    expect((await run(['ips'])).stdout).toContain('version 2');
+    expect((await run(['ips', 'history'])).stdout).toContain('equity 80%');
+    expect((await run(['ips', 'risk'])).stdout).toContain('balanced: equity up to 70%');
+  });
+
+  it('works out insurance needs as figures and sets a holding’s cost method', async () => {
+    const needs = await run(['insurance', 'needs', '--years', '15']);
+    expect(mock.requestsTo('GET', '/v1/insurance/needs')[0]?.query.get('replacement_years')).toBe('15');
+    expect(needs.stdout).toContain('Life cover need');
+    await run(['holdings', 'update', 'VTI', '--cost-method', 'average', '--expense-ratio', '0.03%']);
+    expect(lastBody('/v1/portfolio/')).toEqual({ cost_method: 'average', expense_ratio: '0.0003' });
+    await run(['holdings', 'update', 'VTI', '--cost-method', 'default', '--expense-ratio', 'none']);
+    expect(lastBody('/v1/portfolio/')).toEqual({ cost_method: null, expense_ratio: null });
   });
 
   it('lists holdings, subscriptions and policies', async () => {

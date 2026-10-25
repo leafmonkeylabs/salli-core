@@ -26,7 +26,8 @@ scenario can sell.
 **A sale** (`sell`): its units (given, or the value to sell over the price,
 to 18 places) are replayed with the holding's recorded transactions and the
 scenario's earlier trades on it (`portfolio.lots.replay`, unchanged, in
-memory): first in, first out, or the lots named (decision 20). The replay
+memory): by the holding's cost method (first in, first out, or average
+cost), or the lots named (decision 20). The replay
 says the proceeds (units × price), the lots consumed and their cost, and the
 realised gain (proceeds − fees − cost), in the holding's currency and the
 base one (each lot at the rate it was bought at; the sale at the as-of
@@ -406,7 +407,7 @@ def _replay(pending: Sequence[_Pending], out: Trades) -> None:
                 continue
             history = [*p.holding.transactions, *buys, *sales, p.transaction]
             try:
-                book = replay(history, p.day)
+                book = replay(history, p.day, method=p.holding.cost_method)
             except TransactionError as error:
                 out.problems.append(Problem(p.path, str(error)))
                 continue

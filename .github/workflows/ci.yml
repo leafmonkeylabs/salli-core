@@ -82,6 +82,9 @@ jobs:
           src/salli/application/market_data.py
           src/salli/application/services/portfolio_service.py
           src/salli/interfaces/api/routers/portfolio.py
+          src/salli/domain/portfolio/policy.py src/salli/domain/portfolio/risk.py
+          src/salli/domain/risk/capacity.py src/salli/interfaces/api/routers/ips.py
+          src/salli/application/services/investment_policy_service.py
           src/salli/application/permissions.py src/salli/adapters/net
           src/salli/application/services/personal_access_token_service.py
           src/salli/interfaces/api/routers/tokens.py src/salli/interfaces/api/routers/auth.py

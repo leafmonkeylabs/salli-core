@@ -46,6 +46,7 @@ from salli.domain.portfolio.lots import (
     EXACT,
     INCOME,
     ZERO,
+    CostMethod,
     Kind,
     Position,
     Replay,
@@ -68,6 +69,8 @@ class History:
     transactions: Sequence[Transaction]
     pricing: Pricing
     rates: Mapping[date, Decimal]
+    #: How its sales pick their lots.
+    method: CostMethod = "fifo"
 
 
 @dataclass(frozen=True)
@@ -207,7 +210,7 @@ class _Timeline:
 
 
 def _timeline(h: History, start: date | None, days: Sequence[date], end: date) -> _Timeline:
-    replay = Replay(h.transactions)
+    replay = Replay(h.transactions, h.method)
     at_cost: list[AtCost] = []
 
     def value(on: date, position: Position) -> Valuation:
@@ -241,7 +244,7 @@ def _figures(
     *,
     base: bool,
 ) -> Figures:
-    book = Replay(h.transactions).advance(end).book()
+    book = Replay(h.transactions, h.method).advance(end).book()
     in_period = [tx for tx in h.transactions if (start is None or tx.on >= start) and tx.on <= end]
     own_days = sorted({tx.on for tx in in_period if tx.kind is not Kind.SPLIT})
     sales = [s for s in book.sales if start is None or s.on >= start]

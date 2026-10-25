@@ -1038,6 +1038,8 @@ class UserProfileORM(Base):
     employment_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_category: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # The questionnaire's horizon, for the risk capacity measure.
+    risk_horizon_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
     life_stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Gates the MCP OAuth /authorize endpoint (see oauth_* tables below) — off by
@@ -1461,6 +1463,11 @@ class HoldingORM(Base):
     account_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("accounts.id"), nullable=True
     )
+    # How its sales pick their lots: fifo or average; NULL, the active tax
+    # rule set's `cost_basis`, else fifo (core_0040).
+    cost_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # The user's figure for its yearly running cost, a fraction of its value.
+    expense_ratio: Mapped[Decimal | None] = mapped_column(Numeric(10, 6), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -1472,6 +1479,29 @@ class HoldingORM(Base):
         Index("ix_holdings_user_active", "user_id", "is_active"),
         Index("ix_holdings_account", "account_id"),
         CheckConstraint("currency ~ '^[A-Z]{3}$'", name="ck_holdings_currency"),
+        CheckConstraint("cost_method IN ('fifo', 'average')", name="ck_holdings_cost_method"),
+        CheckConstraint(
+            "expense_ratio >= 0 AND expense_ratio < 1", name="ck_holdings_expense_ratio"
+        ),
+    )
+
+
+class InvestmentPolicyORM(Base):
+    """One version of a user's investment policy statement
+    (domain/portfolio/policy.py): added, never updated (core_0040)."""
+
+    __tablename__ = "investment_policies"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "version", name="uq_investment_policies_user_version"),
     )
 
 

@@ -81,6 +81,7 @@ and at most 28 significant digits. Dates are `"YYYY-MM-DD"`.
 | `result` | `{net, round?}`. See [The result](#the-result). |
 | `deadlines` | `{key, label, date, source?}`. |
 | `suggested_accounts` | Accounts a user's chart should have: `{code, name, type: asset\|liability\|equity\|income\|expense, tax_role?}`; `tax_role` names a declared role. |
+| `cost_basis` | Optional: how holdings' sales are costed where these rules apply, `fifo` (first in, first out; a sale may name its lots) or `average` (average cost). A holding's own `cost_method` overrides it; with neither, first in, first out. |
 | `forms` | `{key, label, fields: [{id, label, value}], instructions?, url?}`; each `value` is an expression giving a number or true/false. |
 | `examples` | Worked examples: `{name, source?, inputs, expected}`. See [Validation](#validation). |
 

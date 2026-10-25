@@ -22,7 +22,9 @@ DEFAULT_V1 = FiPack(
     # at 50%); debt is scored by what it costs (rates weighted by balance)
     # where rates are known, by its share of assets otherwise; and under two
     # full months of income and spending the grade is "Not enough data".
-    version="3.0.0",
+    # 4.0.0: debt is scored by its size too: half of the debt component is
+    # the debt-service ratio (scheduled payments ÷ income), nothing at 40%.
+    version="4.0.0",
     emergency_fund_target_months=6,
     savings_rate_for_full_score=Decimal("0.50"),  # saving 50%+ of income scores full marks
     weights={
@@ -33,6 +35,8 @@ DEFAULT_V1 = FiPack(
         "goals": Decimal("0.15"),
     },
     debt_rate_for_zero_score=Decimal("0.20"),  # a 20% average rate scores no marks
+    debt_service_for_zero_score=Decimal("0.40"),  # payments of 40% of income score no marks
+    debt_service_weight=Decimal("0.5"),
     progress_for_fi_ready=Decimal(1),
     progress_for_strong=Decimal("0.5"),
 )

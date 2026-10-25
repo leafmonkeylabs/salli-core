@@ -44,6 +44,7 @@ from salli.adapters.db.models import (
     HoldingTransactionORM,
     InstanceSettingORM,
     InsuranceTargetORM,
+    InvestmentPolicyORM,
     JournalEntryORM,
     LoginFailureORM,
     LoginORM,
@@ -96,6 +97,7 @@ from salli.application.ports import (
     HoldingTransactionRepository,
     InstanceSettingsRepository,
     InsuranceTargetRepository,
+    InvestmentPolicyRepository,
     LedgerRepository,
     LlmCredentialRepository,
     LoginRepository,
@@ -1522,6 +1524,7 @@ class SQLUserProfileRepository(UserProfileRepository):
             "employment_type": row.employment_type,
             "risk_score": row.risk_score,
             "risk_category": row.risk_category,
+            "risk_horizon_years": row.risk_horizon_years,
             "life_stage": row.life_stage,
             "mcp_enabled": row.mcp_enabled,
             "daily_briefing_enabled": row.daily_briefing_enabled,
@@ -2389,8 +2392,45 @@ def _holding_to_dict(r: HoldingORM) -> dict[str, Any]:
         "current_value_minor": r.current_value_minor,
         "is_active": r.is_active,
         "account_id": r.account_id,
+        "cost_method": r.cost_method,
+        "expense_ratio": r.expense_ratio,
         "created_at": r.created_at.isoformat(),
         "updated_at": r.updated_at.isoformat(),
+    }
+
+
+class SQLInvestmentPolicyRepository(InvestmentPolicyRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def add(self, user_id: str, content: dict[str, Any]) -> dict[str, Any]:
+        latest = (
+            await self._s.execute(
+                select(func.max(InvestmentPolicyORM.version)).where(
+                    InvestmentPolicyORM.user_id == user_id
+                )
+            )
+        ).scalar_one_or_none()
+        row = InvestmentPolicyORM(user_id=user_id, version=(latest or 0) + 1, content=content)
+        self._s.add(row)
+        await self._s.flush()
+        return _policy_to_dict(row)
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        stmt = (
+            select(InvestmentPolicyORM)
+            .where(InvestmentPolicyORM.user_id == user_id)
+            .order_by(InvestmentPolicyORM.version)
+        )
+        return [_policy_to_dict(r) for r in (await self._s.execute(stmt)).scalars().all()]
+
+
+def _policy_to_dict(r: InvestmentPolicyORM) -> dict[str, Any]:
+    return {
+        "id": r.id,
+        "version": r.version,
+        "content": r.content,
+        "created_at": r.created_at.isoformat(),
     }
 
 
@@ -2412,6 +2452,8 @@ class SQLPortfolioRepository(PortfolioRepository):
                 current_value_minor=int(holding["current_value_minor"]),
                 is_active=holding.get("is_active", True),
                 account_id=holding.get("account_id"),
+                cost_method=holding.get("cost_method"),
+                expense_ratio=holding.get("expense_ratio"),
             )
         )
         await self._s.flush()
@@ -2451,9 +2493,10 @@ class SQLPortfolioRepository(PortfolioRepository):
         ):
             if k in updates and updates[k] is not None:
                 setattr(r, k, updates[k])
-        # None unlinks the holding from its account.
-        if "account_id" in updates:
-            r.account_id = updates["account_id"]
+        # None unlinks the holding from its account, or clears the others.
+        for k in ("account_id", "cost_method", "expense_ratio"):
+            if k in updates:
+                setattr(r, k, updates[k])
         await self._s.flush()
 
     async def delete(self, user_id: str, holding_id: str) -> None:
@@ -3005,6 +3048,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # allocations, rather than relying on the cascade.
         await _delete(HoldingTransactionORM, HoldingTransactionORM.user_id)
         await _delete(HoldingORM, HoldingORM.user_id)
+        await _delete(InvestmentPolicyORM, InvestmentPolicyORM.user_id)
 
         # journal_entries cascade-deletes their own postings (ondelete="CASCADE"
         # on postings.entry_id); statements cascade-deletes parsed_transactions
