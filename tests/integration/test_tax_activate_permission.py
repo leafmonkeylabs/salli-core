@@ -72,10 +72,33 @@ async def _approved_device_code(oauth: McpOAuthService, client_id: str, resource
 
 
 async def _device_token(oauth: McpOAuthService, client_id: str, resource: str) -> str:
-    """A token as a client gets one: a device code the user approves."""
+    """A token as a client gets one: a device code the user approves (the
+    CLI), or a code from the consent page (a client that registered itself)."""
+    if client_id != CLI_CLIENT_ID:
+        return (await _code_token(oauth, client_id, resource))["access_token"]
     device_code = await _approved_device_code(oauth, client_id, resource)
     tokens = await oauth.exchange_device_code(device_code, client_id)
     return tokens["access_token"]
+
+
+async def _code_token(service: McpOAuthService, client_id: str, resource: str):
+    """Tokens as a client that registered itself gets them: the person
+    approves on the consent page, and the client redeems the code."""
+    import base64
+    import hashlib
+    from urllib.parse import parse_qs, urlparse
+
+    async with service._uow_factory() as uow:
+        redirect = (await uow.oauth_clients.get(client_id))["redirect_uris"][0]
+    verifier = "v" * 64
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+    consent = await service.build_consent_redirect(
+        client_id, redirect, challenge.rstrip(b"=").decode(), "S256", "", resource, None
+    )
+    art = parse_qs(urlparse(consent).query)["rt"][0]
+    back = await service.complete_consent(art, USER, approve=True, password_checked=True)
+    code = parse_qs(urlparse(back).query)["code"][0]
+    return await service.exchange_authorization_code(code, redirect, client_id, verifier)
 
 
 async def _session(logins: LoginService) -> str:

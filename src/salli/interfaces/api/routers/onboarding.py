@@ -25,7 +25,12 @@ from salli.domain.accounting.models import AccountType, Source
 from salli.domain.jurisdiction import MAX_TAX_ID_LENGTH
 from salli.domain.risk.models import RiskCategory
 from salli.interfaces.api.contract import Amount, AmountIn, CountryCode, CurrencyCode, DecimalIn
-from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
+from salli.interfaces.api.deps import (
+    AppServices,
+    CurrentEmail,
+    CurrentUser,
+    require_recent_password,
+)
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
@@ -469,9 +474,24 @@ class DataExport(BaseModel):
     it: each period's status, items (kinds, counts, dates) and hash."""
 
 
-@router.get("/export")
+#: Export and erasure each hand over or end everything: behind the step-up.
+_STEP_UP = {
+    403: {
+        "description": "`/problems/step-up-required`: sign in again on Salli's page first "
+        "(the console or the app, more than five minutes after the password)"
+    }
+}
+
+
+@router.get(
+    "/export",
+    dependencies=[require_recent_password("Exporting all your data")],
+    responses=_STEP_UP,
+)
 async def export_my_data(user_id: CurrentUser, svc: AppServices) -> DataExport:
-    """Everything Salli has stored about this user, as one JSON document."""
+    """Everything Salli has stored about this user, as one JSON document. A
+    sign-in whose client wants a recent password (the console's and the
+    app's) needs one entered in the last five minutes."""
     data = await svc.data_portability.export_all(user_id)
     # Encoded the way FastAPI encoded this document before it had a model, so
     # every value reaches clients as it always has — including the sections
@@ -493,14 +513,20 @@ class AccountDeletion(BaseModel):
     counts: dict[str, int]
 
 
-@router.delete("/account")
+@router.delete(
+    "/account",
+    dependencies=[require_recent_password("Deleting your account")],
+    responses=_STEP_UP,
+)
 async def delete_my_account(
     body: DeleteAccountRequest, user_id: CurrentUser, email: CurrentEmail, svc: AppServices
 ) -> AccountDeletion:
     """
     Permanently delete every row belonging to this user. Irreversible.
     Requires confirm_email to match the authenticated account's email —
-    a deliberate friction point against an accidental or spoofed call.
+    a deliberate friction point against an accidental or spoofed call —
+    and, where the client wants one (the console's and the app's), a
+    password entered in the last five minutes.
     """
     if not email or body.confirm_email.strip().lower() != email.strip().lower():
         raise HTTPException(

@@ -3,8 +3,9 @@ Salli's OAuth server, for both kinds of client it serves.
 
 AI clients get tokens for MCP; Salli's own CLI gets tokens for the REST API.
 Each resource accepts only its own tokens, the MCP switch governs only MCP, a
-native app's loopback redirect works on any port, and a device without a
-browser can be signed in with a code.
+native app's loopback redirect works on any port, a client registers only
+https or loopback redirects, and a device without a browser can be signed in
+with a code, by Salli's own CLI only.
 """
 
 from __future__ import annotations
@@ -554,9 +555,16 @@ async def test_a_loopback_redirect_matches_on_any_port_and_nothing_else_does(
 
 
 async def _start_device(service, clients, resource=f"{BASE}/v1"):
-    cli = await clients.register("Salli CLI", ["http://127.0.0.1/callback"])
+    cli = clients.seed("salli-cli", "Salli CLI", ["http://127.0.0.1/callback"])
     started = await service.start_device_authorization(cli["client_id"], "", resource)
     return cli["client_id"], started
+
+
+async def test_only_salli_s_own_cli_may_ask_for_a_device_code(world):
+    service, clients, *_ = world
+    phisher = await clients.register("Salli CLI", ["https://evil.test/cb"])
+    with pytest.raises(OAuthError, match="Only Salli's own CLI"):
+        await service.start_device_authorization(phisher["client_id"], "", f"{BASE}/mcp")
 
 
 def _make_pollable(tokens):
@@ -646,11 +654,51 @@ def test_metadata_advertises_the_device_grant(world):
     assert "urn:ietf:params:oauth:grant-type:device_code" in metadata["grant_types_supported"]
 
 
-async def test_a_registered_client_is_told_it_may_use_the_device_grant(world):
-    # Strict OAuth libraries refuse a grant the registration did not list.
+async def test_a_registered_client_is_not_offered_the_device_grant(world):
     service, *_ = world
-    client = await service.register_client("salli CLI", ["http://127.0.0.1/callback"])
-    assert "urn:ietf:params:oauth:grant-type:device_code" in client["grant_types"]
+    client = await service.register_client("An AI client", ["http://127.0.0.1/callback"])
+    assert client["grant_types"] == ["authorization_code", "refresh_token"]
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "https://ai.example/cb",
+        "http://127.0.0.1/callback",
+        "http://127.0.0.1:5000/callback",
+        "http://localhost:8080/cb",
+        "http://[::1]:5000/cb",
+    ],
+)
+async def test_a_client_registers_https_or_loopback_redirects(world, uri):
+    service, *_ = world
+    assert (await service.register_client("An AI client", [uri]))["redirect_uris"] == [uri]
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "http://ai.example/cb",
+        "http://192.168.1.5/cb",
+        "http://127.0.0.1.evil.test/cb",
+        "javascript:alert(1)",
+        "https:///cb",
+    ],
+)
+async def test_a_client_cannot_register_another_http_redirect(world, uri):
+    service, *_ = world
+    with pytest.raises(OAuthError, match="invalid redirect_uri"):
+        await service.register_client("An AI client", [uri])
+
+
+async def test_a_plain_http_redirect_registered_before_is_refused(world):
+    service, clients, *_ = world
+    old = await clients.register("An AI client", ["http://ai.example/cb"])
+    _, challenge = _pkce()
+    with pytest.raises(OAuthError, match="redirect_uri"):
+        await service.build_consent_redirect(
+            old["client_id"], "http://ai.example/cb", challenge, "S256", "", None, None
+        )
 
 
 # ── The console's client (docs/design/console.md, section 2) ─────────────────
@@ -914,6 +962,23 @@ async def test_the_cli_s_sign_in_has_no_absolute_end(world, clock):
         clock.advance(hours=20)  # within the refresh token's day
         pair = await service.exchange_refresh_token(pair["refresh_token"], "salli-cli")
     assert next(iter(tokens.grants.values()))["expires_at"] is None
+
+
+async def test_an_ai_client_s_connection_ends_ninety_days_after_its_approval(world, clock):
+    service, clients, tokens, profiles = world
+    profiles.mcp_enabled = True
+    claude = await clients.register("Claude", ["https://claude.test/cb"])
+    pair = await _sign_in(service, claude["client_id"], "https://claude.test/cb", f"{BASE}/mcp")
+    [grant] = tokens.grants.values()
+    assert grant["expires_at"] == clock() + timedelta(days=90)
+    # Refreshing within each refresh token's day keeps it going, to the end.
+    for _ in range(93):
+        clock.advance(hours=23)
+        pair = await service.exchange_refresh_token(pair["refresh_token"], claude["client_id"])
+    clock.advance(hours=90 * 24 - 93 * 23)
+    with pytest.raises(OAuthError):
+        await service.exchange_refresh_token(pair["refresh_token"], claude["client_id"])
+    assert await service.verify_access_token(pair["access_token"], audience=MCP) is None
 
 
 async def test_revoking_any_token_of_a_grant_revokes_the_grant(world):

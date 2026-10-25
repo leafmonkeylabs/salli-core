@@ -411,6 +411,51 @@ async def test_deleting_the_account_reports_what_went(client, app, mock_services
     assert r.json() == {"deleted": True, "counts": {"accounts": 2, "budgets": 0}}
 
 
+async def test_export_and_erasure_need_a_recent_password_where_the_client_asks(
+    client, app, mock_services
+):
+    from salli.interfaces.api.deps import Principal, get_current_email, get_principal
+
+    app.dependency_overrides[get_current_email] = lambda: "me@example.com"
+    service = _portability_service()
+    service.export_all = AsyncMock(wraps=service.export_all)
+    service.delete_account = AsyncMock(return_value={})
+    mock_services.data_portability = service
+
+    def signed_in(minutes_ago: int) -> None:
+        app.dependency_overrides[get_principal] = lambda: Principal(
+            USER,
+            None,
+            "oauth",
+            first_party_client=True,
+            sign_in_age=datetime.timedelta(minutes=minutes_ago),
+            fresh_within=datetime.timedelta(minutes=5),
+        )
+
+    def export():
+        return client.get("/v1/onboarding/export", headers=AUTH)
+
+    def erase():
+        return client.request(
+            "DELETE",
+            "/v1/onboarding/account",
+            json={"confirm_email": "me@example.com"},
+            headers=AUTH,
+        )
+
+    signed_in(minutes_ago=10)
+    for stale in (await export(), await erase()):
+        assert stale.status_code == 403
+        assert stale.json()["type"] == "/problems/step-up-required"
+        assert stale.json()["max_age"] == 300
+    mock_services.data_portability.export_all.assert_not_awaited()
+    mock_services.data_portability.delete_account.assert_not_awaited()
+
+    signed_in(minutes_ago=1)
+    assert (await export()).status_code == 200
+    assert (await erase()).status_code == 200
+
+
 async def test_the_export_keeps_closed_accounts_and_every_tax_computation():
     service = _portability_service()
     document = await service.export_all(USER)

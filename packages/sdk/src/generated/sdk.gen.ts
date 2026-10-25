@@ -912,7 +912,9 @@ export const onboardingGoals = <ThrowOnError extends boolean = false>(options: O
 /**
  * Export My Data
  *
- * Everything Salli has stored about this user, as one JSON document.
+ * Everything Salli has stored about this user, as one JSON document. A
+ * sign-in whose client wants a recent password (the console's and the
+ * app's) needs one entered in the last five minutes.
  */
 export const accountExport = <ThrowOnError extends boolean = false>(options?: Options<AccountExportData, ThrowOnError>): RequestResult<AccountExportResponses, AccountExportErrors, ThrowOnError> => (options?.client ?? client).get<AccountExportResponses, AccountExportErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -925,7 +927,9 @@ export const accountExport = <ThrowOnError extends boolean = false>(options?: Op
  *
  * Permanently delete every row belonging to this user. Irreversible.
  * Requires confirm_email to match the authenticated account's email —
- * a deliberate friction point against an accidental or spoofed call.
+ * a deliberate friction point against an accidental or spoofed call —
+ * and, where the client wants one (the console's and the app's), a
+ * password entered in the last five minutes.
  */
 export const accountDelete = <ThrowOnError extends boolean = false>(options: Options<AccountDeleteData, ThrowOnError>): RequestResult<AccountDeleteResponses, AccountDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AccountDeleteResponses, AccountDeleteErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

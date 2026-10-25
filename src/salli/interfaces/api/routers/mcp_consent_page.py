@@ -21,7 +21,8 @@ password again before activating tax rules. Beside the password is a field
 for an authenticator app's code (or a recovery code), which a login with
 two-step sign-in on must fill in; for anyone else it stays empty.
 
-An AI client is let in to read. Changing anything (posting, discarding,
+A client that registered itself is named as it named itself, beside "Not
+verified by Salli". An AI client is let in to read. Changing anything (posting, discarding,
 rules, documents) is a separate permission, `mcp:write`, given only by ticking
 "Allow changes", which starts unticked. The Salli app's own AI asks the person
 before each change in the app, so it has no tick box and may change.
@@ -91,6 +92,9 @@ _STYLE = (
     ".allow input{flex:none;width:24px;height:24px;margin:0;accent-color:var(--green)}"
     ".allow label{margin:0;font-size:1rem;font-weight:400;color:var(--ink)}"
     ".allow small{display:block;color:var(--graphite);font-size:.875rem}"
+    ".unverified{display:inline-block;margin-left:.4rem;padding:0 .4rem;font-size:.75rem;"
+    "font-weight:500;letter-spacing:0;vertical-align:middle;color:var(--graphite);"
+    "border:1px solid var(--field)}"
 )
 
 #: The logo, outlined (docs/brand/assets/salli-logo.svg; the wordmark is never
@@ -282,8 +286,15 @@ def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "") -> str:
             "<div class=row><button name=decision value=allow>Allow</button>"
             "<button name=decision value=deny formnovalidate>Deny</button></div>"
         )
+    # A client that registered itself chose its own name: say Salli hasn't
+    # checked it, beside it.
+    unverified = (
+        ""
+        if info.get("first_party") or info.get("reauthenticate")
+        else " <span class=unverified>Not verified by Salli</span>"
+    )
     return (
-        f"<h1>{e(_title(info))}</h1>{intro}"
+        f"<h1>{e(_title(info))}{unverified}</h1>{intro}"
         "<form method=post>"
         f'<input type=hidden name=rt value="{e(rt)}">{_who(dev)}'
         + (_ALLOW_CHANGES if _offers_changes(info) and not info.get("reauthenticate") else "")

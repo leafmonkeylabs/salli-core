@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     # A console sign-in ends this many hours after its password was checked,
     # however often it refreshes. The CLI's sign-ins are not affected.
     salli_console_sign_in_hours: int = Field(default=12, ge=1, le=24 * 7)
+    # An AI client's connection (any client but Salli's own) ends this many
+    # days after the person approved it, however often it refreshes; then
+    # the person connects it again.
+    mcp_grant_lifetime_days: int = Field(default=90, ge=1, le=365)
 
     # CORS: the web origins whose pages may call this API from a browser,
     # comma-separated (`https://app.example.org,https://example.org`). None by

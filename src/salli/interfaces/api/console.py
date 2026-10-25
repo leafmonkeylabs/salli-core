@@ -22,7 +22,8 @@ and 2; decisions 1, 7 and 23).
   route at all: `/console` is then what any unknown path is.
 
 Every other response gets `Cache-Control: no-store` (`NoStoreMiddleware`)
-unless it set its own.
+unless it set its own; and every response, where SALLI_PUBLIC_URL is HTTPS,
+`Strict-Transport-Security`.
 """
 
 from __future__ import annotations
@@ -161,12 +162,20 @@ def console_router(settings: Settings) -> APIRouter | None:
     return router
 
 
-class NoStoreMiddleware:
-    """`Cache-Control: no-store` on every response that set none of its own.
-    Pure ASGI, like RequestContextMiddleware, so streams pass through."""
+#: A year of HTTPS only, once a browser has seen the server over HTTPS. Not
+#: for subdomains: the operator's other sites are theirs to decide.
+HSTS = (b"strict-transport-security", b"max-age=31536000")
 
-    def __init__(self, app: Any) -> None:
+
+class NoStoreMiddleware:
+    """`Cache-Control: no-store` on every response that set none of its own,
+    and, with `hsts` (SALLI_PUBLIC_URL is HTTPS), Strict-Transport-Security on
+    every response. Pure ASGI, like RequestContextMiddleware, so streams pass
+    through."""
+
+    def __init__(self, app: Any, hsts: bool = False) -> None:
         self._app = app
+        self._hsts = hsts
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         if scope.get("type") != "http":
@@ -178,6 +187,8 @@ class NoStoreMiddleware:
                 headers = message.setdefault("headers", [])
                 if not any(name.lower() == b"cache-control" for name, _ in headers):
                     headers.append((b"cache-control", b"no-store"))
+                if self._hsts:
+                    headers.append(HSTS)
             await send(message)
 
         await self._app(scope, receive, _send)

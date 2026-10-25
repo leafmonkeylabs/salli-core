@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from salli.application.permissions import Actor, needs_step_up, permissions_for
+from salli.application.permissions import Actor, is_recent, needs_step_up, permissions_for
 from salli.application.ports import IdentityProvider
 from salli.application.services.llm_credential_service import ResolvedCredentials
 from salli.application.services.login_service import is_session_token
@@ -292,6 +292,20 @@ def require_permission(permission: str) -> Any:
                 "connectors and other applications never can."
             )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=why)
+
+    return Depends(check)
+
+
+def require_recent_password(what: str) -> Any:
+    """A dependency sending a sign-in whose client wants a recent password
+    for powerful acts (the console's and the app's five minutes), and whose
+    check is older, through the step-up first, as `require_permission` does
+    for `tax:activate`: a 403 `/problems/step-up-required`."""
+
+    async def check(principal: CurrentPrincipal) -> None:
+        fresh_within = principal.fresh_within
+        if fresh_within and not is_recent(principal.sign_in_age, fresh_within):
+            raise StepUpRequired(what, int(fresh_within.total_seconds()))
 
     return Depends(check)
 

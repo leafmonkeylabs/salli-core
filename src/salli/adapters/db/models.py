@@ -1525,9 +1525,10 @@ class OAuthGrantORM(Base):
 
     `authenticated_at` is when the person's password was checked, carried
     through every refresh: the console's powerful permissions need it to be
-    recent. `expires_at` is an absolute end, however often it refreshes (the
-    console's, SALLI_CONSOLE_SIGN_IN_HOURS after the sign-in); none for other
-    clients, whose sign-ins last while their refresh tokens do."""
+    recent. `expires_at` is an absolute end, however often it refreshes: the
+    console's, SALLI_CONSOLE_SIGN_IN_HOURS after the sign-in; an AI client's,
+    MCP_GRANT_LIFETIME_DAYS after (core_0029); none for the CLI's and the
+    app's, whose sign-ins last while their refresh tokens do."""
 
     __tablename__ = "oauth_grants"
 

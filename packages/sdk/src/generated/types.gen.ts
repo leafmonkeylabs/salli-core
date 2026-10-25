@@ -15475,6 +15475,10 @@ export type AccountExportData = {
 
 export type AccountExportErrors = {
     /**
+     * `/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password)
+     */
+    403: Problem;
+    /**
      * An error, as RFC 9457 problem details
      */
     default: Problem;
@@ -15499,6 +15503,10 @@ export type AccountDeleteData = {
 };
 
 export type AccountDeleteErrors = {
+    /**
+     * `/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password)
+     */
+    403: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
