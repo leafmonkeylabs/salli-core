@@ -21255,6 +21255,50 @@
         "title": "ConsentInfo",
         "description": "What the consent page shows the person before they decide."
       },
+      "CorrelationSensitivity": {
+        "properties": {
+          "shift": {
+            "type": "string",
+            "title": "Shift"
+          },
+          "volatility": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Volatility"
+          },
+          "success": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success"
+          },
+          "reach": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reach"
+          }
+        },
+        "type": "object",
+        "required": [
+          "shift",
+          "volatility",
+          "reach"
+        ],
+        "title": "CorrelationSensitivity",
+        "description": "The odds rerun with every correlation moved by `shift` each way (kept\nto [-1, 1]), when the pack marks its correlations as assumptions: each\nrange is [lowest, highest] over the three runs."
+      },
       "CoverMonth": {
         "properties": {
           "month": {
@@ -25704,6 +25748,16 @@
           },
           "withdrawal_tax": {
             "$ref": "#/components/schemas/WithdrawalTax"
+          },
+          "correlation_sensitivity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CorrelationSensitivity"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "placeholders": {
             "items": {
@@ -34614,12 +34668,32 @@
           "corrected_id": {
             "type": "string",
             "title": "Corrected Id"
+          },
+          "dated": {
+            "type": "string",
+            "enum": [
+              "original",
+              "today"
+            ],
+            "title": "Dated"
+          },
+          "dated_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dated Reason"
           }
         },
         "type": "object",
         "required": [
           "reversal_id",
-          "corrected_id"
+          "corrected_id",
+          "dated"
         ],
         "title": "Recategorised"
       },
@@ -35744,7 +35818,6 @@
                 "type": "string",
                 "enum": [
                   "cash_yield",
-                  "benchmark",
                   "cma_pack"
                 ]
               },

@@ -66,42 +66,48 @@
       "b": "lkr_govt",
       "value": "0.5",
       "source": "Assumption, not from a primary source: for the reviewer to replace (markets/lk/README.md)",
-      "date": "2026-05-26"
+      "date": "2026-05-26",
+      "assumption": true
     },
     {
       "a": "lkr_cash",
       "b": "lk_equity",
       "value": "0",
       "source": "Assumption, not from a primary source: for the reviewer to replace (markets/lk/README.md)",
-      "date": "2026-05-26"
+      "date": "2026-05-26",
+      "assumption": true
     },
     {
       "a": "lkr_cash",
       "b": "global_equity_usd",
       "value": "0",
       "source": "Assumption, not from a primary source: for the reviewer to replace (markets/lk/README.md)",
-      "date": "2026-05-26"
+      "date": "2026-05-26",
+      "assumption": true
     },
     {
       "a": "lkr_govt",
       "b": "lk_equity",
       "value": "0.2",
       "source": "Assumption, not from a primary source: for the reviewer to replace (markets/lk/README.md)",
-      "date": "2026-05-26"
+      "date": "2026-05-26",
+      "assumption": true
     },
     {
       "a": "lkr_govt",
       "b": "global_equity_usd",
       "value": "0",
       "source": "Assumption, not from a primary source: for the reviewer to replace (markets/lk/README.md)",
-      "date": "2026-05-26"
+      "date": "2026-05-26",
+      "assumption": true
     },
     {
       "a": "lk_equity",
       "b": "global_equity_usd",
       "value": "0.3",
       "source": "Assumption, not from a primary source: for the reviewer to replace (markets/lk/README.md)",
-      "date": "2026-05-26"
+      "date": "2026-05-26",
+      "assumption": true
     }
   ],
   "cash_yield": {

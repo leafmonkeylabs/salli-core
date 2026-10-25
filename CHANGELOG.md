@@ -4,6 +4,14 @@
 
 ### Added
 
+- **The odds give a range when a pack's correlations are assumptions.** A
+  correlation marked `"assumption": true` makes `GET /v1/fi/odds` rerun with
+  every correlation moved by 0.2 each way (kept to [-1, 1]) and report the
+  volatility, success and reach ranges (`correlation_sensitivity`).
+- **A recategorise says how it was dated.** `dated` is "original" (the
+  original's day is open, so the fix lands in its month) or "today", with
+  `dated_reason`; the CLI and the phone say so under the result.
+
 - **MCP catches up with the API, round 8.** Budget and debt writes
   (`set_monthly_budget`, `add_debt`, `update_debt`, each with
   `confirmed_by_user`); `client_ref` on `import_statement` (which is also
@@ -409,6 +417,12 @@
 ### Breaking
 
 #### Changed
+
+- **The Sharpe ratio is on one basis.** The CMA pack's cash yield (real) is
+  grossed up by the pack's inflation to set it against the nominal
+  time-weighted returns; with no inflation, or no cash yield or pack, there is
+  no Sharpe ratio and a note says why. The benchmark is no longer a hurdle
+  (`hurdle_source` drops "benchmark"): tracking error covers it.
 
 - **`SALLI_EXPERIMENTAL` is off by default.** The experimental engines'
   MCP tools and prompts (the investment policy, FI odds, the decision lab)

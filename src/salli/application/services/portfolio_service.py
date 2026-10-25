@@ -1220,8 +1220,9 @@ class PortfolioService:
         in the base one. With no `start`, since the first transaction; `end`
         defaults to today (or the latest transaction or price, if later).
         `risk` holds the risk figures (domain/portfolio/risk.py), from
-        monthly returns, against `cash_yield` or the closes recorded for the
-        `benchmark` symbol; with neither, the active CMA pack's cash yield.
+        monthly returns, the Sharpe ratio against `cash_yield` (nominal) or the
+        active CMA pack's cash yield put on a nominal basis with its inflation
+        (none without one), and the closes recorded for the `benchmark` symbol.
 
         Every holding counts, inactive ones too: a sale's gain belongs to its
         tax year however the holding is filed now. A holding declared by
@@ -1241,11 +1242,7 @@ class PortfolioService:
                 if benchmark
                 else []
             )
-            pack = (
-                await uow.cma_packs.active(user_id)
-                if cash_yield is None and not benchmark
-                else None
-            )
+            pack = await uow.cma_packs.active(user_id) if cash_yield is None else None
             blend_rows: dict[str, list[dict[str, Any]]] = {}
             weights: dict[str, Decimal] = {}
             if blend:
@@ -1319,16 +1316,31 @@ class PortfolioService:
             else None
         )
         bench_figures = risk.figures(bench, None) if bench else None
+        # The returns measured here are nominal (time-weighted, from
+        # prices), so the hurdle must be too: a CMA pack's cash yield is real,
+        # put back on a nominal basis with the pack's inflation.
+        hurdle_basis: str | None = None
+        no_sharpe = "No Sharpe ratio: give a cash yield or activate a CMA pack as the hurdle"
         if cash_yield is not None:
-            hurdle, hurdle_source = cash_yield, "cash_yield"
-        elif bench_figures is not None and bench_figures.yearly_return is not None:
-            hurdle, hurdle_source = bench_figures.yearly_return, "benchmark"
+            hurdle, hurdle_source, hurdle_basis = cash_yield, "cash_yield", "nominal"
         elif pack is not None:
             assumed = cma.stored(pack["content"], pack["id"], pack["content_hash"])
-            hurdle, hurdle_source = assumed.cash_yield.value, "cma_pack"
+            if assumed.inflation is None:
+                hurdle, hurdle_source = None, None
+                no_sharpe = (
+                    "No Sharpe ratio: the CMA pack's cash yield is after inflation and the "
+                    "pack gives no inflation to set it against these nominal returns"
+                )
+            else:
+                with localcontext(RATE):
+                    hurdle = (1 + assumed.cash_yield.value) * (1 + assumed.inflation.value) - 1
+                hurdle_source, hurdle_basis = "cma_pack", "nominal"
         else:
             hurdle, hurdle_source = None, None
+        assert hurdle is None or hurdle_basis == "nominal", "Sharpe needs a nominal hurdle"
         own = risk.figures(monthly, hurdle)
+        if hurdle is None and own.volatility:
+            notes.append(no_sharpe)
         blended: list[Decimal] | None = None
         if blend:
             parts = [

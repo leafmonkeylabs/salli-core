@@ -17,7 +17,7 @@ export default function Entry() {
   const theme = useTheme();
   const api = useApi();
   const queryClient = useQueryClient();
-  const { id = '', booked, account } = useLocalSearchParams<{ id: string; booked?: string; account?: string }>();
+  const { id = '', booked, account, dated, why } = useLocalSearchParams<{ id: string; booked?: string; account?: string; dated?: string; why?: string }>();
   const entry = useRead('entries.get', entriesGet, { path: { entry_id: id } });
   const provenance = useRead('entries.provenance', entriesProvenance, { path: { entry_id: id } });
   const accounts = useRead('accounts.list', accountsList);
@@ -45,7 +45,7 @@ export default function Entry() {
     onSuccess: async (made) => {
       setMoving(false);
       await queryClient.invalidateQueries({ queryKey: [api.server] });
-      router.replace({ pathname: '/entry/[id]', params: { id: made.corrected_id } });
+      router.replace({ pathname: '/entry/[id]', params: { id: made.corrected_id, dated: made.dated, why: made.dated_reason ?? '' } });
     },
   });
   const statement = provenance.data?.statement;
@@ -72,6 +72,14 @@ export default function Entry() {
       {booked ? (
         <Card>
           <Body alert>{`✓ ${moved && now ? t.bookedNow(moved.name, now) : t.booked}`}</Body>
+        </Card>
+      ) : null}
+      {dated ? (
+        <Card>
+          <Body alert>{`✓ ${t.categoryChanged}`}</Body>
+          <Body small muted>
+            {dated === 'today' ? t.datedToday(why ?? '') : t.datedOriginal}
+          </Body>
         </Card>
       ) : null}
       {data ? (

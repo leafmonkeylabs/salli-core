@@ -536,11 +536,13 @@ class RiskFigures(BaseModel):
     max_drawdown: DecimalOut | None
     #: (yearly_return − hurdle) ÷ volatility.
     sharpe: DecimalOut | None
-    #: The yearly return the Sharpe ratio is measured against.
+    #: The nominal yearly return the Sharpe ratio is measured against, on
+    #: the same basis as the time-weighted returns.
     hurdle: DecimalOut | None
-    #: "cash_yield" (given), "benchmark" (its yearly return) or "cma_pack"
-    #: (the active pack's cash yield); null: none.
-    hurdle_source: Literal["cash_yield", "benchmark", "cma_pack"] | None
+    #: "cash_yield" (given) or "cma_pack" (the active pack's real cash yield
+    #: grossed up by its inflation); null: none, so no Sharpe ratio (a note
+    #: says why). The benchmark is not a hurdle: tracking error covers it.
+    hurdle_source: Literal["cash_yield", "cma_pack"] | None
     benchmark: BenchmarkFigures | None
     #: Your policy's targets as weights over the series you named per class.
     blended_benchmark: BlendedBenchmark | None = None

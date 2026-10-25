@@ -168,6 +168,9 @@ export const strings = {
     moveButton: (to: string) => `Move to ${to}`,
     chooseCategory: 'Choose a category',
     recategoriseReason: 'Category changed in the app',
+    categoryChanged: 'Category changed.',
+    datedOriginal: 'Booked on the original’s day, so its month is corrected.',
+    datedToday: (why: string) => `Booked today, as the original’s day is closed: ${why}.`,
     reverseHelp: 'A posted entry is never edited. Reversing books the opposite entry on the same day (today, if that day is closed) and marks this one reversed.',
     confirmTitle: (what: string) => `Reverse ${what}?`,
     confirmBody:

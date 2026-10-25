@@ -728,17 +728,19 @@ class LedgerService:
         the original's and says why (`reason`)."""
         async with self._uow_factory() as uow:
             original = await self._reversible(uow, user_id, entry_id)
-            reversing = await self._reversal_of(uow, user_id, original, reason)
+            reversing, _ = await self._reversal_of(uow, user_id, original, reason)
             # The original is never written to: its `reversed_by` is read
             # from this entry's `reverses`.
             return await uow.ledger.save_entry(user_id, reversing)
 
     async def recategorise_entry(
         self, user_id: str, entry_id: str, posting_id: str, account_id: str, reason: str
-    ) -> dict[str, str]:
+    ) -> dict[str, str | None]:
         """Move one posting of an entry to another account of the same type:
         in one transaction, the entry's reversal and a corrected copy, both
-        dated as the reversal is (`reverse_entry`). The copy keeps the
+        dated as the reversal is (`reverse_entry`): `dated` says "original"
+        (that day is open, so the fix lands in its month) or "today", with
+        `dated_reason` saying why. The copy keeps the
         original's description, source, external_ref (its provenance),
         amounts, rates and tags, and names the original in `corrects`; the
         original's `reversed_by` is the reversal. ValueError for an entry or
@@ -763,7 +765,7 @@ class LedgerService:
                     f"{current.name} is a {current.type} account and {target.name} a "
                     f"{target.type} one: a category moves to an account of the same type."
                 )
-            reversing = await self._reversal_of(uow, user_id, original, reason)
+            reversing, closed = await self._reversal_of(uow, user_id, original, reason)
             corrected = JournalEntry(
                 entry_date=reversing.entry_date,
                 description=original.description,
@@ -786,7 +788,12 @@ class LedgerService:
             )
             reversal_id = await uow.ledger.save_entry(user_id, reversing)
             corrected_id = await uow.ledger.save_entry(user_id, corrected)
-        return {"reversal_id": reversal_id, "corrected_id": corrected_id}
+        return {
+            "reversal_id": reversal_id,
+            "corrected_id": corrected_id,
+            "dated": "today" if closed else "original",
+            "dated_reason": closed,
+        }
 
     @staticmethod
     async def _reversible(uow: Any, user_id: str, entry_id: str) -> StoredJournalEntry:
@@ -799,9 +806,10 @@ class LedgerService:
 
     async def _reversal_of(
         self, uow: Any, user_id: str, original: StoredJournalEntry, reason: str
-    ) -> JournalEntry:
-        """The entry that reverses `original`, dated as `reverse_entry` says;
-        BooksLocked when that day is closed."""
+    ) -> tuple[JournalEntry, str | None]:
+        """The entry that reverses `original`, dated as `reverse_entry` says,
+        and why that day is closed (None: it is open, so the original's day);
+        BooksLocked when today is closed too."""
         reason = reason.strip()
         if not reason:
             raise ValueError("Say why the entry is reversed: a reversal needs a reason.")
@@ -822,8 +830,12 @@ class LedgerService:
             for p in original.postings
         ]
         locked = await self._lock_date(uow, user_id)
-        closed = (locked is not None and original.entry_date <= locked) or (
-            await _reconciled(uow, user_id, original)
+        closed = (
+            f"The books are locked to {locked}"
+            if locked is not None and original.entry_date <= locked
+            else "A posting is cleared or a completed reconciliation covers that day"
+            if await _reconciled(uow, user_id, original)
+            else None
         )
         on = self._today().isoformat() if closed else original.entry_date
         refuse_if_locked(on, locked)
@@ -834,7 +846,7 @@ class LedgerService:
             reverses=original.id,
             postings=reversed_postings,
             base_currency=await uow.user_profiles.base_currency(user_id),
-        )
+        ), closed
 
     async def verify_chain(self, user_id: str) -> dict[str, Any]:
         """Whether the user's entries are as they were posted: their hash

@@ -3066,6 +3066,32 @@ export type ConsentInfo = {
 };
 
 /**
+ * CorrelationSensitivity
+ *
+ * The odds rerun with every correlation moved by `shift` each way (kept
+ * to [-1, 1]), when the pack marks its correlations as assumptions: each
+ * range is [lowest, highest] over the three runs.
+ */
+export type CorrelationSensitivity = {
+    /**
+     * Shift
+     */
+    shift: string;
+    /**
+     * Volatility
+     */
+    volatility: Array<string>;
+    /**
+     * Success
+     */
+    success?: Array<string> | null;
+    /**
+     * Reach
+     */
+    reach: Array<string>;
+};
+
+/**
  * CoverMonth
  */
 export type CoverMonth = {
@@ -5624,6 +5650,7 @@ export type FiOdds = {
      */
     percentiles: Array<OddsYear>;
     withdrawal_tax: WithdrawalTax;
+    correlation_sensitivity?: CorrelationSensitivity | null;
     /**
      * Placeholders
      */
@@ -10343,6 +10370,14 @@ export type Recategorised = {
      * Corrected Id
      */
     corrected_id: string;
+    /**
+     * Dated
+     */
+    dated: 'original' | 'today';
+    /**
+     * Dated Reason
+     */
+    dated_reason?: string | null;
 };
 
 /**
@@ -10985,7 +11020,7 @@ export type RiskFigures = {
     /**
      * Hurdle Source
      */
-    hurdle_source: 'cash_yield' | 'benchmark' | 'cma_pack' | null;
+    hurdle_source: 'cash_yield' | 'cma_pack' | null;
     benchmark: BenchmarkFigures | null;
     blended_benchmark?: BlendedBenchmark | null;
     /**

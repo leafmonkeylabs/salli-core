@@ -784,6 +784,18 @@ class OddsYear(BaseModel):
     p90: Amount
 
 
+class CorrelationSensitivity(BaseModel):
+    """The odds rerun with every correlation moved by `shift` each way (kept
+    to [-1, 1]), when the pack marks its correlations as assumptions: each
+    range is [lowest, highest] over the three runs."""
+
+    shift: str
+    #: The mix's volatility at the shifted correlations.
+    volatility: list[str]
+    success: list[str] | None = None
+    reach: list[str]
+
+
 class WithdrawalTaxRules(BaseModel):
     rule_set_id: str
     version: int
@@ -828,6 +840,9 @@ class FiOdds(BaseModel):
     guardrails: OddsGuardrails | None = None
     percentiles: list[OddsYear]
     withdrawal_tax: WithdrawalTax
+    #: Null unless the pack's correlations are marked as assumptions and
+    #: the odds draw from its mix.
+    correlation_sensitivity: CorrelationSensitivity | None = None
     placeholders: list[str]
     message: str
 

@@ -111,6 +111,16 @@ class CmaPack:
     history: History | None = None
     #: Category → yearly inflation of that category of spending.
     category_inflation: Mapping[str, Figure] = field(default_factory=dict[str, Figure])
+    #: Set when a correlation is marked `"assumption": true` (no primary
+    #: source): the odds then say how much they move with the correlations.
+    correlations_assumed: bool = False
+
+    def shifted(self, delta: Decimal) -> CmaPack:
+        """The pack with every correlation moved by `delta`, kept to [-1, 1]."""
+        moved = {
+            k: max(Decimal(-1), min(Decimal(1), v + delta)) for k, v in self.correlations.items()
+        }
+        return replace(self, correlations=moved)
 
     def correlation(self, a: str, b: str) -> Decimal:
         return Decimal(1) if a == b else self.correlations.get((a, b), Decimal(0))
@@ -284,6 +294,7 @@ def parse(document: object, *, stored: bool = False) -> CmaPack:
     keys = {c.key for c in classes}
 
     correlations: dict[tuple[str, str], Decimal] = {}
+    assumed = False
     raw_corr = doc.get("correlations", [])
     if not isinstance(raw_corr, list):
         raise ValueError("correlations must be a list of {a, b, value, source, date}")
@@ -296,6 +307,7 @@ def parse(document: object, *, stored: bool = False) -> CmaPack:
             raise ValueError(f"correlations[{i}] must name two different asset classes")
         figure = _figure(item, f"correlations[{i}]", "correlation")
         correlations[(str(a), str(b))] = correlations[(str(b), str(a))] = figure.value
+        assumed = assumed or item.get("assumption") is True
 
     raw_mix = doc.get("mix")
     if not isinstance(raw_mix, Mapping) or not raw_mix:
@@ -338,6 +350,7 @@ def parse(document: object, *, stored: bool = False) -> CmaPack:
         else _figure(tails, "degrees_of_freedom", "degrees_of_freedom"),
         history=_history(doc.get("history")),
         category_inflation=categories,
+        correlations_assumed=assumed,
     )
     return pack
 

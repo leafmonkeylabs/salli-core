@@ -380,3 +380,21 @@ def test_a_history_needs_a_source_and_ten_years() -> None:
         cma.parse(pack(history=history(119)))
     with pytest.raises(ValueError, match="history.source must be non-empty text"):
         cma.parse(pack(history=history(120, source=None)))
+
+
+def test_assumed_correlations_give_the_odds_a_range() -> None:
+    corr = {"a": "equity", "b": "bonds", "value": "0.9", "source": "XA", "date": "2031-05-31"}
+    shifted = cma.parse(pack(correlations=[{**corr, "assumption": True}])).shifted(Decimal("0.2"))
+    assert shifted.correlation("equity", "bonds") == 1  # clipped
+    sourced = books()
+    with_pack(sourced, pack())
+    odds = montecarlo.plan_odds(sourced.baseline(AS_OF), horizon_years=40, paths=200)
+    assert odds["correlation_sensitivity"] is None
+    assumed = books()
+    with_pack(assumed, pack(correlations=[{**corr, "value": "0.2", "assumption": True}]))
+    odds = montecarlo.plan_odds(assumed.baseline(AS_OF), horizon_years=40, paths=200)
+    spread: Any = odds["correlation_sensitivity"]
+    assert spread["shift"] == "0.2"
+    low, high = (Decimal(v) for v in spread["volatility"])
+    assert low < Decimal(str(odds["volatility"])) < high
+    assert Decimal(spread["reach"][0]) <= Decimal(str(odds["reach"])) <= Decimal(spread["reach"][1])

@@ -137,7 +137,7 @@ async def test_inactive_holdings_count_and_declared_ones_are_listed_apart():
     assert report is not None
     assert report["portfolio"]["realised_gain"] == "50.00"
     assert [(h["symbol"], h["is_active"]) for h in report["holdings"]] == [("OLD", False)]
-    assert report["notes"] == [
+    assert report["notes"][-1:] == [
         "Declared by value, with no transactions to measure, so not in these figures: FD"
     ]
 
@@ -241,7 +241,9 @@ async def test_risk_figures_month_by_month_against_a_benchmark_or_a_cash_yield()
     figures = report["risk"]
     # Monthly: +10%, −10%, +10%.
     assert figures["months"] == 3 and figures["max_drawdown"] == "0.100000"
-    assert figures["hurdle_source"] == "benchmark"
+    # The benchmark is no hurdle: with no cash yield or pack, no Sharpe.
+    assert figures["hurdle_source"] is None and figures["sharpe"] is None
+    assert any("No Sharpe" in note for note in report["notes"])
     assert figures["benchmark"]["symbol"] == "IDX"
     assert Decimal(figures["benchmark"]["max_drawdown"]) == 0
     with_cash = await svc.get_performance(
@@ -258,13 +260,21 @@ async def test_risk_figures_month_by_month_against_a_benchmark_or_a_cash_yield()
 
     doc = pack()
     row = await uow.cma_packs.add(
+        USER, name="XA", version="0", content=doc, content_hash=cma.content_hash(doc)
+    )
+    await uow.cma_packs.activate(USER, row["id"])
+    no_inflation = await svc.get_performance(USER, "2026-01-01", "2026-03-31")
+    assert no_inflation is not None and no_inflation["risk"]["sharpe"] is None
+    doc = {**doc, "inflation": {"value": "0.05", "source": "XA stats", "date": "2031-05-31"}}
+    row = await uow.cma_packs.add(
         USER, name="XA", version="1", content=doc, content_hash=cma.content_hash(doc)
     )
     await uow.cma_packs.activate(USER, row["id"])
     from_pack = await svc.get_performance(USER, "2026-01-01", "2026-03-31")
     assert from_pack is not None
     assert (from_pack["risk"]["hurdle"], from_pack["risk"]["hurdle_source"]) == (
-        "0.010000",
+        # Real 1% put on the nominal basis of the returns: 1.01 × 1.05 − 1.
+        "0.060500",
         "cma_pack",
     )
     no_series = await svc.get_performance(USER, "2026-01-01", "2026-03-31", benchmark="NONE")
