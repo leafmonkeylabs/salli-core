@@ -36,8 +36,6 @@ everywhere.
 
 from __future__ import annotations
 
-import math
-import random
 from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
@@ -46,11 +44,16 @@ from salli.domain.baseline import fi, timelines
 from salli.domain.baseline.models import Baseline
 from salli.domain.currency import quantize
 from salli.domain.fi import cma
+from salli.domain.fi.returns import (
+    DEFAULT_PATHS,
+    DEFAULT_SEED,
+    DEFAULT_SUCCESS,
+    DRAWDOWN_YEARS,
+    ReturnSource,
+    student_t,
+)
 
-DEFAULT_PATHS = 1000
 MAX_PATHS = 5000
-DEFAULT_SEED = 1
-DEFAULT_SUCCESS = Decimal("0.9")
 _TWELVE = Decimal(12)
 _FLOOR = Decimal("-0.95")
 _PERCENTILES = (Decimal("0.1"), Decimal("0.5"), Decimal("0.9"))
@@ -113,22 +116,9 @@ def draws(
     seed: int,
     tails: Decimal = cma.TAILS,
 ) -> list[list[Decimal]]:
-    """`paths` sequences of `months` monthly real returns (see the module):
-    a normal over the square root of a chi-squared with `tails` degrees of
-    freedom over `tails`, times √((ν − 2)/ν) for unit variance."""
-    rng = random.Random(seed)
-    mu = mean / _TWELVE
-    sd = volatility / _TWELVE.sqrt()
-    nu = float(tails)
-    scale = math.sqrt((nu - 2) / nu)
-
-    def t() -> float:
-        return rng.gauss(0.0, 1.0) * scale / math.sqrt(rng.gammavariate(nu / 2, 2.0) / nu)
-
-    out: list[list[Decimal]] = []
-    for _ in range(paths):
-        out.append([max(_FLOOR, mu + sd * Decimal(f"{t():.9f}")) for _ in range(months)])
-    return out
+    """`paths` sequences of `months` monthly real returns from a Student-t
+    (`returns.student_t`)."""
+    return student_t(mean, volatility, months, paths, seed, tails)
 
 
 def _quantile(values: Sequence[Decimal], p: Decimal) -> Decimal:
@@ -164,6 +154,7 @@ def run(
     success_level: Decimal = DEFAULT_SUCCESS,
     guardrails: Guardrails | None = None,
     tails: Decimal = cma.TAILS,
+    source: ReturnSource | None = None,
 ) -> Odds:
     """The odds on `timeline` (a monthly timeline at least `horizon_months`
     long) for `paths` paths from `seed` (see the module)."""
@@ -174,6 +165,7 @@ def run(
     if retire is not None and not 0 <= retire < horizon:
         raise ValueError("The retirement month must fall within the horizon")
     numbers = fi.fi_numbers(baseline, points, monthly_spending)
+    held_out = fi.reserve(baseline)
     spend = fi.spending(baseline) if monthly_spending is None else monthly_spending
     levels = {p.month: p.deflator for p in points[1:]}
     # Each month's withdrawal, in today's money, grossed up for tax.
@@ -186,7 +178,11 @@ def run(
         / _TWELVE
         for p in points[: horizon + 1]
     ]
-    returns = draws(mean, volatility, horizon, paths, seed, tails)
+    returns = (
+        draws(mean, volatility, horizon, paths, seed, tails)
+        if source is None
+        else source.monthly(horizon, paths, seed)
+    )
 
     reached = survived = 0
     by_year: list[list[Decimal]] = [[] for _ in range(horizon // 12 + 1)]
@@ -194,7 +190,7 @@ def run(
     guarded: list[tuple[bool, bool, Decimal]] = []
     for path in returns:
         investments = points[0].investments
-        base = fi.asset_base(points[0])
+        base = fi.asset_base(points[0], held_out)
         by_year[0].append(base)
         hit = base >= numbers[0] > 0
         pool: Decimal | None = None
@@ -204,9 +200,9 @@ def run(
             point = points[t]
             investments = investments * (Decimal(1) + r) + point.invested / point.deflator
             if not hit and numbers[t] > 0:
-                hit = fi.asset_base(point) - point.investments + investments >= numbers[t]
+                hit = fi.asset_base(point, held_out) - point.investments + investments >= numbers[t]
             if retire is None or t <= retire + 1:
-                base = fi.asset_base(point) - point.investments + investments
+                base = fi.asset_base(point, held_out) - point.investments + investments
                 if retire is not None and t == retire + 1:
                     pool = base
             else:
@@ -222,7 +218,9 @@ def run(
         start = (retire + 1) if retire is not None else 0
         rates.append(sustainable_rate(path[start:]))
         if guardrails is not None and retire is not None and pool is not None:
-            guarded.append(_guarded(path, retire, horizon, points, withdrawals, guardrails))
+            guarded.append(
+                _guarded(path, retire, horizon, points, withdrawals, guardrails, held_out)
+            )
 
     level = success_level
     years = tuple(
@@ -263,6 +261,7 @@ def _guarded(
     points: Sequence[timelines.MonthPoint],
     withdrawals: Sequence[Decimal],
     rails: Guardrails,
+    held_out: Decimal,
 ) -> tuple[bool, bool, Decimal]:
     """One path drawn down with guardrails: whether it lasts, whether it
     cut spending, and the lowest share of planned spending it reached."""
@@ -270,7 +269,7 @@ def _guarded(
     for t in range(1, retire + 2):
         point = points[t]
         held = held * (Decimal(1) + path[t - 1]) + point.invested / point.deflator
-    pool = fi.asset_base(points[retire + 1]) - points[retire + 1].investments + held
+    pool = fi.asset_base(points[retire + 1], held_out) - points[retire + 1].investments + held
     factor = low = Decimal(1)
     start_rate: Decimal | None = None
     cut = False
@@ -300,6 +299,7 @@ def beats(
     paths: int = DEFAULT_PATHS,
     seed: int = DEFAULT_SEED,
     tails: Decimal = cma.TAILS,
+    source: ReturnSource | None = None,
 ) -> Decimal:
     """The share of paths on which money invested for `months` grows by more
     than paying down a debt at `yearly_rate` (real, compounded monthly) saves.
@@ -311,7 +311,14 @@ def beats(
     target = (Decimal(1) + yearly_rate / _TWELVE) ** months
     years, rest = divmod(months, 12)
     wins = 0
-    yearly = draws(mean * _TWELVE, volatility * _TWELVE.sqrt(), years + 1, paths, seed, tails)
+    if source is not None and source.method == "bootstrap":
+        # Each year the growth of twelve resampled months.
+        yearly = [
+            [_compound(path[12 * k : 12 * k + 12]) for k in range(years + 1)]
+            for path in source.monthly(12 * (years + 1), paths, seed)
+        ]
+    else:
+        yearly = draws(mean * _TWELVE, volatility * _TWELVE.sqrt(), years + 1, paths, seed, tails)
     for path in yearly:
         growth = Decimal(1)
         for r in path[:years]:
@@ -322,7 +329,34 @@ def beats(
     return _share(wins, paths)
 
 
+def _compound(months: Sequence[Decimal]) -> Decimal:
+    growth = Decimal(1)
+    for r in months:
+        growth *= Decimal(1) + r
+    return growth - 1
+
+
 # ── As the API answers ───────────────────────────────────────────────────────
+
+
+def source_says(source: ReturnSource) -> str:
+    """Where the odds' returns come from, in a sentence."""
+    where = {
+        "user": "your own return and volatility",
+        "pack": "your capital-market assumptions' mix (its return and volatility)",
+        "placeholder": "the placeholder pack's return and volatility",
+    }[source.origin]
+    how = (
+        "resampling a year's window of the pack's monthly history at a time"
+        if source.method == "bootstrap"
+        else "Student-t draws"
+    )
+    fee = (
+        f", less your holdings' weighted expense ratio of {source.expense_ratio.normalize():f}"
+        if source.expense_ratio
+        else ""
+    )
+    return f"Returns from {where}{fee}, by {how}."
 
 
 def _months_between(first: str, last: str) -> int:
@@ -356,19 +390,21 @@ def plan_odds(
         retire = None
     applied = baseline.assumptions
     pack = applied.cma
+    source = applied.odds
     odds = run(
         baseline,
         timeline,
         horizon_months=horizon,
         retire=retire,
-        mean=applied.real_return.value,
-        volatility=pack.volatility,
+        mean=source.mean,
+        volatility=source.volatility,
         monthly_spending=monthly_spending,
         paths=paths,
         seed=seed,
         success_level=success_level,
         guardrails=guardrails,
-        tails=pack.tails,
+        tails=source.tails,
+        source=source,
     )
     currency = baseline.currency
 
@@ -380,8 +416,12 @@ def plan_odds(
 
     placeholders = [
         *baseline.placeholders,
-        *(["volatility"] if pack.placeholder else []),
-        *(["degrees_of_freedom"] if pack.degrees_of_freedom is None else []),
+        *(["volatility"] if source.origin == "placeholder" else []),
+        *(
+            ["degrees_of_freedom"]
+            if source.method == "student_t" and pack.degrees_of_freedom is None
+            else []
+        ),
     ]
     return {
         "currency": currency,
@@ -391,6 +431,12 @@ def plan_odds(
         "horizon_years": horizon_years,
         "real_return": share(odds.mean),
         "volatility": share(odds.volatility.quantize(Decimal("0.0001"))),
+        "returns": {
+            "origin": source.origin,
+            "method": source.method,
+            "expense_ratio": share(source.expense_ratio),
+            "says": source_says(source),
+        },
         "cma": cma.summary(pack),
         "fi_number": money(outlook.fi_number),
         "fi_month": outlook.month,
@@ -400,6 +446,9 @@ def plan_odds(
         "withdrawal_rate": {
             "applied": share(applied.safe_withdrawal_rate.value),
             "origin": applied.safe_withdrawal_rate.origin,
+            "applied_years": None
+            if applied.safe_withdrawal_rate.origin == "user"
+            else DRAWDOWN_YEARS,
             "horizon_derived": share(odds.horizon_rate),
             "years": odds.rate_years,
             "success_level": share(success_level),

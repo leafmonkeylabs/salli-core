@@ -166,6 +166,9 @@ def holding_inputs(
                 declared_value=from_minor(h.get("current_value_minor") or 0, base),
                 is_active=bool(h.get("is_active", True)),
                 cost_method=cast(CostMethod, h.get("cost_method") or method or "fifo"),
+                expense_ratio=None
+                if h.get("expense_ratio") is None
+                else Decimal(str(h["expense_ratio"])),
             )
         )
     return out

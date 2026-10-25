@@ -855,13 +855,14 @@ export class MockSalli {
           score: 61, category: 'balanced' as const, breakdown: { emergency_months: 15, income_stability: 25, horizon: 20, debt_service: 18 }, missing: [],
           emergency_months: '4.20', income_variation: '0.04', horizon_years: 12, debt_service_ratio: '0.12',
         },
+        need: { required_return: '0.0380', category: 'balanced' as const, above_profile: false, says: 'The yearly real return your plan needs.' },
         profile: 'balanced' as const,
         equity_max: '0.70',
       };
       const version = {
         id: uid(1501), version: 2, created_at: '2026-10-01T09:00:00+00:00',
         content: {
-          schema: 'salli.ips/1' as const, targets: [{ asset_class: 'equity', target: '0.8', band: '0.05' }, { asset_class: 'bond', target: '0.2', band: '0.05' }],
+          schema: 'salli.ips/1' as const, targets: [{ asset_class: 'equity', target: '0.8', band: '0.05' }, { asset_class: 'fixed_income', target: '0.2', band: '0.05' }],
           rebalancing: { rule: 'both' as const, every_months: 12 }, horizon_years: 12, objectives: 'Retire at 55', constraints: '', review_on: '2027-10-01',
         },
       };
@@ -879,10 +880,16 @@ export class MockSalli {
             version: 2, currency: 'USD', total_value: '14140.50',
             classes: [
               { asset_class: 'equity', value: '11250.40', current_pct: '0.7956', target_pct: '0.8', band: '0.05', drift_pct: '-0.0044', outside_band: false, to_target: '62.00', in_policy: true },
-              { asset_class: 'bond', value: '2890.10', current_pct: '0.2044', target_pct: '0.2', band: '0.05', drift_pct: '0.0044', outside_band: false, to_target: '-62.00', in_policy: true },
+              { asset_class: 'fixed_income', value: '2890.10', current_pct: '0.2044', target_pct: '0.2', band: '0.05', drift_pct: '0.0044', outside_band: false, to_target: '-62.00', in_policy: true },
             ],
             rebalance_due: false, review_due: false, risk_profile: risk,
-            equity_check: { equity_target: '0.8', profile: 'balanced', profile_equity_max: '0.70', above_profile: true },
+            equity_check: { equity_target: '0.8', profile: 'balanced', profile_equity_max: '0.70', above_profile: true, override_reason: 'A separate cash buffer' },
+            tax_aware_sales: [
+              {
+                asset_class: 'fixed_income', to_sell: '62.00', realised_gain: '-3.10',
+                lots: [{ holding_id: uid(421), symbol: 'BND', lot_id: uid(422), opened_on: '2025-03-01', holding_period: 'long' as const, quantity: '0.8', proceeds: '62.00', realised_gain: '-3.10' }],
+              },
+            ],
             notes: [],
           },
         };
@@ -1173,6 +1180,7 @@ export class MockSalli {
         risk: {
           months: 9, yearly_return: '0.198000', volatility: '0.142000', max_drawdown: '0.081000', sharpe: '1.183099', hurdle: '0.030000',
           hurdle_source: 'cash_yield', benchmark: null,
+          net_of_fees: { expense_ratio: '0.002000', yearly_return: '0.196000', says: 'The yearly return less your holdings’ weighted expense ratio.' },
         },
         notes: ['BND is declared, so it has no returns.'],
       };

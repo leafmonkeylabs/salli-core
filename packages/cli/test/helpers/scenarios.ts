@@ -17,8 +17,8 @@ export const SCENARIO_RUN: ScenarioRun = {
   "as_of": "2026-10-11",
   "horizon_years": 20,
   "currency": "EUR",
-  "hash": "sha256:70a6244a8c500cde282a5414d927153a6f3d9f90767933114592235f897bf1e4",
-  "baseline_fingerprint": "sha256:779f958c8e96f1c3a0cd30bd4bbe779d9c0962073300c9a7362a5e5f80af659f",
+  "hash": "sha256:0207f72e0626f66cfeecf2392dac52e3d42051ff3ad8c8cec73481a5d957a59b",
+  "baseline_fingerprint": "sha256:4f1052550308263f1c5d7c53d641ea918a3f85e97e388373136cee79a1d06365",
   "scenario": {
     "schema": "salli.scenario/1",
     "label": "Laptop",
@@ -401,9 +401,9 @@ export const SCENARIO_RUN: ScenarioRun = {
   },
   "fi": {
     "fi_number": {
-      "baseline": "611127.00",
-      "scenario": "607230.00",
-      "delta": "-3897.00"
+      "baseline": "714042.04",
+      "scenario": "709077.71",
+      "delta": "-4964.33"
     },
     "monthly_spending": {
       "baseline": "2037.09",
@@ -411,11 +411,11 @@ export const SCENARIO_RUN: ScenarioRun = {
       "delta": "-12.99"
     },
     "fi_month": {
-      "baseline": "2042-05",
-      "scenario": "2042-09",
-      "delta_months": 4
+      "baseline": "2044-08",
+      "scenario": "2044-11",
+      "delta_months": 3
     },
-    "months_gained": -4
+    "months_gained": -3
   },
   "break_evens": [],
   "tax": {
@@ -442,9 +442,9 @@ export const SCENARIO_RUN: ScenarioRun = {
       "note": null
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
+      "value": "0.0314",
       "origin": "placeholder",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
       "note": null
     },
     "surplus_invested": {
@@ -455,6 +455,12 @@ export const SCENARIO_RUN: ScenarioRun = {
     },
     "inflation": null,
     "nominal_return": null,
+    "cash_yield": {
+      "value": "0",
+      "origin": "placeholder",
+      "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+      "note": null
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -472,7 +478,7 @@ export const SCENARIO_RUN: ScenarioRun = {
   "versions": {
     "schema": "salli.scenario/1",
     "engine": "4",
-    "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+    "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
     "rule_sets": []
   },
   "data_as_of": "2026-10-09",
@@ -496,8 +502,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "as_of": "2026-10-11",
       "horizon_years": 20,
       "currency": "EUR",
-      "hash": "sha256:152983a2f1046b79c0c275cfceea70641629dcb4548d729f7232a0f6d85f96e7",
-      "baseline_fingerprint": "sha256:779f958c8e96f1c3a0cd30bd4bbe779d9c0962073300c9a7362a5e5f80af659f",
+      "hash": "sha256:f9c74630b29cd62ceede107ec9217a2f7dc37fa26efa22075654b4f6c2d8ee07",
+      "baseline_fingerprint": "sha256:4f1052550308263f1c5d7c53d641ea918a3f85e97e388373136cee79a1d06365",
       "scenario": {
         "schema": "salli.scenario/1",
         "label": "Pay cash",
@@ -819,8 +825,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       },
       "fi": {
         "fi_number": {
-          "baseline": "611127.00",
-          "scenario": "611127.00",
+          "baseline": "714042.04",
+          "scenario": "714042.04",
           "delta": "0.00"
         },
         "monthly_spending": {
@@ -829,8 +835,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "delta": "0.00"
         },
         "fi_month": {
-          "baseline": "2042-05",
-          "scenario": "2042-06",
+          "baseline": "2044-08",
+          "scenario": "2044-09",
           "delta_months": 1
         },
         "months_gained": -1
@@ -860,9 +866,9 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "note": null
         },
         "safe_withdrawal_rate": {
-          "value": "0.04",
+          "value": "0.0314",
           "origin": "placeholder",
-          "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+          "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
           "note": null
         },
         "surplus_invested": {
@@ -873,6 +879,12 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         },
         "inflation": null,
         "nominal_return": null,
+        "cash_yield": {
+          "value": "0",
+          "origin": "placeholder",
+          "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+          "note": null
+        },
         "real_returns": {
           "conservative": "0.02",
           "base": "0.04",
@@ -890,7 +902,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "versions": {
         "schema": "salli.scenario/1",
         "engine": "4",
-        "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+        "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
         "rule_sets": []
       },
       "data_as_of": "2026-10-09",
@@ -904,8 +916,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "as_of": "2026-10-11",
       "horizon_years": 20,
       "currency": "EUR",
-      "hash": "sha256:43502008482a46b8ab4074ecd4530a605bff55f5ac05e7c23f551d3cab923c64",
-      "baseline_fingerprint": "sha256:779f958c8e96f1c3a0cd30bd4bbe779d9c0962073300c9a7362a5e5f80af659f",
+      "hash": "sha256:bb6add10d59883a9b34a380240abf0e7246304d552b2424cf3578f8a2ff8f4d8",
+      "baseline_fingerprint": "sha256:4f1052550308263f1c5d7c53d641ea918a3f85e97e388373136cee79a1d06365",
       "scenario": {
         "schema": "salli.scenario/1",
         "label": "Instalments",
@@ -1263,8 +1275,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       },
       "fi": {
         "fi_number": {
-          "baseline": "611127.00",
-          "scenario": "611127.00",
+          "baseline": "714042.04",
+          "scenario": "714042.04",
           "delta": "0.00"
         },
         "monthly_spending": {
@@ -1273,11 +1285,11 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "delta": "0.00"
         },
         "fi_month": {
-          "baseline": "2042-05",
-          "scenario": "2042-07",
-          "delta_months": 2
+          "baseline": "2044-08",
+          "scenario": "2044-09",
+          "delta_months": 1
         },
-        "months_gained": -2
+        "months_gained": -1
       },
       "break_evens": [],
       "tax": {
@@ -1304,9 +1316,9 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "note": null
         },
         "safe_withdrawal_rate": {
-          "value": "0.04",
+          "value": "0.0314",
           "origin": "placeholder",
-          "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+          "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
           "note": null
         },
         "surplus_invested": {
@@ -1317,6 +1329,12 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         },
         "inflation": null,
         "nominal_return": null,
+        "cash_yield": {
+          "value": "0",
+          "origin": "placeholder",
+          "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+          "note": null
+        },
         "real_returns": {
           "conservative": "0.02",
           "base": "0.04",
@@ -1334,7 +1352,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "versions": {
         "schema": "salli.scenario/1",
         "engine": "4",
-        "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+        "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
         "rule_sets": []
       },
       "data_as_of": "2026-10-09",
@@ -1417,13 +1435,6 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "this": "2009.25",
           "other": "2099.93",
           "delta": "-90.68"
-        },
-        {
-          "figure": "fi.fi_month",
-          "unit": "month",
-          "this": "2042-06",
-          "other": "2042-07",
-          "delta": -1
         }
       ],
       "gives_up": [
@@ -1588,13 +1599,6 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "this": "2099.93",
           "other": "2009.25",
           "delta": "90.68"
-        },
-        {
-          "figure": "fi.fi_month",
-          "unit": "month",
-          "this": "2042-07",
-          "other": "2042-06",
-          "delta": 1
         }
       ]
     }
@@ -1620,11 +1624,11 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2045-02",
-            "scenario": "2045-02",
-            "delta_months": 0
+            "baseline": "2048-01",
+            "scenario": "2048-02",
+            "delta_months": 1
           },
-          "months_gained": 0
+          "months_gained": -1
         },
         "base": {
           "net_worth": {
@@ -1638,8 +1642,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2042-05",
-            "scenario": "2042-06",
+            "baseline": "2044-08",
+            "scenario": "2044-09",
             "delta_months": 1
           },
           "months_gained": -1
@@ -1656,8 +1660,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2040-07",
-            "scenario": "2040-07",
+            "baseline": "2042-04",
+            "scenario": "2042-04",
             "delta_months": 0
           },
           "months_gained": 0
@@ -1677,8 +1681,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "delta": "-3668.38"
           },
           "fi_month": {
-            "baseline": "2045-02",
-            "scenario": "2045-03",
+            "baseline": "2048-01",
+            "scenario": "2048-02",
             "delta_months": 1
           },
           "months_gained": -1
@@ -1695,11 +1699,11 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "delta": "-5399.64"
           },
           "fi_month": {
-            "baseline": "2042-05",
-            "scenario": "2042-07",
-            "delta_months": 2
+            "baseline": "2044-08",
+            "scenario": "2044-09",
+            "delta_months": 1
           },
-          "months_gained": -2
+          "months_gained": -1
         },
         "growth": {
           "net_worth": {
@@ -1713,8 +1717,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "delta": "-7943.12"
           },
           "fi_month": {
-            "baseline": "2040-07",
-            "scenario": "2040-08",
+            "baseline": "2042-04",
+            "scenario": "2042-05",
             "delta_months": 1
           },
           "months_gained": -1
@@ -1753,8 +1757,8 @@ export const TAXED_RUN: ScenarioRun = {
   "as_of": "2031-06-30",
   "horizon_years": 20,
   "currency": "NZD",
-  "hash": "sha256:9ce26a7031a8c01b154aff2c41081149324b86208d7571711eb1f0104d631ce4",
-  "baseline_fingerprint": "sha256:0cc1d9c27aa456cec9ebb0d2d8817632d43f54d017e82c0e621a821841390da5",
+  "hash": "sha256:af670a6a7d70574bd71c6f39db6327e33bcd2b24f42edfb654249debf08f2713",
+  "baseline_fingerprint": "sha256:d8a03a36f471b17ccdf20baf942bc627f297bb386bba66d772202dc868f5edb6",
   "scenario": {
     "schema": "salli.scenario/1",
     "label": "Raise",
@@ -2007,8 +2011,8 @@ export const TAXED_RUN: ScenarioRun = {
   },
   "fi": {
     "fi_number": {
-      "baseline": "450000.00",
-      "scenario": "450000.00",
+      "baseline": "573248.41",
+      "scenario": "573248.41",
       "delta": "0.00"
     },
     "monthly_spending": {
@@ -2017,11 +2021,11 @@ export const TAXED_RUN: ScenarioRun = {
       "delta": "0.00"
     },
     "fi_month": {
-      "baseline": "2042-09",
-      "scenario": "2040-09",
-      "delta_months": -24
+      "baseline": "2045-05",
+      "scenario": "2043-01",
+      "delta_months": -28
     },
-    "months_gained": 24
+    "months_gained": 28
   },
   "break_evens": [],
   "tax": {
@@ -2498,9 +2502,9 @@ export const TAXED_RUN: ScenarioRun = {
       "note": null
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
+      "value": "0.0314",
       "origin": "placeholder",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
       "note": null
     },
     "surplus_invested": {
@@ -2511,6 +2515,12 @@ export const TAXED_RUN: ScenarioRun = {
     },
     "inflation": null,
     "nominal_return": null,
+    "cash_yield": {
+      "value": "0",
+      "origin": "placeholder",
+      "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+      "note": null
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -2529,7 +2539,7 @@ export const TAXED_RUN: ScenarioRun = {
   "versions": {
     "schema": "salli.scenario/1",
     "engine": "4",
-    "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+    "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
     "rule_sets": [
       {
         "country": "XA",
@@ -2559,8 +2569,8 @@ export const HOLDING_RUN: ScenarioRun = {
   "as_of": "2031-06-30",
   "horizon_years": 20,
   "currency": "NZD",
-  "hash": "sha256:1b1305b483ddd136eae684df54a073aaa21b13d367b0e4b9d0caf06b1aef73c5",
-  "baseline_fingerprint": "sha256:a311ca046d336aad5e6025b90e8288c401b549b9452ccb2e114fd62b1e201f27",
+  "hash": "sha256:e78a02a28172ee4da395f853c41d96e2746a1a20b25f0083351c47ce337c0262",
+  "baseline_fingerprint": "sha256:6c084b51a73602b5631d33f2d737a62afe89b4f591272c05961d3cd34840bdad",
   "scenario": {
     "schema": "salli.scenario/1",
     "label": "Sell to top up",
@@ -2898,8 +2908,8 @@ export const HOLDING_RUN: ScenarioRun = {
   },
   "fi": {
     "fi_number": {
-      "baseline": "450000.00",
-      "scenario": "450000.00",
+      "baseline": "573248.41",
+      "scenario": "573248.41",
       "delta": "0.00"
     },
     "monthly_spending": {
@@ -2908,8 +2918,8 @@ export const HOLDING_RUN: ScenarioRun = {
       "delta": "0.00"
     },
     "fi_month": {
-      "baseline": "2042-09",
-      "scenario": "2042-09",
+      "baseline": "2045-05",
+      "scenario": "2045-05",
       "delta_months": 0
     },
     "months_gained": 0
@@ -3065,9 +3075,9 @@ export const HOLDING_RUN: ScenarioRun = {
       "note": null
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
+      "value": "0.0314",
       "origin": "placeholder",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
       "note": null
     },
     "surplus_invested": {
@@ -3078,6 +3088,12 @@ export const HOLDING_RUN: ScenarioRun = {
     },
     "inflation": null,
     "nominal_return": null,
+    "cash_yield": {
+      "value": "0",
+      "origin": "placeholder",
+      "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+      "note": null
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -3095,7 +3111,7 @@ export const HOLDING_RUN: ScenarioRun = {
   "versions": {
     "schema": "salli.scenario/1",
     "engine": "4",
-    "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+    "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
     "rule_sets": [
       {
         "country": "XA",
@@ -3127,8 +3143,8 @@ export const ASSET_RUN: ScenarioRun = {
   "as_of": "2031-06-30",
   "horizon_years": 20,
   "currency": "NZD",
-  "hash": "sha256:935cac790593b67a116602c30b179fc9236eddfd755ad8bb5bf08c10bfaea012",
-  "baseline_fingerprint": "sha256:fa8f0d1cfb200c379d575581b4af9ca944e282bbf2819301c6a2186f979076fa",
+  "hash": "sha256:d796500d4e169adef4654dfb8b8424241cb2278540d12bb961f685c1458bfe2d",
+  "baseline_fingerprint": "sha256:88d4046c0521a22a96fdc6d1a6e617edb3eacafd92f29979af63ac0cc46a928f",
   "scenario": {
     "schema": "salli.scenario/1",
     "label": "Buy",
@@ -3444,9 +3460,9 @@ export const ASSET_RUN: ScenarioRun = {
   },
   "fi": {
     "fi_number": {
-      "baseline": "300000.00",
+      "baseline": "382165.61",
       "scenario": "0.00",
-      "delta": "-300000.00"
+      "delta": "-382165.61"
     },
     "monthly_spending": {
       "baseline": "1000.00",
@@ -3454,7 +3470,7 @@ export const ASSET_RUN: ScenarioRun = {
       "delta": "-1000.00"
     },
     "fi_month": {
-      "baseline": "2040-12",
+      "baseline": "2044-09",
       "scenario": null,
       "delta_months": null
     },
@@ -3484,9 +3500,9 @@ export const ASSET_RUN: ScenarioRun = {
       "note": null
     },
     "safe_withdrawal_rate": {
-      "value": "0.04",
+      "value": "0.0314",
       "origin": "placeholder",
-      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "source": "Placeholder: the yearly withdrawal 90% of 1000 simulated return paths sustain over 30 years drawn down, on the placeholder pack's returns. Not a recommendation. Set your own rate, or your own returns, with a source.",
       "note": null
     },
     "surplus_invested": {
@@ -3497,6 +3513,12 @@ export const ASSET_RUN: ScenarioRun = {
     },
     "inflation": null,
     "nominal_return": null,
+    "cash_yield": {
+      "value": "0",
+      "origin": "placeholder",
+      "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
+      "note": null
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -3514,7 +3536,7 @@ export const ASSET_RUN: ScenarioRun = {
   "versions": {
     "schema": "salli.scenario/1",
     "engine": "4",
-    "fi_assumptions": "sha256:334b2d267bbb44f200b9a6d413e3e0c33e4c3813fbcf230a2cb4e2b793482aa0",
+    "fi_assumptions": "sha256:692d46fb3494bad98b7e197d461942f87c20d3009801bfd9e4a6c9282e7b5039",
     "rule_sets": []
   },
   "data_as_of": "2031-06-25",

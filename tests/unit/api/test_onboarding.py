@@ -17,7 +17,6 @@ from salli.application.services.data_portability_service import DataPortabilityS
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
 from salli.domain.risk import engine as risk_engine
 from salli.domain.risk.models import RiskQuestionnaireAnswers
-from salli.interfaces.api.routers.onboarding import RiskBreakdown
 from tests.tax_views import computation_view
 
 from .conftest import AUTH
@@ -221,7 +220,14 @@ async def test_declared_goals_return_their_ids(client, mock_services):
 def _scored(answers: RiskQuestionnaireAnswers) -> dict[str, Any]:
     """What UserProfileService.submit_risk_questionnaire returns."""
     profile = risk_engine.compute(answers)
-    return {"score": profile.score, "category": profile.category, "breakdown": profile.breakdown}
+    return {
+        "score": profile.score,
+        "category": profile.category,
+        "breakdown": profile.breakdown,
+        "items_answered": len(profile.breakdown),
+        "experience": answers.investment_experience,
+        "experience_scored": False,
+    }
 
 
 async def test_the_risk_questionnaire_returns_the_engines_score(client, mock_services):
@@ -248,16 +254,11 @@ async def test_the_risk_questionnaire_returns_the_engines_score(client, mock_ser
     assert r.json() == _scored(answers)
 
 
-def test_the_breakdown_model_names_every_dimension_the_engine_scores():
-    """A dimension the engine adds must reach clients rather than be dropped
-    by a model that does not know it."""
-    answers = RiskQuestionnaireAnswers(
-        time_horizon_years=1,
-        drawdown_reaction="sell_all",
-        income_stability="unstable",
-        investment_experience="none",
-    )
-    assert set(risk_engine.compute(answers).breakdown) == set(RiskBreakdown.model_fields)
+def test_every_tolerance_item_reaches_the_request_model():
+    """An item the engine scores must be one clients can send."""
+    from salli.interfaces.api.routers.onboarding import RiskQuestionnaireRequest
+
+    assert set(risk_engine.ITEMS) <= set(RiskQuestionnaireRequest.model_fields)
 
 
 # ── Data portability ─────────────────────────────────────────────────────────

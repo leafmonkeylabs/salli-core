@@ -96,7 +96,7 @@ async def test_savings_count_in_net_worth_fi_and_the_emergency_fund():
         assert kept[key] == cash[key], key
     assert kept["net_worth"] == "335901.4700"
     assert Decimal(kept["emergency_fund_months"]).quantize(Decimal("0.01")) == Decimal("8.10")
-    assert kept["projected_fi_month"] == "2042-05"
+    assert kept["projected_fi_month"] == "2044-08"  # was 2042-05 (test_household_fi.py)
 
 
 async def test_the_monthly_timeline_holds_savings_beside_the_daily_one():

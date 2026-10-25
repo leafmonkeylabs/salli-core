@@ -94,6 +94,7 @@ describe('salli portfolio', () => {
       Volatility (yearly)    14.2% over 9 months
       Largest fall           8.1%
       Sharpe ratio           1.18 against a cash yield of 3%
+      Net of fees            19.6% a year, less 0.2% in expense ratios
 
       HOLDING                 VALUE (USD)  TOTAL RETURN    TWR
       VTI Total Stock Market    11,250.40      1,523.40  15.2%

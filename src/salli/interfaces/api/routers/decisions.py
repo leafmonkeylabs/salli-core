@@ -652,13 +652,17 @@ class StartOdds(BaseModel):
     down the debt saves, under the Monte Carlo. A share, not a forecast."""
 
     debt: str
-    #: The debt's yearly rate after inflation (as given, without inflation).
-    debt_real_rate: str
+    #: "not_computed" without an inflation (yours, else your pack's): the
+    #: debt's rate is nominal and the returns real, so no odds are given.
+    status: Literal["computed", "not_computed"]
+    #: The debt's yearly rate after inflation; null when not computed.
+    debt_real_rate: str | None
     months: int
     paths: int
     seed: int
-    #: The share of paths (0 to 1) on which investing grows by more.
-    invest_beats_paying_down: str
+    #: The share of paths (0 to 1) on which investing grows by more; null
+    #: when not computed.
+    invest_beats_paying_down: str | None
     says: str
 
 

@@ -146,7 +146,8 @@ async def test_with_nothing_set_every_currency_gets_the_same_labelled_placeholde
     assert assumptions["real_return"]["origin"] == "placeholder"
     assert assumptions["real_return"]["value"] == "0.04"
     assert assumptions["real_return"]["source"].startswith("Placeholder:")
-    assert assumptions["safe_withdrawal_rate"]["value"] == "0.04"
+    # The rate the placeholder pack's returns sustain.
+    assert assumptions["safe_withdrawal_rate"]["value"] == "0.0314"
     assert assumptions["surplus_invested"]["value"] == "1"
     assert assumptions["surplus_invested"]["source"].startswith(
         "Placeholder: all of your monthly surplus is assumed invested"
@@ -161,7 +162,7 @@ async def test_with_nothing_set_every_currency_gets_the_same_labelled_placeholde
     assert all("nominal" not in point for point in projections["points"])
     # The figures are the ones computed with them.
     assert projections["real_returns"] == {"conservative": "0.02", "base": "0.04", "growth": "0.06"}
-    assert projections["swr"] == "0.04"
+    assert projections["swr"] == "0.0314"
 
 
 async def test_projections_never_block_on_missing_assumptions():
@@ -169,9 +170,10 @@ async def test_projections_never_block_on_missing_assumptions():
     projections = await svc.get_projections(USER)
     # 2,000 of rent over the one full month the ledger covers (last month;
     # this one isn't over, so it isn't averaged in) is 2,000 a month: 24,000
-    # a year, at the 4% placeholder rate, is 600,000. It was 300,000, when
-    # this month counted as a month of no rent.
-    assert Decimal(projections["fi_number"]) == Decimal("600000")
+    # a year, at the placeholder rate (the one the placeholder pack's
+    # returns sustain, 3.14%), is 764,331.21. It was 600,000 at a round 4%,
+    # and 300,000 when this month counted as a month of no rent.
+    assert Decimal(projections["fi_number"]).quantize(Decimal("0.01")) == Decimal("764331.21")
     assert projections["points"][0]["year"] == 0
     assert len(projections["points"]) >= 16
 
@@ -247,7 +249,8 @@ async def test_nominal_figures_appear_only_with_the_users_inflation():
     # (Inflation could move FI later, so the chart may run longer: the years
     # both show.)
     for point, without in zip(projections["points"], real, strict=False):
-        assert abs(Decimal(point["base"]) - Decimal(without["base"])) <= Decimal("0.05")
+        # A cent a month at most, over the longer chart a larger number brings.
+        assert abs(Decimal(point["base"]) - Decimal(without["base"])) <= Decimal("0.10")
     # With the surplus kept in cash instead, inflation takes from it, and the
     # real line is lower from the first year on.
     kept_in_cash = {"surplus_invested": {"value": "0"}}
@@ -293,7 +296,7 @@ async def test_a_strategy_an_earlier_salli_stored_moves_no_figure():
         "safe_withdrawal_rate",
         "surplus_invested",
     ]
-    assert projections["swr"] == "0.04"
+    assert projections["swr"] == "0.0314"
     without, *_ = _service("USD")
     assert (await svc.compute_score(USER))["fi_number"] == (await without.compute_score(USER))[
         "fi_number"
@@ -325,6 +328,7 @@ async def test_the_report_has_what_applies_the_users_own_and_the_placeholders():
         "real_return": {"value": "0.03", "source": "my notes", "note": None, "set_at": None},
         "nominal_return": None,
         "inflation": None,
+        "volatility": None,
         "safe_withdrawal_rate": None,
         "surplus_invested": None,
     }

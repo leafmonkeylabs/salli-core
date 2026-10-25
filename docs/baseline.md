@@ -211,17 +211,33 @@ used.
 FI reads the monthly timeline. The FI number at a month is a year of the
 spending to fund then, grossed up for tax on withdrawals, over your safe
 withdrawal rate; the month FI is reached is the first whose end your cash
-and investments, less your debts, reach that month's number, looked for up
-to 50 years ahead. The projections are the same timeline with your
+and investments, less your debts and your emergency fund, reach that
+month's number, looked for up to 50 years ahead. The projections are the same timeline with your
 investments at each scenario's real return. The share of your surplus you
 invest grows with your investments; what you keep in cash earns the cash
 yield, or nothing. So the share you set moves the month: the less you
 invest, the later it comes.
 
-- **The spending to fund** is your average monthly spending, or your
-  [spending phase's](#the-fi-plan) for your age that month (plus a
-  scenario's change in spending), less the guaranteed income paying that
-  month. Without a plan every month's number is the same.
+- **The spending to fund** is your average monthly spending less what it
+  already pays on your debts, or your [spending phase's](#the-fi-plan) for
+  your age that month (plus a scenario's change in spending), less the
+  guaranteed income paying that month. Without a plan every month's number
+  is the same.
+- **Debts, counted once.** Your average spending already pays part of each
+  debt's payment (a linked debt's interest, an unlinked one's minimum
+  payment). That part never enters the spending to fund: a debt paid off
+  before FI takes its payment with it, and one still owed at FI is
+  subtracted, as what it owes, from the asset base instead. So a mortgage
+  is counted once, as a balance, never as both a balance and a payment.
+- **The emergency fund is held out.** The FI method's emergency target (6
+  months of the spending to fund) is taken off the asset base, so the
+  money kept for emergencies never also funds withdrawals.
+- **The withdrawal rate.** Yours, when you set one. Without it, the rate the
+  odds' returns sustain: the highest constant real withdrawal a year, as a
+  share of the pool, that 90% of 1,000 seeded paths of yearly returns last
+  over 30 years drawn down, from the same returns the odds draw (below).
+  Its `origin` is `derived`, or `placeholder` while those returns are the
+  placeholder pack's, and its `source` says how it was found.
 - **Gross of tax.** When your active tax rules (in your base currency)
   declare an income role keyed `withdrawal`, the year's spending is grossed
   up to what must be withdrawn so that, after the tax those rules take on
@@ -261,7 +277,15 @@ plan.json`, `PUT /v1/fi/plan`); no model chooses them:
   your tax rules it is taxed under: withdrawals are taxed beside it.
 - **A phase** is the monthly spending to live on, in today's money, from an
   age on, by the date of birth on your profile. Before the first, or
-  without a date of birth, your average spending applies.
+  without a date of birth, your average spending (less what it pays on
+  debts) applies.
+- **Categories.** A phase may name the part of its spending in a category
+  (`"categories": {"housing": "1200.00"}`). A category with its own
+  inflation (`"category_inflation": {"housing": {"value": "0.06", "source":
+  "..."}}` in the plan, else your pack's) grows apart from general
+  inflation: in today's money by (1 + its) / (1 + general) a year from the
+  as-of month. Without general inflation (yours or your pack's) it is not
+  applied.
 
 ## Capital-market assumptions
 
@@ -280,13 +304,18 @@ With an active pack, where you set no figure of your own:
 - the real return is the mix's expected return (`Σ wᵢ rᵢ`);
 - inflation is the pack's, if it gives one;
 - cash earns the pack's cash yield;
-- the [odds](#the-odds) draw returns with the mix's volatility
-  (`√(wᵀΣw)`, from the classes' volatilities and correlations);
+- the [odds](#the-odds) draw returns with the mix's expected return and its
+  volatility (`√(wᵀΣw)`, from the classes' volatilities and correlations),
+  unless you set both your own return and your own volatility; with a
+  `history`, they resample it instead;
+- a [spending phase's](#the-fi-plan) categories inflate at the pack's
+  `category_inflation` where your plan gives none;
 - [debt or invest](templates.md) sets investing against the debt under it.
 
 Without one, a neutral placeholder pack stands in (one class at the 4% real
 return placeholder, a 12% volatility, cash earning nothing), labelled
-wherever it is used. Every FI response carries `assumptions.cma` when a pack
+wherever it is used: every FI response's `assumptions.cash_yield` says
+`placeholder` while cash earns nothing for want of a pack. Every FI response carries `assumptions.cma` when a pack
 of yours is active.
 
 The format, as JSON Schema (draft 2020-12):
@@ -321,6 +350,21 @@ The format, as JSON Schema (draft 2020-12):
     "cash_yield": {"$ref": "#/$defs/figure"},
     "inflation": {"$ref": "#/$defs/figure"},
     "degrees_of_freedom": {"$ref": "#/$defs/figure"},
+    "history": {
+      "type": "object", "required": ["monthly_real_returns", "source", "date"],
+      "properties": {
+        "monthly_real_returns": {
+          "type": "array", "minItems": 24, "maxItems": 1200,
+          "items": {"type": "string", "pattern": "^-?\\d+(\\.\\d+)?$"}
+        },
+        "source": {"type": "string", "minLength": 1, "maxLength": 500},
+        "date": {"type": "string", "format": "date"}
+      }
+    },
+    "category_inflation": {
+      "type": "object", "maxProperties": 20,
+      "additionalProperties": {"$ref": "#/$defs/figure"}
+    },
     "mix": {
       "type": "object", "minProperties": 1,
       "additionalProperties": {"type": "string", "pattern": "^(0(\\.\\d+)?|1(\\.0+)?)$"}
@@ -343,7 +387,11 @@ Values are yearly fractions in decimal strings ("0.05" is 5%): a real return
 from -0.10 to 0.20, a volatility from 0 to 0.80, a cash yield from -0.10 to
 0.10, inflation from -0.05 to 1, a correlation from -1 to 1; the optional
 `degrees_of_freedom` of the odds' Student-t draws, from 3 to 100 (the
-lower, the fatter the tails; without it, 5, a labelled placeholder). A correlation
+lower, the fatter the tails; without it, 5, a labelled placeholder); the
+optional `history`, the reference mix's monthly real returns oldest first
+(from -0.50 to 0.50 each); the optional `category_inflation`, a yearly
+inflation per category of spending (`housing`, `education`), each from
+-0.05 to 1. A correlation
 not listed is 0; the mix names classes of the pack and sums to 1. An example,
 for a fictional market XA:
 
@@ -373,11 +421,21 @@ for a fictional market XA:
 /v1/scenarios/odds`; MCP `get_fi_odds`) runs a seeded Monte Carlo on the
 monthly timeline, in today's money. No model computes or chooses any of it.
 
+- **One source of returns.** The mean and the volatility come from one
+  place, never a mix: your own pair, when you set both a return (real, or
+  nominal with your inflation) and a `volatility`; else your pack's mix, its
+  expected return and its volatility; else the placeholder pack's. Your
+  holdings' weighted expense ratio (over those you gave one) comes off the
+  mean. `returns` says which, how, and the ratio taken off.
 - **Returns.** Each of `paths` paths (1,000 by default) draws a month's real
   return for the investments from a Student-t distribution, whose fat tails
-  bring crashes and booms more often than a normal's: the real return over
+  bring crashes and booms more often than a normal's: the mean over
   twelve, the volatility over √12 (the draws scaled to keep it), with the
-  pack's `degrees_of_freedom` (else 5, listed in `placeholders`). Draws come from a seeded generator
+  pack's `degrees_of_freedom` (else 5, listed in `placeholders`). When your
+  pack gives a `history` (and your own pair is not set), the paths resample
+  it instead: a year's window of consecutive months at a time from a random
+  start, wrapping round, less the expense ratio (`returns.method`
+  `bootstrap`). Draws come from a seeded generator
   (`seed`, 1 by default), each written to nine places as a Decimal, so the
   same seed gives the same figures.
 - **Building up**, to the retirement month (`retire_month`, by default the
@@ -390,12 +448,15 @@ monthly timeline, in today's money. No model computes or chooses any of it.
   base reaches the FI number within it.
 - **Percentile paths**: the 10th, 50th and 90th percentile of the asset base
   at each whole year.
-- **A horizon-derived withdrawal rate**, beside yours (or the placeholder):
+- **A horizon-derived withdrawal rate**, beside the one the FI number uses
+  (`withdrawal_rate.applied`, with its `origin` and, when derived, the
+  `applied_years` it must last):
   for each path the highest constant real withdrawal, as a share of the
   pool at retirement, that lasts the years drawn down (exactly
   12 / Σₖ 1/Gₖ, with Gₖ the path's growth to month k); the rate shown is the
-  one `success_level` (90% by default) of paths sustain. It informs; the FI
-  number still uses your rate.
+  one `success_level` (90% by default) of paths sustain over the years this
+  plan draws down. The FI number uses yours, or the derived one over 30
+  years (above).
 - **Guardrails** (`--guardrails 20%`): each year after retirement, a
   withdrawal rate more than the band above the starting one cuts spending
   by `--adjust` (10%), more than the band below raises it. They report the

@@ -22,6 +22,14 @@ exactly (`test_with_none_of_the_surplus_invested_...`). What a purchase
 costs is a scenario too now (tests/golden/test_household_scenarios.py), so
 the purchase costing that was pinned here is gone with the engine's own
 walk.
+
+Plan consistency ("pc: was …"): the FI number's spending leaves out the
+168.68 a month the average spending already pays on the debts (the car
+loan's interest, the student loan's minimum), which are subtracted from the
+asset base instead, so they count once: 1,868.41. The emergency fund (six
+months of that, 11,210.46) is held out of the asset base. And with no rate
+of the household's own, the withdrawal rate is the one the placeholder
+pack's returns sustain over 30 years for 90% of paths, 3.14%.
 """
 
 from __future__ import annotations
@@ -84,20 +92,23 @@ async def test_the_score(fi):
     # Was 84.96 and "FI-ready": the flat no longer counts towards FI. Was
     # 60.08: debt is scored by its rates, weighted by balance (pack 3.0.0).
     # Was 57.59: half the debt score is its payments' share of income (4.0.0).
-    assert score["overall_score"] == "57.42"
+    # pc: was 57.42.
+    assert score["overall_score"] == "56.42"
     # Was "Strong": under 50% of the way to FI, the top grades are not given.
     assert score["grade"] == "On track"
     assert score["monthly_surplus"] == "1962.91"  # was 1,734.55875
     # Was 0.4956.
     assert Decimal(score["savings_rate"]).quantize(Decimal("0.0001")) == Decimal("0.4907")
-    # Was 529,632.375: 2,037.09 × 12 / 0.04.
-    assert score["fi_number"] == "611127"
+    # Was 529,632.375: 2,037.09 × 12 / 0.04. pc: was 611,127; now
+    # 1,868.41 × 12 / 0.0314.
+    assert Decimal(score["fi_number"]).quantize(Decimal("0.01")) == Decimal("714042.04")
     # Was 344,026.47: the 125.00 revaluation and the 8,000 student loan.
     assert score["net_worth"] == "335901.4700"
     # Was 344,026.47: liquid 16,493.15 + investments 38,000 - liabilities
-    # 18,591.68 (the flat is owned, but funds no withdrawals).
-    assert score["fi_asset_base"] == "35901.4700"
-    assert Decimal(score["progress_to_fi"]).quantize(Decimal("0.0001")) == Decimal("0.0587")
+    # 18,591.68 (the flat is owned, but funds no withdrawals). pc: was
+    # 35,901.47, less the emergency fund held out, 11,210.46.
+    assert score["fi_asset_base"] == "24691.0100"
+    assert Decimal(score["progress_to_fi"]).quantize(Decimal("0.0001")) == Decimal("0.0346")
     # Was 186.71: the flat was "liquid".
     assert Decimal(score["emergency_fund_months"]).quantize(Decimal("0.01")) == Decimal("8.10")
     assert Decimal(score["debt_to_asset"]).quantize(Decimal("0.0001")) == Decimal("0.0524")
@@ -121,7 +132,8 @@ async def test_the_score(fi):
     # flows, the old walk reaches FI in 185 months; but the 15,801.47 of cash
     # earns nothing, where the old walk compounded the whole base, and that
     # puts it back two months, to 187.
-    assert (score["projected_fi_months"], score["projected_fi_month"]) == (187, "2042-05")
+    # pc: was 187 (2042-05): a larger number, from a smaller base.
+    assert (score["projected_fi_months"], score["projected_fi_month"]) == (214, "2044-08")
     assert score["as_of"] == "2026-10-11"
     # New: six full months observed (April to September), enough to show it.
     assert (score["status"], score["months_observed"]) == ("ok", 6)
@@ -142,20 +154,23 @@ async def test_reading_the_score_stores_nothing():
 async def test_the_projections(fi):
     projections = await fi.get_projections(h.USER)
 
-    assert projections["fi_number"] == "611127"  # was 529,632.375
+    # Was 529,632.375; pc: was 611,127.
+    assert Decimal(projections["fi_number"]).quantize(Decimal("0.01")) == Decimal("714042.04")
     # Was 344,026.47; then 35901.4700. 1b: the timeline's as-of point, cash
     # 15,801.47 + investments 38,000 − debts 17,900, in the currency's
     # precision.
-    assert projections["current_portfolio"] == "35901.47"
+    # pc: was 35,901.47, less the emergency fund held out.
+    assert projections["current_portfolio"] == "24691.01"
     # Was 7, 5 and 4 whole years: now the month in each scenario.
     # 1b: was 233 (2046-03), 197 (2043-03) and 171 (2041-01); then 260
     # (2048-06), 247 (2047-05) and 231 (2046-01), the surplus kept in cash.
     # Now each is the timeline with its investments, the surplus invested at
     # the placeholder 100% among them, at 2%, 4% and 6% (see the score).
+    # pc: was 220, 187 and 165.
     assert projections["fi_by"] == {
-        "conservative": {"months": 220, "month": "2045-02"},
-        "base": {"months": 187, "month": "2042-05"},
-        "growth": {"months": 165, "month": "2040-07"},
+        "conservative": {"months": 255, "month": "2048-01"},
+        "base": {"months": 214, "month": "2044-08"},
+        "growth": {"months": 186, "month": "2042-04"},
     }
     year_one = projections["points"][1]
     # Was 371,976.99 / 379,243.22 / 386,642.03, from the larger base; then
@@ -168,16 +183,18 @@ async def test_the_projections(fi):
     # = 39,637.48 (the as-of month's 21 days left, then twelve months), the
     # rest of October's 3,459.66 grown twelve months, 3,600.61, and 1,661.59
     # at each month's end from November, 20,308.72: 63,546.81, so 66,266.13.
+    # pc: each less the emergency fund held out, 11,210.46.
     assert (year_one["conservative"], year_one["base"], year_one["growth"]) == (
-        "65182.46",
-        "66266.13",
-        "67369.42",
+        "53972.00",
+        "55055.67",
+        "56158.96",
     )
     # Was 16 (years 0 to 15): the chart runs on to show the crossing.
     # 1b: was 23, then 25 (the conservative crossing in year 22). Now the
     # conservative crossing is in year 19 (220 months), and the chart runs
     # two years past it: surplus invested at the placeholder 100%.
-    assert len(projections["points"]) == 22
+    # pc: was 22; the conservative crossing is now in year 21.
+    assert len(projections["points"]) == 25
 
 
 async def test_with_none_of_the_surplus_invested_fi_is_the_cash_only_timelines():
@@ -185,7 +202,8 @@ async def test_with_none_of_the_surplus_invested_fi_is_the_cash_only_timelines()
     exactly the figures before the share was an assumption (1b's)."""
     fi = _fi(h.uow(fi_assumptions={"surplus_invested": {"value": "0", "source": "none of it"}}))
     score = await fi.compute_score(h.USER)
-    assert (score["projected_fi_months"], score["projected_fi_month"]) == (247, "2047-05")
+    # pc: was 247 (2047-05), as the timelines are.
+    assert (score["projected_fi_months"], score["projected_fi_month"]) == (294, "2051-04")
     assert "surplus_invested" not in score["assumptions"]["placeholders"]
     assert score["assumptions"]["surplus_invested"] == {
         "value": "0",
@@ -194,17 +212,17 @@ async def test_with_none_of_the_surplus_invested_fi_is_the_cash_only_timelines()
         "note": None,
     }
     projections = await fi.get_projections(h.USER)
+    # pc: was 260, 247 and 231.
     assert projections["fi_by"] == {
-        "conservative": {"months": 260, "month": "2048-06"},
-        "base": {"months": 247, "month": "2047-05"},
-        "growth": {"months": 231, "month": "2046-01"},
+        "conservative": {"months": 311, "month": "2052-09"},
+        "base": {"months": 294, "month": "2051-04"},
+        "growth": {"months": 272, "month": "2049-06"},
     }
     year_one = projections["points"][1]
-    assert (year_one["conservative"], year_one["base"], year_one["growth"]) == (
-        "64928.83",
-        "65755.54",
-        "66598.47",
-    )
+    year_one_cash = (year_one["conservative"], year_one["base"], year_one["growth"])
+    # pc: was 64,928.83, 65,755.54 and 66,598.47, before the emergency fund
+    # was held out.
+    assert year_one_cash == ("53718.37", "54545.08", "55388.01")
 
 
 async def test_the_surplus_breakdown(fi):

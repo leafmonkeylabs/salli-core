@@ -232,7 +232,7 @@ async def test_the_share_of_the_surplus_invested_is_from_0_to_1(client, fi, valu
 async def test_the_assumptions_route_reports_what_applies_and_the_placeholders(client, fi):
     body = (await client.get("/v1/fi/assumptions", headers=AUTH)).json()
     assert body["applied"]["safe_withdrawal_rate"]["origin"] == "placeholder"
-    assert body["placeholder_values"]["safe_withdrawal_rate"]["value"] == "0.04"
+    assert body["placeholder_values"]["safe_withdrawal_rate"]["value"] == "0.0314"
     assert body["placeholder_values"]["real_return"]["source"].startswith("Placeholder:")
     assert body["placeholder_values"]["surplus_invested"] == {
         "value": "1",
@@ -244,6 +244,7 @@ async def test_the_assumptions_route_reports_what_applies_and_the_placeholders(c
         "real_return": None,
         "nominal_return": None,
         "inflation": None,
+        "volatility": None,
         "safe_withdrawal_rate": None,
         "surplus_invested": None,
     }

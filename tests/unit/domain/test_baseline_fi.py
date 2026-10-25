@@ -43,10 +43,12 @@ def _books(rent: str = "1500", pay: str = "4000") -> Ledger:
 
 def test_the_fi_number_is_a_year_of_spending_over_the_withdrawal_rate():
     baseline = _books().baseline(AS_OF)
-    # 1,500 a month × 12 / 0.04 (the placeholder rate).
+    # 1,500 a month × 12 / the placeholder rate (what the placeholder
+    # pack's returns sustain).
+    swr = baseline.assumptions.safe_withdrawal_rate.value
     assert fi.spending(baseline) == Decimal("1500")
-    assert fi.fi_number(baseline) == Decimal("450000")
-    assert fi.fi_number(baseline, Decimal("2000")) == Decimal("600000")
+    assert fi.fi_number(baseline) == Decimal("18000") / swr
+    assert fi.fi_number(baseline, Decimal("2000")) == Decimal("24000") / swr
     # No spending, no number (never "already FI").
     assert fi.fi_number(baseline, Decimal(0)) == 0
 

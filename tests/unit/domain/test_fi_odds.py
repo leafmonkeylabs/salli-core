@@ -18,8 +18,12 @@ import pytest
 from salli.domain.baseline import fi, timelines
 from salli.domain.fi import cma, montecarlo
 from salli.domain.fi import plan as fi_plan
+from salli.domain.fi.assumptions import PLACEHOLDERS
 from tests.baseline_ledger import USER, Ledger
 from tests.golden import taxed
+
+#: The withdrawal rate the placeholder pack's returns sustain.
+SWR = PLACEHOLDERS["safe_withdrawal_rate"].value
 
 AS_OF = dt.date(2031, 6, 30)
 
@@ -125,11 +129,11 @@ def test_the_fi_number_is_grossed_up_by_the_withdrawal_role() -> None:
     baseline = ledger.baseline(AS_OF)
     # 18,000 a year to spend: G − 20% × (G − 12,000) = 18,000, so G = 19,500.
     assert fi.gross_up(baseline, Decimal(18000)) == Decimal("19500.00")
-    assert fi.fi_number(baseline) == Decimal("19500.00") / Decimal("0.04")
+    assert fi.fi_number(baseline) == Decimal("19500.00") / SWR
     assert fi.withdrawal_tax(baseline)["status"] == "computed"
     # Without the role it isn't, and says so.
     plain = books().baseline(AS_OF)
-    assert fi.fi_number(plain) == Decimal(18000) / Decimal("0.04")
+    assert fi.fi_number(plain) == Decimal(18000) / SWR
     assert fi.withdrawal_tax(plain)["status"] == "not_computed"
 
 
@@ -152,7 +156,7 @@ def test_withdrawals_are_taxed_beside_guaranteed_income_with_a_tax_role() -> Non
     assert fi.taxed_income(baseline, "2031-06", {}) == {"annuity": Decimal(12000)}
     assert fi.gross_up(baseline, Decimal(6000)) == Decimal("6000.00")
     assert fi.gross_up(baseline, Decimal(6000), {"annuity": Decimal(12000)}) == Decimal("7500.00")
-    assert fi.fi_number(baseline) == Decimal("7500.00") / Decimal("0.04")
+    assert fi.fi_number(baseline) == Decimal("7500.00") / SWR
 
 
 def test_a_pension_steps_the_number_down_and_comes_into_cash() -> None:
@@ -165,9 +169,9 @@ def test_a_pension_steps_the_number_down_and_comes_into_cash() -> None:
     baseline = ledger.baseline(AS_OF)
     timeline = fi.full_timeline(baseline)
     numbers = fi.fi_numbers(baseline, timeline.points)
-    assert numbers[0] == Decimal(450000)
+    assert numbers[0] == Decimal(18000) / SWR
     at = next(i for i, p in enumerate(timeline.points) if p.month == "2041-01")
-    assert numbers[at] == Decimal(300000)  # 1,000 a month left to fund
+    assert numbers[at] == Decimal(12000) / SWR  # 1,000 a month left to fund
     plain = fi.full_timeline(books().baseline(AS_OF))
     gained = timeline.points[at].cash - plain.points[at].cash
     assert gained == Decimal(20500)
@@ -254,3 +258,76 @@ def test_a_pack_sets_the_degrees_of_freedom_else_a_placeholder() -> None:
     assert odds["cma"]["degrees_of_freedom"] == "8"  # type: ignore[index]
     plain = montecarlo.plan_odds(books().baseline(AS_OF), horizon_years=10, paths=20)
     assert "degrees_of_freedom" in plain["placeholders"]  # type: ignore[operator]
+
+
+def test_a_pack_history_is_resampled_from_one_source() -> None:
+    from salli.domain.fi import returns
+
+    history = tuple(Decimal("0.01") if k % 2 else Decimal("-0.005") for k in range(36))
+    source = returns.ReturnSource(
+        Decimal("0.05"), Decimal("0.1"), cma.TAILS, "pack", Decimal("0.0012"), history
+    )
+    assert source.method == "bootstrap"
+    # The history's own mean a year, less the expense ratio.
+    assert source.mean == Decimal("0.0025") * 12 - Decimal("0.0012")
+    paths = source.monthly(30, 3, 1)
+    assert all(len(p) == 30 for p in paths)
+    # Every draw is a month of the history less a twelfth of the costs.
+    allowed = {r - Decimal("0.0001") for r in history}
+    assert {r for p in paths for r in p} <= allowed
+    assert source.monthly(30, 3, 1) == paths
+
+
+def test_a_category_runs_at_its_own_inflation_in_todays_money() -> None:
+    plan = fi_plan.parse(
+        {
+            "spending_phases": [
+                {"from_age": 60, "monthly": "3000", "categories": {"housing": "1000"}}
+            ],
+            "category_inflation": {"housing": {"value": "0.0506", "source": "a test"}},
+        },
+        dt.date(1970, 1, 15),
+    )
+    # 1.0506 / 1.02 = 1.03 a year, twelve years on.
+    added = fi_plan.category_uplift(plan, "2038-10", "2026-10", Decimal("0.02"), {})
+    assert added.quantize(Decimal("0.01")) == (
+        Decimal(1000) * (Decimal("1.03") ** 12 - 1)
+    ).quantize(Decimal("0.01"))
+    # The pack's figure where the plan has none; nothing without inflation.
+    bare = fi_plan.parse(
+        {
+            "spending_phases": [
+                {"from_age": 60, "monthly": "3000", "categories": {"housing": "1000"}}
+            ]
+        },
+        dt.date(1970, 1, 15),
+    )
+    assert fi_plan.category_uplift(bare, "2038-10", "2026-10", Decimal("0.02"), {}) == 0
+    assert (
+        fi_plan.category_uplift(bare, "2038-10", "2026-10", None, {"housing": Decimal("0.05")}) == 0
+    )
+    assert (
+        fi_plan.category_uplift(
+            bare, "2038-10", "2026-10", Decimal("0.02"), {"housing": Decimal("0.0506")}
+        )
+        == added
+    )
+    with pytest.raises(ValueError, match="more than"):
+        fi_plan.parse(
+            {
+                "spending_phases": [
+                    {"from_age": 60, "monthly": "10", "categories": {"housing": "11"}}
+                ]
+            }
+        )
+
+
+def test_debt_payments_leave_the_fi_spending_and_the_emergency_fund_is_held_out() -> None:
+    baseline = books().baseline(AS_OF)
+    assert fi.debt_service(baseline) == sum(
+        (d.already_paid for d in baseline.debts if d.balance > 0), Decimal(0)
+    )
+    living = fi.spending(baseline) - fi.debt_service(baseline)
+    assert fi.reserve(baseline) == living * 6
+    point = fi.full_timeline(baseline).points[0]
+    assert fi.asset_base(point, fi.reserve(baseline)) == fi.asset_base(point) - fi.reserve(baseline)

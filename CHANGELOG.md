@@ -155,6 +155,41 @@
   active tax rules' `cost_basis`, as portfolio reads are, else first in,
   first out.
 
+- **Plan consistency.** The odds take their mean and volatility from one
+  source (your own return with your new `volatility` assumption, else your
+  pack's mix, else the placeholder pack's), less your holdings' weighted
+  expense ratio (`returns` in the odds), and resample a pack's optional
+  `history` of monthly returns instead of drawing a Student-t. A pack may
+  give `category_inflation`, and an FI plan's spending phases may name
+  `categories` with their own inflation (`category_inflation` in the plan),
+  which grow apart from general inflation. Every FI response labels the cash
+  yield (`assumptions.cash_yield`), a placeholder without a pack.
+- **A risk questionnaire in three parts.** Tolerance is attitude only: the
+  drawdown reaction and six optional 1-5 items (`loss_tolerance`,
+  `certainty`, `volatility_comfort`, `self_rating`, `loss_focus`,
+  `past_behaviour`; `salli profile risk --certainty 3`, …), scored over
+  those answered; capacity takes dependents as a measure; experience is
+  recorded, never scored; and need, the return the plan requires to reach
+  the FI number within the horizon, sits beside the profile
+  (`risk_profile.need`).
+- **An investment policy that holds.** Asset classes come from a controlled
+  taxonomy with sub-classes (`equity.international`, `fixed_income.government`, …);
+  a holding may carry a look-through `allocation` (`salli portfolio holdings
+  add --allocation equity:0.6,fixed_income:0.4`; migration
+  `core_0041_holding_allocation`); the drift report adds `tax_aware_sales`,
+  the open lots that bring a class above target back to it with the least
+  realised gain, as figures. A version whose equity target is above the risk
+  profile's band needs `override_reason`, stored with it.
+- **Benchmarks and lots.** Performance adds `tracking_error`, a
+  `blended_benchmark` (your policy's targets over the series you name,
+  `--blend equity:IDX`) and `net_of_fees`. A tax rule set may declare
+  `long_term_after_months` and `wash_sale_days`: lots then say their
+  `holding_period` and loss sales near a buy are flagged (`wash_sale`).
+- **Insurance against the needs.** Without a typed target, the coverage
+  report gaps life and liability cover against the needs analysis (`basis`
+  `needs`); the needs analysis adds liability cover (net worth) and a
+  `liability` policy type.
+
 ### Security
 
 - **Outside text is fenced everywhere a model reads it.** Every free-text
@@ -170,6 +205,23 @@
 
 #### Changed
 
+- **The FI number counts debts once and holds the emergency fund out.** Its
+  spending leaves out what the average spending already pays on debts
+  (subtracted from the asset base instead), and the FI method's emergency
+  target (six months of that spending) is held out of the FI asset base,
+  the score's included. Without a rate of your own, the withdrawal rate is
+  the one the odds' returns sustain over 30 years for 90% of paths
+  (`origin` `derived`, or `placeholder` on the placeholder pack's returns:
+  3.14%, was a round 4%). FI numbers rise and FI months move later.
+- **Debt or invest's odds compare like with like.** The debt's rate is
+  brought after inflation with yours, else your pack's; without either the
+  odds are `not_computed` (`status`, and `debt_real_rate` and
+  `invest_beats_paying_down` null).
+- **The risk questionnaire answers tolerance only**: `breakdown` is per
+  item (0-4 points), with `items_answered`; the horizon, income stability
+  and dependents no longer score tolerance, and experience never does.
+- **Investment policy targets take the taxonomy's classes**: free text is
+  refused.
 - **The odds move.** Monte Carlo draws are fat-tailed now (above), so
   the same seed gives different odds, percentiles and horizon-derived
   rates than before; the share of paths where investing beats paying down

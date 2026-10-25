@@ -73,6 +73,7 @@ describe('FI planning assumptions: real terms, placeholders, your own figures', 
       Real return                4%  placeholder  Placeholder: a round 4% a year after inflation.
       Nominal return        not set
       Inflation             not set
+      Volatility            not set
       Safe withdrawal rate     3.5%  you          https://example.org/withdrawal-study
       Surplus invested         100%  placeholder  Placeholder: all of your monthly surplus is assumed invested at the real return; set what you actually invest.
       Scenarios (real): 2% / 4% / 6% (conservative / base / growth)

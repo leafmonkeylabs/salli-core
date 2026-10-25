@@ -82,6 +82,8 @@ and at most 28 significant digits. Dates are `"YYYY-MM-DD"`.
 | `deadlines` | `{key, label, date, source?}`. |
 | `suggested_accounts` | Accounts a user's chart should have: `{code, name, type: asset\|liability\|equity\|income\|expense, tax_role?}`; `tax_role` names a declared role. |
 | `cost_basis` | Optional: how holdings' sales are costed where these rules apply, `fifo` (first in, first out; a sale may name its lots) or `average` (average cost). A holding's own `cost_method` overrides it; with neither, first in, first out. |
+| `long_term_after_months` | Optional: a lot held longer than this many months is held long term; a holding's lots then say `short` or `long` (`salli portfolio lots`). Without it, no line is drawn and they say neither. |
+| `wash_sale_days` | Optional: a sale at a loss with a buy of the same holding within this many days before or after it is flagged (`wash_sale`). Without it, no sale is flagged. |
 | `forms` | `{key, label, fields: [{id, label, value}], instructions?, url?}`; each `value` is an expression giving a number or true/false. |
 | `examples` | Worked examples: `{name, source?, inputs, expected}`. See [Validation](#validation). |
 

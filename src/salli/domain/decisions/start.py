@@ -156,18 +156,37 @@ def _odds_view(baseline: Baseline, debt_id: str, years: int) -> dict[str, Any] |
     debt = next((d for d in baseline.debts if d.debt_id == debt_id), None)
     if debt is None:
         return None
-    applied = baseline.assumptions
     inflation = baseline.inflation
-    real_rate = debt.apr if inflation is None else real_return(debt.apr, inflation)
+    if inflation is None:
+        # The debt's rate is nominal and the returns are real: without an
+        # inflation to bring them to one footing, there are no odds.
+        return {
+            "debt": debt_id,
+            "status": "not_computed",
+            "debt_real_rate": None,
+            "months": years * 12,
+            "paths": montecarlo.DEFAULT_PATHS,
+            "seed": montecarlo.DEFAULT_SEED,
+            "invest_beats_paying_down": None,
+            "says": (
+                "The odds are not computed: the debt's rate is before inflation and the "
+                "returns are after it. Set your inflation, or activate capital-market "
+                "assumptions that give one."
+            ),
+        }
+    source = baseline.assumptions.odds
+    real_rate = real_return(debt.apr, inflation)
     share = montecarlo.beats(
-        applied.real_return.value,
-        applied.cma.volatility,
+        source.mean,
+        source.volatility,
         years * 12,
         real_rate,
-        tails=applied.cma.tails,
+        tails=source.tails,
+        source=source,
     )
     return {
         "debt": debt_id,
+        "status": "computed",
         "debt_real_rate": f"{real_rate.quantize(Decimal('0.0001')).normalize():f}",
         "months": years * 12,
         "paths": montecarlo.DEFAULT_PATHS,
@@ -175,9 +194,9 @@ def _odds_view(baseline: Baseline, debt_id: str, years: int) -> dict[str, Any] |
         "invest_beats_paying_down": f"{share.normalize():f}" if share else "0",
         "says": (
             "The share of simulated return paths on which the money invested grows by more, "
-            f"over {years} years, than paying down the debt saves at its rate"
-            + (" (after your inflation)" if inflation is not None else " (inflation not set)")
-            + ". Paying down is certain; investing is not. Not a forecast."
+            f"over {years} years, than paying down the debt saves at its rate after "
+            f"inflation. {montecarlo.source_says(source)} Paying down is certain; investing "
+            "is not. Not a forecast."
         ),
     }
 

@@ -291,36 +291,51 @@ async def declare_income(
     return IncomeAccounts(income_accounts=ids)
 
 
+_Item = Annotated[int, Field(ge=1, le=5)] | None
+
+
 class RiskQuestionnaireRequest(BaseModel):
+    """Tolerance (attitude, scored), capacity (horizon, income stability,
+    dependents: measured with your baseline, `GET /v1/ips/risk-profile`)
+    and experience (recorded, never scored)."""
+
+    #: Capacity: years until the money is needed.
     time_horizon_years: int
-    drawdown_reaction: str  # sell_all|sell_some|hold|buy_more
-    income_stability: str  # unstable|moderate|stable
-    investment_experience: str  # none|some|experienced
+    #: Tolerance: sell_all | sell_some | hold | buy_more.
+    drawdown_reaction: str
+    #: Capacity: unstable | moderate | stable.
+    income_stability: str
+    #: Recorded, not scored: none | some | experienced.
+    investment_experience: str
+    #: Capacity.
     dependents_count: int = 0
-
-
-class RiskBreakdown(BaseModel):
-    """The points each answer contributed to the score."""
-
-    #: 0-20
-    time_horizon: int
-    #: 0-25
-    drawdown_reaction: int
-    #: 0-20
-    income_stability: int
-    #: 0-20
-    investment_experience: int
-    #: 0-15: fewer dependents, more points.
-    dependents: int
+    #: Tolerance, 1-5: the largest fall in a year you could accept (1 none,
+    #: 5 forty per cent or more).
+    loss_tolerance: _Item = None
+    #: Tolerance, 1-5: a sure gain or an uncertain larger one (1 always sure).
+    certainty: _Item = None
+    #: Tolerance, 1-5: values swinging month to month (1 very uncomfortable).
+    volatility_comfort: _Item = None
+    #: Tolerance, 1-5: how you see yourself with money (1 very cautious).
+    self_rating: _Item = None
+    #: Tolerance, 1-5: what you dwell on after a decision (1 the loss).
+    loss_focus: _Item = None
+    #: Tolerance, 1-5: in a fall you lived through (1 sold everything).
+    past_behaviour: _Item = None
 
 
 class RiskProfile(BaseModel):
-    """The scored questionnaire, as saved to the profile."""
+    """The scored tolerance, as saved to the profile."""
 
-    #: 0-100
+    #: 0-100, over the tolerance items answered.
     score: int
     category: RiskCategory
-    breakdown: RiskBreakdown
+    #: Each tolerance item's points, 0-4.
+    breakdown: dict[str, int]
+    items_answered: int
+    #: As answered; never part of the score.
+    experience: str
+    experience_scored: bool
 
 
 @router.post("/risk-questionnaire")

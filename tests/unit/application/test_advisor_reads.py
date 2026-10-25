@@ -37,7 +37,8 @@ async def test_gathering_the_context_stores_no_score(monkeypatch):
     # 1b: was 2043-03 (197 months), then 2047-05 (247): FI's month is the
     # baseline timeline's now, with the surplus invested at the placeholder
     # 100% (tests/golden/test_household_fi.py says why).
-    assert context["figures"]["fi_month"]["value"] == "May 2042"
+    # Then May 2042 (187), before the plan-consistency pass.
+    assert context["figures"]["fi_month"]["value"] == "August 2044"
     # Salli's figures only: nothing researched, nothing about the person's
     # goals in their own words, and no score.
     assert set(context) == {"figures", "signals", "assumptions"}
@@ -55,10 +56,11 @@ async def test_a_run_records_the_score_it_described(monkeypatch):
 
     report = await advisor.run_advisor(h.USER)
 
-    assert report["summary"] == "FI comes in May 2042 at this pace."
+    assert report["summary"] == "FI comes in August 2044 at this pace."
     [score] = uow.fi_scores.rows
     # Was 60.08: debt is scored by its rates (FI pack 3.0.0).
-    assert (score["overall_score"], score["as_of"]) == ("57.42", "2026-10-11")
+    # Then 57.42, before the emergency fund was held out of the asset base.
+    assert (score["overall_score"], score["as_of"]) == ("56.42", "2026-10-11")
 
 
 async def test_every_briefing_says_an_ai_wrote_it(monkeypatch):

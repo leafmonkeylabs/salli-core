@@ -55,7 +55,8 @@ def test_there_is_no_table_by_country_or_currency():
 
 def test_the_placeholders_are_round_neutral_and_say_they_are_placeholders():
     assert PLACEHOLDERS["real_return"].value == D("0.04")
-    assert PLACEHOLDERS["safe_withdrawal_rate"].value == D("0.04")
+    # The rate the placeholder pack's returns sustain over 30 years, 90% of paths.
+    assert PLACEHOLDERS["safe_withdrawal_rate"].value == D("0.0314")
     # All of the surplus: the convention FI projections start from.
     assert PLACEHOLDERS["surplus_invested"].value == D(1)
     assert PLACEHOLDERS["surplus_invested"].source == (
@@ -78,7 +79,7 @@ def test_with_nothing_set_placeholders_stand_in_and_say_so():
     assert applied.real_return.origin == applied.safe_withdrawal_rate.origin == "placeholder"
     assert applied.surplus_invested.origin == "placeholder"
     assert applied.real_return.value == D("0.04")
-    assert applied.safe_withdrawal_rate.value == D("0.04")
+    assert applied.safe_withdrawal_rate.value == D("0.0314")
     assert applied.surplus_invested.value == D(1)
     assert applied.surplus_invested.source == PLACEHOLDERS["surplus_invested"].source
     # No inflation is ever assumed: everything is in today's money.
@@ -294,6 +295,7 @@ def test_stored_figures_round_trip_and_are_read_leniently():
     assert set(NAMES) == {
         "real_return",
         "nominal_return",
+        "volatility",
         "inflation",
         "safe_withdrawal_rate",
         "surplus_invested",
@@ -310,3 +312,31 @@ def test_the_fisher_relation_both_ways():
     assert real_return(D("0.10"), D("0")) == D("0.10")
     assert nominal_return(D("0.04"), D("0.03")) == D("0.0712")
     assert real_return(nominal_return(D("0.04"), D("0.03")), D("0.03")) == D("0.04")
+
+
+def test_the_odds_take_mean_and_volatility_from_one_source_less_costs():
+    from salli.domain.fi import cma
+
+    # Your return alone: the placeholder pack's pair, not your return beside its volatility.
+    mixed = resolve(_own(real_return="0.06"))
+    assert mixed.odds.origin == "placeholder"
+    assert mixed.odds.mean == cma.PLACEHOLDER.expected_return
+    # Your pair: both yours, the expense ratio off the mean.
+    mine = resolve(_own(real_return="0.06", volatility="0.10"), expense_ratio=D("0.005"))
+    assert (mine.odds.origin, mine.odds.mean, mine.odds.volatility) == (
+        "user",
+        D("0.055"),
+        D("0.10"),
+    )
+    # Its withdrawal rate is derived from those returns, labelled as such.
+    assert mine.safe_withdrawal_rate.origin == "derived"
+    assert mine.safe_withdrawal_rate.value != PLACEHOLDERS["safe_withdrawal_rate"].value
+    # Yours, when set, always applies.
+    set_rate = resolve(_own(real_return="0.06", volatility="0.10", safe_withdrawal_rate="0.035"))
+    assert set_rate.safe_withdrawal_rate.value == D("0.035")
+
+
+def test_without_a_pack_the_cash_yield_is_a_labelled_placeholder():
+    applied = resolve(OwnAssumptions())
+    assert applied.cash_yield_applied.origin == "placeholder"
+    assert assumptions_dict(applied)["cash_yield"]["value"] == "0"

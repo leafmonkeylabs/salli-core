@@ -280,8 +280,12 @@ def sensitivity(
             if retrade and scenario is not None:
                 changes = translate(baseline, scenario, real_return=rate).changes
             base, mine = bases[name], fi.full_timeline(baseline, changes, real_return=rate)
-            b_fi = fi.months_to_fi(base.points, fi.fi_numbers(baseline, base.points, base_spend))
-            s_fi = fi.months_to_fi(mine.points, fi.fi_numbers(baseline, mine.points, spending))
+            b_fi = fi.months_to_fi(
+                base.points, fi.fi_numbers(baseline, base.points, base_spend), fi.reserve(baseline)
+            )
+            s_fi = fi.months_to_fi(
+                mine.points, fi.fi_numbers(baseline, mine.points, spending), fi.reserve(baseline)
+            )
             rows.append(
                 (
                     name,

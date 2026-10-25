@@ -1703,7 +1703,12 @@ def build_mcp_server(
     @mcp.tool(annotations=WRITES_OVER)
     async def set_fi_assumption(
         name: Literal[
-            "real_return", "nominal_return", "inflation", "safe_withdrawal_rate", "surplus_invested"
+            "real_return",
+            "nominal_return",
+            "inflation",
+            "volatility",
+            "safe_withdrawal_rate",
+            "surplus_invested",
         ],
         value: str | None,
         source: str | None = None,

@@ -1714,6 +1714,36 @@ export type BenchmarkFigures = {
 };
 
 /**
+ * BlendedBenchmark
+ */
+export type BlendedBenchmark = {
+    /**
+     * Weights
+     */
+    weights: {
+        [key: string]: string;
+    };
+    /**
+     * Series
+     */
+    series: {
+        [key: string]: string;
+    };
+    /**
+     * Yearly Return
+     */
+    yearly_return: string | null;
+    /**
+     * Volatility
+     */
+    volatility: string | null;
+    /**
+     * Max Drawdown
+     */
+    max_drawdown: string | null;
+};
+
+/**
  * BriefingAssumptions
  *
  * Whether the independence figures rest on placeholders.
@@ -2215,6 +2245,34 @@ export type CategorizedTransactions = {
      * Updated
      */
     updated: Array<string>;
+};
+
+/**
+ * CategoryInflationIn
+ */
+export type CategoryInflationIn = {
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+};
+
+/**
+ * CategoryInflationOut
+ */
+export type CategoryInflationOut = {
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Source
+     */
+    source?: string | null;
 };
 
 /**
@@ -3079,6 +3137,10 @@ export type CoverageGapLine = {
      * Decimal string in the currency's own precision; never a float.
      */
     gap: string;
+    /**
+     * Basis
+     */
+    basis?: 'target' | 'needs';
 };
 
 /**
@@ -4652,6 +4714,10 @@ export type DriftReport = {
     risk_profile: InvestorRiskProfile;
     equity_check: EquityCheck;
     /**
+     * Tax Aware Sales
+     */
+    tax_aware_sales: Array<TaxAwareSale>;
+    /**
      * Notes
      */
     notes: Array<string>;
@@ -4836,6 +4902,10 @@ export type EquityCheck = {
      * Above Profile
      */
     above_profile: boolean;
+    /**
+     * Override Reason
+     */
+    override_reason?: string | null;
 };
 
 /**
@@ -5143,7 +5213,7 @@ export type FiAssumption = {
     /**
      * Origin
      */
-    origin: 'user' | 'placeholder';
+    origin: 'user' | 'placeholder' | 'derived';
     /**
      * Source
      */
@@ -5181,6 +5251,7 @@ export type FiAssumptions = {
     surplus_invested: FiAssumption;
     inflation?: FiAssumption | null;
     nominal_return?: FiAssumption | null;
+    cash_yield?: FiAssumption | null;
     real_returns: FiScenarioReturns;
     nominal_returns?: FiScenarioReturns | null;
     cma?: CmaSummary | null;
@@ -5213,6 +5284,7 @@ export type FiAssumptionsUpdate = {
     real_return?: FiOwnAssumptionIn | null;
     nominal_return?: FiOwnAssumptionIn | null;
     inflation?: FiOwnAssumptionIn | null;
+    volatility?: FiOwnAssumptionIn | null;
     safe_withdrawal_rate?: FiOwnAssumptionIn | null;
     surplus_invested?: FiOwnAssumptionIn | null;
 };
@@ -5304,6 +5376,7 @@ export type FiOdds = {
      * Volatility
      */
     volatility: string;
+    returns: OddsReturns;
     cma: CmaSummary;
     /**
      * Fi Number
@@ -5397,6 +5470,7 @@ export type FiOwnAssumptions = {
     real_return?: FiOwnAssumption | null;
     nominal_return?: FiOwnAssumption | null;
     inflation?: FiOwnAssumption | null;
+    volatility?: FiOwnAssumption | null;
     safe_withdrawal_rate?: FiOwnAssumption | null;
     surplus_invested?: FiOwnAssumption | null;
 };
@@ -5442,6 +5516,12 @@ export type FiPlan = {
      */
     spending_phases: Array<SpendingPhaseOut>;
     /**
+     * Category Inflation
+     */
+    category_inflation?: {
+        [key: string]: CategoryInflationOut;
+    };
+    /**
      * Date Of Birth
      */
     date_of_birth?: string | null;
@@ -5459,6 +5539,12 @@ export type FiPlanIn = {
      * Spending Phases
      */
     spending_phases?: Array<SpendingPhase>;
+    /**
+     * Category Inflation
+     */
+    category_inflation?: {
+        [key: string]: CategoryInflationIn;
+    };
 };
 
 /**
@@ -6138,6 +6224,12 @@ export type Holding = {
      */
     expense_ratio?: string | null;
     /**
+     * Allocation
+     */
+    allocation?: {
+        [key: string]: string;
+    } | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -6239,6 +6331,10 @@ export type HoldingLot = {
      * Is Open
      */
     is_open: boolean;
+    /**
+     * Holding Period
+     */
+    holding_period?: 'short' | 'long' | null;
 };
 
 /**
@@ -6265,6 +6361,14 @@ export type HoldingLots = {
      * Cost Method
      */
     cost_method: 'fifo' | 'average';
+    /**
+     * Long Term After Months
+     */
+    long_term_after_months?: number | null;
+    /**
+     * Wash Sale Days
+     */
+    wash_sale_days?: number | null;
     /**
      * Quantity
      *
@@ -6369,6 +6473,12 @@ export type HoldingRequest = {
      * Expense Ratio
      */
     expense_ratio?: string | null;
+    /**
+     * Allocation
+     */
+    allocation?: {
+        [key: string]: string;
+    } | null;
 };
 
 /**
@@ -6447,6 +6557,10 @@ export type HoldingSale = {
      * Decimal string in the currency's own precision; never a float.
      */
     gain_base: string;
+    /**
+     * Wash Sale
+     */
+    wash_sale?: boolean | null;
     /**
      * Consumed
      */
@@ -6715,6 +6829,12 @@ export type HoldingUpdateRequest = {
      * Expense Ratio
      */
     expense_ratio?: string | null;
+    /**
+     * Allocation
+     */
+    allocation?: {
+        [key: string]: string;
+    } | null;
 };
 
 /**
@@ -7039,6 +7159,24 @@ export type InsuranceNeeds = {
      * Decimal string in the currency's own precision; never a float.
      */
     income_protection_monthly: string;
+    /**
+     * Liability Cover Need
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    liability_cover_need: string;
+    /**
+     * Liability Cover Held
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    liability_cover_held: string;
+    /**
+     * Liability Cover Gap
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    liability_cover_gap: string;
 };
 
 /**
@@ -7183,6 +7321,10 @@ export type InvestmentPolicyContent = {
      * Review On
      */
     review_on: string | null;
+    /**
+     * Override Reason
+     */
+    override_reason?: string | null;
 };
 
 /**
@@ -7210,6 +7352,10 @@ export type InvestmentPolicyRequest = {
      * Review On
      */
     review_on?: string | null;
+    /**
+     * Override Reason
+     */
+    override_reason?: string | null;
 };
 
 /**
@@ -7247,6 +7393,7 @@ export type InvestmentPolicyVersions = {
 export type InvestorRiskProfile = {
     tolerance: RiskTolerance;
     capacity: RiskCapacityFigures;
+    need: RiskNeed;
     /**
      * Profile
      */
@@ -7523,6 +7670,10 @@ export type LotConsumption = {
      * Decimal string in the currency's own precision; never a float.
      */
     cost_base: string;
+    /**
+     * Holding Period
+     */
+    holding_period?: 'short' | 'long' | null;
 };
 
 /**
@@ -7553,6 +7704,50 @@ export type LotPickRequest = {
      * Quantity
      */
     quantity: string;
+};
+
+/**
+ * LotToSell
+ */
+export type LotToSell = {
+    /**
+     * Holding Id
+     */
+    holding_id: string;
+    /**
+     * Symbol
+     */
+    symbol: string;
+    /**
+     * Lot Id
+     */
+    lot_id: string;
+    /**
+     * Opened On
+     */
+    opened_on: string;
+    /**
+     * Holding Period
+     */
+    holding_period?: 'short' | 'long' | null;
+    /**
+     * Quantity
+     *
+     * Decimal string, exact; never a float.
+     */
+    quantity: string;
+    /**
+     * Proceeds
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    proceeds: string;
+    /**
+     * Realised Gain
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    realised_gain: string;
 };
 
 /**
@@ -7802,6 +7997,24 @@ export type NativeFigures = {
      * Decimal string in the currency's own precision; never a float.
      */
     unrealised_gain: string;
+};
+
+/**
+ * NetOfFees
+ */
+export type NetOfFees = {
+    /**
+     * Expense Ratio
+     */
+    expense_ratio: string | null;
+    /**
+     * Yearly Return
+     */
+    yearly_return: string | null;
+    /**
+     * Says
+     */
+    says: string;
 };
 
 /**
@@ -8133,6 +8346,30 @@ export type OddsGuardrails = {
 };
 
 /**
+ * OddsReturns
+ *
+ * Where the paths' returns come from: one source for mean and volatility.
+ */
+export type OddsReturns = {
+    /**
+     * Origin
+     */
+    origin: 'user' | 'pack' | 'placeholder';
+    /**
+     * Method
+     */
+    method: 'student_t' | 'bootstrap';
+    /**
+     * Expense Ratio
+     */
+    expense_ratio: string;
+    /**
+     * Says
+     */
+    says: string;
+};
+
+/**
  * OddsWithdrawalRate
  */
 export type OddsWithdrawalRate = {
@@ -8143,7 +8380,11 @@ export type OddsWithdrawalRate = {
     /**
      * Origin
      */
-    origin: 'user' | 'placeholder';
+    origin: 'user' | 'placeholder' | 'derived';
+    /**
+     * Applied Years
+     */
+    applied_years?: number | null;
     /**
      * Horizon Derived
      */
@@ -8782,7 +9023,7 @@ export type PolicyTargetIn = {
     /**
      * Asset Class
      */
-    asset_class: string;
+    asset_class: 'equity' | 'equity.domestic' | 'equity.international' | 'equity.emerging' | 'fixed_income' | 'fixed_income.government' | 'fixed_income.corporate' | 'fixed_income.inflation_linked' | 'cash' | 'property' | 'property.direct' | 'property.listed' | 'commodities' | 'alternatives' | 'other';
     /**
      * Target
      */
@@ -10211,34 +10452,6 @@ export type ReviewIn = {
 };
 
 /**
- * RiskBreakdown
- *
- * The points each answer contributed to the score.
- */
-export type RiskBreakdown = {
-    /**
-     * Time Horizon
-     */
-    time_horizon: number;
-    /**
-     * Drawdown Reaction
-     */
-    drawdown_reaction: number;
-    /**
-     * Income Stability
-     */
-    income_stability: number;
-    /**
-     * Investment Experience
-     */
-    investment_experience: number;
-    /**
-     * Dependents
-     */
-    dependents: number;
-};
-
-/**
  * RiskCapacityFigures
  */
 export type RiskCapacityFigures = {
@@ -10313,12 +10526,46 @@ export type RiskFigures = {
      */
     hurdle_source: 'cash_yield' | 'benchmark' | 'cma_pack' | null;
     benchmark: BenchmarkFigures | null;
+    blended_benchmark?: BlendedBenchmark | null;
+    /**
+     * Tracking Error
+     */
+    tracking_error?: string | null;
+    /**
+     * Tracking Against
+     */
+    tracking_against?: 'benchmark' | 'blended_benchmark' | null;
+    net_of_fees: NetOfFees;
+};
+
+/**
+ * RiskNeed
+ *
+ * The return the plan requires, beside the profile, never folded in.
+ */
+export type RiskNeed = {
+    /**
+     * Required Return
+     */
+    required_return: string | null;
+    /**
+     * Category
+     */
+    category: 'conservative' | 'balanced' | 'aggressive' | null;
+    /**
+     * Above Profile
+     */
+    above_profile: boolean;
+    /**
+     * Says
+     */
+    says: string;
 };
 
 /**
  * RiskProfile
  *
- * The scored questionnaire, as saved to the profile.
+ * The scored tolerance, as saved to the profile.
  */
 export type RiskProfile = {
     /**
@@ -10329,11 +10576,32 @@ export type RiskProfile = {
      * Category
      */
     category: 'conservative' | 'balanced' | 'aggressive';
-    breakdown: RiskBreakdown;
+    /**
+     * Breakdown
+     */
+    breakdown: {
+        [key: string]: number;
+    };
+    /**
+     * Items Answered
+     */
+    items_answered: number;
+    /**
+     * Experience
+     */
+    experience: string;
+    /**
+     * Experience Scored
+     */
+    experience_scored: boolean;
 };
 
 /**
  * RiskQuestionnaireRequest
+ *
+ * Tolerance (attitude, scored), capacity (horizon, income stability,
+ * dependents: measured with your baseline, `GET /v1/ips/risk-profile`)
+ * and experience (recorded, never scored).
  */
 export type RiskQuestionnaireRequest = {
     /**
@@ -10356,6 +10624,30 @@ export type RiskQuestionnaireRequest = {
      * Dependents Count
      */
     dependents_count?: number;
+    /**
+     * Loss Tolerance
+     */
+    loss_tolerance?: number | null;
+    /**
+     * Certainty
+     */
+    certainty?: number | null;
+    /**
+     * Volatility Comfort
+     */
+    volatility_comfort?: number | null;
+    /**
+     * Self Rating
+     */
+    self_rating?: number | null;
+    /**
+     * Loss Focus
+     */
+    loss_focus?: number | null;
+    /**
+     * Past Behaviour
+     */
+    past_behaviour?: number | null;
 };
 
 /**
@@ -11970,6 +12262,12 @@ export type SpendingPhase = {
      * Source
      */
     source?: string | null;
+    /**
+     * Categories
+     */
+    categories?: {
+        [key: string]: string;
+    };
 };
 
 /**
@@ -11988,6 +12286,12 @@ export type SpendingPhaseOut = {
      * Source
      */
     source?: string | null;
+    /**
+     * Categories
+     */
+    categories?: {
+        [key: string]: string;
+    };
 };
 
 /**
@@ -12074,9 +12378,13 @@ export type StartOdds = {
      */
     debt: string;
     /**
+     * Status
+     */
+    status: 'computed' | 'not_computed';
+    /**
      * Debt Real Rate
      */
-    debt_real_rate: string;
+    debt_real_rate: string | null;
     /**
      * Months
      */
@@ -12092,7 +12400,7 @@ export type StartOdds = {
     /**
      * Invest Beats Paying Down
      */
-    invest_beats_paying_down: string;
+    invest_beats_paying_down: string | null;
     /**
      * Says
      */
@@ -12747,6 +13055,36 @@ export type TargetRequest = {
      * Decimal string, read exactly; a JSON number is refused.
      */
     target_amount: string;
+};
+
+/**
+ * TaxAwareSale
+ *
+ * For a class above its target: the open lots that, sold, bring it to
+ * target with the least realised gain (losses first). Figures, not advice:
+ * whether to sell is yours.
+ */
+export type TaxAwareSale = {
+    /**
+     * Asset Class
+     */
+    asset_class: string;
+    /**
+     * To Sell
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    to_sell: string;
+    /**
+     * Lots
+     */
+    lots: Array<LotToSell>;
+    /**
+     * Realised Gain
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    realised_gain: string;
 };
 
 /**
@@ -19445,6 +19783,12 @@ export type PortfolioPerformanceData = {
          * A yearly cash yield for the Sharpe ratio, a fraction (0.03).
          */
         cash_yield?: string | null;
+        /**
+         * Blend
+         *
+         * Repeatable asset_class:SYMBOL: a blended benchmark, weighted by your investment policy's targets, over the closes recorded for each symbol.
+         */
+        blend?: Array<string>;
     };
     url: '/v1/portfolio/performance';
 };

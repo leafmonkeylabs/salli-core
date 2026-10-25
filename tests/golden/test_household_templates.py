@@ -184,11 +184,32 @@ async def test_debt_or_invest_once(baseline):
         (("Invest it", "Split"), "Invest it"): "0.0451",
         (("Pay down Student loan", "Split"), "Split"): "0.045",
     }
-    # The loan's 4.5% is certain; the placeholder 4% return isn't. Over ten
-    # years, the share of 1,000 seeded paths on which investing grows more.
+    # The loan's 4.5% is before inflation and the returns after it: with no
+    # inflation set (nor a pack's), the odds are not computed rather than
+    # set nominal against real.
     odds = result["odds"]
-    assert (odds["debt"], odds["debt_real_rate"], odds["months"]) == ("debt-student", "0.045", 120)
-    assert D(0) < D(odds["invest_beats_paying_down"]) < D("0.5")
+    assert (odds["debt"], odds["status"], odds["invest_beats_paying_down"]) == (
+        "debt-student",
+        "not_computed",
+        None,
+    )
+
+
+async def test_debt_or_invest_odds_compare_both_after_inflation():
+    """With 2% inflation the loan's 4.5% is 2.45% after it; the placeholder
+    pack's 4% return isn't certain. Over ten years, the share of 1,000
+    seeded paths on which investing grows more."""
+    inflated = await _baseline(
+        fi_assumptions={"inflation": {"value": "0.02", "source": "a figure for the test"}}
+    )
+    result = run(
+        inflated,
+        "debt-or-invest",
+        {"debt": "debt-student", "amount": "5000.00", "start": "2026-12-01", "horizon_years": 10},
+    )
+    odds = result["odds"]
+    assert (odds["status"], odds["debt_real_rate"], odds["months"]) == ("computed", "0.0245", 120)
+    assert D("0.5") < D(odds["invest_beats_paying_down"]) < D(1)
 
 
 async def test_debt_or_invest_every_month(baseline):
@@ -251,8 +272,9 @@ async def test_a_windfall(baseline):
         "183.09",
     )
     assert cents(D("9598.68") * D("0.059") / 12) == D("47.19")
-    # FI comes sooner each way: 187 months for the baseline.
-    assert [values[k]["fi_months"] for k in runs] == [185, 185, 186]
+    # FI comes sooner each way: 214 months for the baseline (was 187, and
+    # 185, 185, 186, before the plan-consistency pass).
+    assert [values[k]["fi_months"] for k in runs] == [211, 211, 213]
 
 
 async def test_a_windfall_used_in_the_as_of_month(baseline):
@@ -285,7 +307,7 @@ async def test_a_windfall_used_in_the_as_of_month(baseline):
     # It arrives and leaves within October, so cash is where it was.
     assert values["Car first"]["cash_1y"] == "15801.47"
     assert values["Keep it"]["cash_1y"] == "21801.47"
-    assert values["Car first"]["fi_months"] == 185
+    assert values["Car first"]["fi_months"] == 211  # was 185
 
 
 async def test_a_big_recurring_change(baseline):
@@ -307,11 +329,13 @@ async def test_a_big_recurring_change(baseline):
     # so the low on 2027-02-24 is both lower.
     assert flat["cash"]["lowest"]["scenario"] == "11748.91"  # 13,998.91 - 1,800.00 - 450.00
     assert values["New flat"]["cash_1y"] == "14001.47"  # 15,801.47 - 1,800.00
-    # Spending for good: the FI number rises by 450.00 × 12 / 4%.
-    assert flat["fi"]["fi_number"]["delta"] == "135000.00"
+    # Spending for good: the FI number rises by 450.00 × 12 over the rate
+    # (was / 4% = 135,000.00).
+    swr = baseline.assumptions.safe_withdrawal_rate.value
+    assert flat["fi"]["fi_number"]["delta"] == str(cents(D(5400) / swr))
     assert (flat["fi"]["fi_month"]["scenario"], flat["fi"]["fi_month"]["delta_months"]) == (
-        "2048-02",
-        69,
+        "2051-01",  # was 2048-02, 69 months, before the plan-consistency pass
+        77,
     )
     assert runs["As things are"]["fi"]["fi_month"]["delta_months"] == 0
 
@@ -442,9 +466,9 @@ async def test_an_emergency_fund(baseline):
     ]
     values = figures(result)
     assert values["Set aside 200.00 a month"]["cash_1y"] == "18201.47"  # + 12 × 200.00
-    # What is kept in cash isn't invested: FI comes later, 191 and 197 months
-    # against 187.
-    assert [values[k]["fi_months"] for k in values] == [187, 191, 197]
+    # What is kept in cash isn't invested: FI comes later, 219 and 226 months
+    # against 214.
+    assert [values[k]["fi_months"] for k in values] == [214, 219, 226]  # was [187, 191, 197]
     # The principle reads the low over the next thirteen months: still 7.38
     # months at most, so it isn't kept, whichever amount; Salli says so and
     # counts nothing.

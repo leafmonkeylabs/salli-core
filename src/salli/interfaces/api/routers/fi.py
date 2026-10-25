@@ -52,9 +52,10 @@ class FiAssumption(BaseModel):
 
     #: A yearly fraction, in a decimal string: "0.04" is 4%.
     value: str
-    #: "user" when the user (or their agent) set it, "placeholder" when it is
-    #: the neutral stand-in.
-    origin: Literal["user", "placeholder"]
+    #: "user" when the user (or their agent) set it (or their pack gives it),
+    #: "placeholder" when it is the neutral stand-in, "derived" for a
+    #: withdrawal rate the odds' returns sustain (`source` says how).
+    origin: Literal["user", "placeholder", "derived"]
     #: Where the figure comes from, in words: the source the user cited, or
     #: the placeholder's label.
     source: str
@@ -122,6 +123,9 @@ class FiAssumptions(BaseModel):
     inflation: FiAssumption | None = None
     #: The user's return before inflation, when the real return came from it.
     nominal_return: FiAssumption | None = None
+    #: What cash earns a year after inflation: the active pack's, else a
+    #: labelled placeholder of nothing.
+    cash_yield: FiAssumption | None = None
     #: Each scenario's real return.
     real_returns: FiScenarioReturns
     #: Each scenario's return before inflation; only with the user's inflation.
@@ -132,7 +136,12 @@ class FiAssumptions(BaseModel):
 
 
 AssumptionName = Literal[
-    "real_return", "nominal_return", "inflation", "safe_withdrawal_rate", "surplus_invested"
+    "real_return",
+    "nominal_return",
+    "inflation",
+    "volatility",
+    "safe_withdrawal_rate",
+    "surplus_invested",
 ]
 
 
@@ -157,6 +166,9 @@ class FiOwnAssumptions(BaseModel):
     #: Or the return before inflation; it needs `inflation` to become a real one.
     nominal_return: FiOwnAssumption | None = None
     inflation: FiOwnAssumption | None = None
+    #: The yearly volatility of your return: with your own return, the odds
+    #: draw with this pair.
+    volatility: FiOwnAssumption | None = None
     safe_withdrawal_rate: FiOwnAssumption | None = None
     #: The share of the monthly surplus invested.
     surplus_invested: FiOwnAssumption | None = None
@@ -210,6 +222,8 @@ class FiAssumptionsUpdate(BaseModel):
     real_return: FiOwnAssumptionIn | None = None
     nominal_return: FiOwnAssumptionIn | None = None
     inflation: FiOwnAssumptionIn | None = None
+    #: The yearly volatility of your return, from 0 to 0.80.
+    volatility: FiOwnAssumptionIn | None = None
     safe_withdrawal_rate: FiOwnAssumptionIn | None = None
     #: The share (0 to 1) of each month's regular surplus you invest.
     surplus_invested: FiOwnAssumptionIn | None = None
@@ -692,10 +706,28 @@ class OddsQuery(BaseModel):
         }
 
 
+class OddsReturns(BaseModel):
+    """Where the paths' returns come from: one source for mean and volatility."""
+
+    #: "user": your own return and volatility; "pack": your pack's mix;
+    #: "placeholder": the placeholder pack's.
+    origin: Literal["user", "pack", "placeholder"]
+    #: "bootstrap" when the pack's monthly history is resampled; else
+    #: "student_t".
+    method: Literal["student_t", "bootstrap"]
+    #: Your holdings' weighted yearly expense ratio, taken off the mean.
+    expense_ratio: str
+    says: str
+
+
 class OddsWithdrawalRate(BaseModel):
-    #: The rate the FI number uses: the user's, or the placeholder.
+    #: The rate the FI number uses: yours ("user"), or the one the odds'
+    #: returns sustain over `applied_years` ("derived"; "placeholder" while
+    #: those returns are the placeholder pack's).
     applied: str
-    origin: Literal["user", "placeholder"]
+    origin: Literal["user", "placeholder", "derived"]
+    #: The years the applied rate must last; null for yours.
+    applied_years: int | None = None
     #: The rate `success_level` of paths sustain over `years` drawn down.
     horizon_derived: str
     years: int
@@ -748,6 +780,7 @@ class FiOdds(BaseModel):
     #: The mean yearly real return and volatility the paths are drawn with.
     real_return: str
     volatility: str
+    returns: OddsReturns
     cma: CmaSummary
     fi_number: Amount
     fi_month: str | None = None
@@ -805,11 +838,22 @@ class SpendingPhase(BaseModel):
     from_age: Annotated[int, Field(ge=0, le=120)]
     monthly: AmountIn
     source: Annotated[str | None, Field(max_length=500)] = None
+    #: Category (a lowercase key such as housing) → the part of `monthly` in
+    #: it; a category with its own inflation grows apart from the general.
+    categories: Annotated[dict[str, AmountIn], Field(max_length=20)] = {}
+
+
+class CategoryInflationIn(BaseModel):
+    #: A yearly fraction from -0.05 to 1: "0.06" is 6%.
+    value: DecimalIn
+    source: Annotated[str | None, Field(max_length=500)] = None
 
 
 class FiPlanIn(BaseModel):
     income_streams: Annotated[list[IncomeStream], Field(max_length=20)] = []
     spending_phases: Annotated[list[SpendingPhase], Field(max_length=20)] = []
+    #: Your own inflation by category of spending, over your pack's.
+    category_inflation: Annotated[dict[str, CategoryInflationIn], Field(max_length=20)] = {}
 
 
 class IncomeStreamOut(BaseModel):
@@ -827,6 +871,12 @@ class SpendingPhaseOut(BaseModel):
     from_age: int
     monthly: str
     source: str | None = None
+    categories: dict[str, str] = {}
+
+
+class CategoryInflationOut(BaseModel):
+    value: str
+    source: str | None = None
 
 
 class FiPlan(BaseModel):
@@ -835,6 +885,7 @@ class FiPlan(BaseModel):
 
     income_streams: list[IncomeStreamOut]
     spending_phases: list[SpendingPhaseOut]
+    category_inflation: dict[str, CategoryInflationOut] = {}
     #: From the profile; the phases go by it, and apply only with it.
     date_of_birth: str | None = None
 

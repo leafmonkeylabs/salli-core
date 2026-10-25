@@ -2394,6 +2394,7 @@ def _holding_to_dict(r: HoldingORM) -> dict[str, Any]:
         "account_id": r.account_id,
         "cost_method": r.cost_method,
         "expense_ratio": r.expense_ratio,
+        "allocation": r.allocation,
         "created_at": r.created_at.isoformat(),
         "updated_at": r.updated_at.isoformat(),
     }
@@ -2454,6 +2455,7 @@ class SQLPortfolioRepository(PortfolioRepository):
                 account_id=holding.get("account_id"),
                 cost_method=holding.get("cost_method"),
                 expense_ratio=holding.get("expense_ratio"),
+                allocation=holding.get("allocation"),
             )
         )
         await self._s.flush()
@@ -2494,7 +2496,7 @@ class SQLPortfolioRepository(PortfolioRepository):
             if k in updates and updates[k] is not None:
                 setattr(r, k, updates[k])
         # None unlinks the holding from its account, or clears the others.
-        for k in ("account_id", "cost_method", "expense_ratio"):
+        for k in ("account_id", "cost_method", "expense_ratio", "allocation"):
             if k in updates:
                 setattr(r, k, updates[k])
         await self._s.flush()

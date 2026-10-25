@@ -124,6 +124,10 @@ function figuresRows(out: Output, f: PerformanceFigures): Array<readonly [string
   ];
 }
 
+function collectBlend(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
 export function registerInvestments(portfolio: Command, app: App): void {
   portfolio
     .command('performance')
@@ -133,6 +137,7 @@ export function registerInvestments(portfolio: Command, app: App): void {
     .option('--to <date>', 'Up to this date (default: today)')
     .option('--benchmark <symbol>', 'Measure against the closes you record for this symbol')
     .option('--cash-yield <fraction>', 'A yearly cash yield for the Sharpe ratio, e.g. 0.03 or 3%')
+    .option('--blend <class:symbol>', 'A blended benchmark: your policy’s target for the class over this symbol’s closes (repeatable; the whole portfolio only)', collectBlend, [] as string[])
     .action(async (query, opts) => {
       const now = app.runtime.now();
       const period = {
@@ -145,7 +150,7 @@ export function registerInvestments(portfolio: Command, app: App): void {
       const holding = query ? await resolveHolding(api, query) : undefined;
       const data = holding
         ? await api.call(holdingsPerformance, { path: { holding_id: holding.id }, query: period })
-        : await api.call(portfolioPerformance, { query: period });
+        : await api.call(portfolioPerformance, { query: { ...period, ...(opts.blend.length ? { blend: opts.blend } : {}) } });
       app.out.emit(data, {
         records: (d) => d.holdings,
         human: (d) => {
@@ -160,6 +165,9 @@ export function registerInvestments(portfolio: Command, app: App): void {
               ['Largest fall', pct(r.max_drawdown)],
               ['Sharpe ratio', r.sharpe === null ? '—' : `${r.sharpe.replace(/(\.\d{2})\d*$/, '$1')} against ${r.hurdle_source === 'benchmark' ? 'the benchmark' : 'a cash yield'} of ${pct(r.hurdle)}`],
               ...(r.benchmark ? [[`Benchmark ${r.benchmark.symbol}`, `${pct(r.benchmark.yearly_return)} a year, volatility ${pct(r.benchmark.volatility)}, largest fall ${pct(r.benchmark.max_drawdown)}`] as const] : []),
+              ...(r.blended_benchmark ? [['Blended benchmark', `${pct(r.blended_benchmark.yearly_return)} a year, volatility ${pct(r.blended_benchmark.volatility)}`] as const] : []),
+              ...(r.tracking_error !== null && r.tracking_error !== undefined ? [['Tracking error', `${pct(r.tracking_error)} against the ${r.tracking_against === 'blended_benchmark' ? 'blended benchmark' : 'benchmark'}`] as const] : []),
+              ['Net of fees', r.net_of_fees.yearly_return === null ? '—' : `${pct(r.net_of_fees.yearly_return)} a year, less ${pct(r.net_of_fees.expense_ratio)} in expense ratios`],
             ]),
           );
           if (!holding && d.holdings.length) {

@@ -187,8 +187,9 @@ def canonical_json(doc: RuleSet | Mapping[str, Any]) -> str:
     What an export writes, so the file's sha256 is its content hash."""
     data = _canonical(load(doc).model_dump(mode="python", by_alias=True))
     # Left out when unset, so documents from before it hash as they did.
-    if data.get("cost_basis") is None:
-        data.pop("cost_basis", None)
+    for optional in ("cost_basis", "long_term_after_months", "wash_sale_days"):
+        if data.get(optional) is None:
+            data.pop(optional, None)
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 

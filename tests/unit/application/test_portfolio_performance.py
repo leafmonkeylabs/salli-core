@@ -270,3 +270,14 @@ async def test_risk_figures_month_by_month_against_a_benchmark_or_a_cash_yield()
     no_series = await svc.get_performance(USER, "2026-01-01", "2026-03-31", benchmark="NONE")
     assert no_series is not None and no_series["risk"]["benchmark"] is None
     assert any("NONE" in note for note in no_series["notes"])
+
+
+def test_a_lots_holding_period_goes_by_the_rules_line():
+    from datetime import date as day
+
+    from salli.application.services.portfolio_service import _held
+
+    assert _held(day(2025, 1, 15), day(2026, 1, 14), 12) == "short"
+    assert _held(day(2025, 1, 15), day(2026, 1, 15), 12) == "long"
+    # Without a line in the rules, neither.
+    assert _held(day(2020, 1, 1), day(2026, 1, 1), None) is None

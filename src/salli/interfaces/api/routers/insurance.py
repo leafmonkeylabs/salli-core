@@ -6,6 +6,7 @@ coverage-gap report.
 from __future__ import annotations
 
 import datetime
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
@@ -42,7 +43,7 @@ class TargetRequest(BaseModel):
     target_amount: AmountIn
 
 
-# Policy types ("life", "health", "motor", "property", "other") and premium
+# Policy types ("life", "health", "motor", "property", "liability", "other") and premium
 # frequencies ("monthly", "quarterly", "yearly") are plain strings: they are
 # stored as given, and nothing refuses others.
 
@@ -87,6 +88,9 @@ class CoverageGapLine(BaseModel):
     actual_coverage: Amount
     #: Target minus actual: positive means under-covered.
     gap: Amount
+    #: "target": your typed target; "needs": the needs analysis's figure,
+    #: for life or liability cover where you typed none.
+    basis: Literal["target", "needs"] = "target"
 
 
 class ExpiringPolicy(BaseModel):
@@ -98,7 +102,8 @@ class ExpiringPolicy(BaseModel):
 
 class CoverageReport(BaseModel):
     currency: CurrencyCode
-    #: One for each policy type with a target.
+    #: One for each policy type with a target, and for life and liability
+    #: cover from the needs analysis where there is none.
     lines: list[CoverageGapLine]
     #: Policy types with a target and no active coverage at all.
     missing_types: list[str]
@@ -149,6 +154,12 @@ class InsuranceNeeds(BaseModel):
     life_cover_gap: Amount
     #: A month's average spending: what an income-protection benefit replaces.
     income_protection_monthly: Amount
+    #: Net worth, never below zero: what a claim against you could reach.
+    liability_cover_need: Amount
+    #: The active liability policies' cover.
+    liability_cover_held: Amount
+    #: Need − held, never below zero.
+    liability_cover_gap: Amount
 
 
 @router.get("/needs")

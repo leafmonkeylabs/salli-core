@@ -69,7 +69,8 @@ async def test_the_baselines_figures_by_hand():
     assert values["max_debt_rate"] == D("0.059")
     assert values["max_debt_rate_while_investing"] == D("0.059")
     assert values["borrowed"] == D("0.00")
-    assert (values["fi_months"], values["fi_months_gained"]) == (D(187), D(0))
+    # Was 187 before the plan-consistency pass (tests/golden/test_household_fi.py).
+    assert (values["fi_months"], values["fi_months_gained"]) == (D(214), D(0))
     assert values["any_account_below_zero"] is False
 
 

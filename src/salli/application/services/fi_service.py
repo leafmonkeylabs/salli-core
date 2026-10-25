@@ -50,7 +50,6 @@ from salli.domain.fi.assumptions import (
     assumptions_dict,
     own_figure,
     rate_text,
-    resolve,
 )
 from salli.domain.fi.assumptions import scenarios_dict as _scenarios_dict
 from salli.domain.fi.models import FinancialSnapshot, FiPack, FiScore
@@ -142,6 +141,7 @@ def snapshot_of(baseline: Baseline, goal_progress: Decimal | None) -> FinancialS
             Decimal(0),
         ),
         full_months=len(baseline.flows.months),
+        held_out=fi_timeline.reserve(baseline),
     )
 
 
@@ -194,12 +194,6 @@ class FiService:
 
     # ── Assumptions ──────────────────────────────────────────────────────────
 
-    async def _applied(self, user_id: str) -> FiAssumptions:
-        """The assumptions that apply: the user's own, then the placeholders."""
-        async with self._uow_factory() as uow:
-            profile = await uow.user_profiles.get(user_id)
-        return resolve(_own(profile))
-
     async def _inputs(
         self, user_id: str, as_of: datetime.date | None
     ) -> tuple[Baseline, FinancialSnapshot, FiAssumptions, FiPack]:
@@ -213,7 +207,8 @@ class FiService:
         """The planning assumptions behind the user's FI figures, what they
         set themselves (with sources), and the placeholders that stand in for
         what they have not."""
-        applied = await self._applied(user_id)
+        # The baseline's: the user's own, their pack, their holdings' costs.
+        applied = (await self._baseline(user_id, None)).assumptions
         async with self._uow_factory() as uow:
             profile = await uow.user_profiles.get(user_id)
         own = _own(profile)
@@ -484,13 +479,16 @@ class FiService:
         inflation = applied.inflation.value if applied.inflation is not None else None
         currency = baseline.currency
         fi_number = fi_timeline.fi_number(baseline)
+        held_out = fi_timeline.reserve(baseline)
         runs = {
             key: fi_timeline.full_timeline(baseline, real_return=rate)
             for key, rate in rates.items()
         }
         months = {
             key: fi_timeline.months_to_fi(
-                timeline.points, fi_timeline.fi_numbers(baseline, timeline.points)
+                timeline.points,
+                fi_timeline.fi_numbers(baseline, timeline.points),
+                fi_timeline.reserve(baseline),
             )
             for key, timeline in runs.items()
         }
@@ -508,14 +506,17 @@ class FiService:
             at = {key: points[year] for key, points in by_year.items()}
             row: dict[str, Any] = {
                 "year": year,
-                **{key: money(fi_timeline.asset_base(p)) for key, p in at.items()},
+                **{key: money(fi_timeline.asset_base(p, held_out)) for key, p in at.items()},
             }
             if inflation is not None:
                 # In that year's own money: the same values grown by the
                 # timeline's own deflator, never walked separately.
                 level = at["base"].deflator
                 row["nominal"] = {
-                    **{key: money(fi_timeline.asset_base(p) * p.deflator) for key, p in at.items()},
+                    **{
+                        key: money(fi_timeline.asset_base(p, held_out) * p.deflator)
+                        for key, p in at.items()
+                    },
                     # The FI number in that year's money: where the line it
                     # must cross has moved to by then.
                     "fi_number": money(fi_number * level),
@@ -534,7 +535,7 @@ class FiService:
             # The month FI is reached in each scenario, and how many months
             # from the as-of month that is.
             "fi_by": {key: _fi_by(baseline.as_of, m) for key, m in months.items()},
-            "current_portfolio": money(fi_timeline.asset_base(runs["base"].points[0])),
+            "current_portfolio": money(fi_timeline.asset_base(runs["base"].points[0], held_out)),
             # The real (after-inflation) rates the scenarios use.
             "real_returns": _scenarios_dict(applied.real_returns),
             # Their nominal equivalents and the inflation behind them: only

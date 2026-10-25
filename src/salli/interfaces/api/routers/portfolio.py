@@ -56,6 +56,9 @@ class HoldingRequest(BaseModel):
     #: Its yearly running cost as a fraction of its value ("0.0020" is
     #: 0.20%), your own figure.
     expense_ratio: DecimalIn | None = None
+    #: A fund's look-through: asset class of the investment policy's
+    #: taxonomy → its share ("0.6"), summing to 1. Omitted: its own class.
+    allocation: dict[str, DecimalIn] | None = None
 
 
 class HoldingUpdateRequest(BaseModel):
@@ -77,6 +80,8 @@ class HoldingUpdateRequest(BaseModel):
     cost_method: CostMethod | None = None
     #: null clears it.
     expense_ratio: DecimalIn | None = None
+    #: A fund's look-through, as on adding; null clears it.
+    allocation: dict[str, DecimalIn] | None = None
 
 
 class QuotedPrice(BaseModel):
@@ -128,6 +133,8 @@ class Holding(BaseModel):
     cost_method_source: Literal["holding", "rule_set", "default"]
     #: Its yearly running cost as a fraction of its value; null if not given.
     expense_ratio: DecimalOut | None = None
+    #: A fund's look-through: asset class → share; null, its own class.
+    allocation: dict[str, str] | None = None
     created_at: str
     updated_at: str
     #: "transactions" when the figures come from the holding's transactions,
@@ -339,6 +346,10 @@ class HoldingLot(BaseModel):
     cost_base: Amount
     cost_per_unit: DecimalOut | None
     is_open: bool
+    #: An open lot's holding period today: "short" or "long", by the
+    #: active tax rules' `long_term_after_months`; null without one (or
+    #: for a closed lot).
+    holding_period: Literal["short", "long"] | None = None
 
 
 class LotConsumption(BaseModel):
@@ -349,6 +360,9 @@ class LotConsumption(BaseModel):
     quantity: DecimalOut
     cost: Amount
     cost_base: Amount
+    #: Held "short" or "long" term at the sale, by the active tax rules'
+    #: line; null without one.
+    holding_period: Literal["short", "long"] | None = None
 
 
 class HoldingSale(BaseModel):
@@ -368,6 +382,9 @@ class HoldingSale(BaseModel):
     fees_base: Amount
     cost_base: Amount
     gain_base: Amount
+    #: A sale at a loss with a buy of the same holding within the active
+    #: tax rules' `wash_sale_days` either side; null when they declare none.
+    wash_sale: bool | None = None
     consumed: list[LotConsumption]
 
 
@@ -377,6 +394,10 @@ class HoldingLots(BaseModel):
     currency: CurrencyCode
     base_currency: CurrencyCode
     cost_method: CostMethod
+    #: The active tax rules' line between short and long term, in months,
+    #: and their wash-sale window, in days; null where they declare none.
+    long_term_after_months: int | None = None
+    wash_sale_days: int | None = None
     #: Units held, and what they cost.
     quantity: DecimalOut
     cost: Amount
@@ -484,6 +505,24 @@ class BenchmarkFigures(BaseModel):
     max_drawdown: DecimalOut | None
 
 
+class BlendedBenchmark(BaseModel):
+    #: Asset class → its weight (your policy's targets, scaled to add up to 1).
+    weights: dict[str, DecimalOut]
+    #: Asset class → the symbol whose recorded closes measure it.
+    series: dict[str, str]
+    yearly_return: DecimalOut | None
+    volatility: DecimalOut | None
+    max_drawdown: DecimalOut | None
+
+
+class NetOfFees(BaseModel):
+    #: Your holdings' expense ratios weighted by value, over those with one.
+    expense_ratio: DecimalOut | None
+    #: The yearly return less it.
+    yearly_return: DecimalOut | None
+    says: str
+
+
 class RiskFigures(BaseModel):
     """From the period's monthly time-weighted returns. Fractions of one."""
 
@@ -503,6 +542,13 @@ class RiskFigures(BaseModel):
     #: (the active pack's cash yield); null: none.
     hurdle_source: Literal["cash_yield", "benchmark", "cma_pack"] | None
     benchmark: BenchmarkFigures | None
+    #: Your policy's targets as weights over the series you named per class.
+    blended_benchmark: BlendedBenchmark | None = None
+    #: The monthly differences from the blended benchmark (else the
+    #: benchmark) × √12; null without one or under two months.
+    tracking_error: DecimalOut | None = None
+    tracking_against: Literal["benchmark", "blended_benchmark"] | None = None
+    net_of_fees: NetOfFees
 
 
 class PortfolioPerformance(BaseModel):
@@ -585,6 +631,11 @@ async def get_performance(
     to_date: dt.date | None = _TO,
     benchmark: str | None = _BENCHMARK,
     cash_yield: str | None = _CASH_YIELD,
+    blend: list[str] = Query(
+        [],
+        description="Repeatable asset_class:SYMBOL: a blended benchmark, weighted by your "
+        "investment policy's targets, over the closes recorded for each symbol.",
+    ),
 ) -> PortfolioPerformance:
     """Gains, income and returns over a period (a tax year, say), per holding
     in its own currency and the base one, and for the whole portfolio; and
@@ -596,8 +647,22 @@ async def get_performance(
         to_date,
         benchmark=benchmark,
         cash_yield=Decimal(cash_yield) if cash_yield is not None else None,
+        blend=_parse_blend(blend),
     )
     return PortfolioPerformance.model_validate(report)
+
+
+def _parse_blend(pairs: list[str]) -> dict[str, str] | None:
+    parsed: dict[str, str] = {}
+    for pair in pairs:
+        asset_class, _, symbol = pair.partition(":")
+        if not asset_class or not symbol:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Invalid blend entry '{pair}'. Use asset_class:SYMBOL, e.g. equity:IDX.",
+            )
+        parsed[asset_class] = symbol
+    return parsed or None
 
 
 @router.get("/prices")
@@ -655,7 +720,7 @@ async def update_holding(
     changes = {
         k: v
         for k, v in body.model_dump(exclude_unset=True).items()
-        if v is not None or k in ("account_id", "cost_method", "expense_ratio")
+        if v is not None or k in ("account_id", "cost_method", "expense_ratio", "allocation")
     }
     await svc.portfolio.update_holding(user_id, holding_id, changes)
     return Updated(updated=True)
