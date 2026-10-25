@@ -723,6 +723,13 @@ class McpOAuthService:
             grant = await uow.oauth_tokens.grant_of_token(_hash_token(token))
             if grant is not None:
                 await uow.oauth_tokens.revoke_grant(grant["id"])
+                await uow.audit_log.log(
+                    grant["user_id"],
+                    "oauth_grant.revoke",
+                    {"grant_id": grant["id"]},
+                    "succeeded",
+                    client_id=grant.get("client_id"),
+                )
 
     # ── The user's own sign-ins (the API's grants) ──────────────────────────
 
@@ -750,7 +757,16 @@ class McpOAuthService:
                 or self._token_audience(grant) != API
             ):
                 return False
-            return await uow.oauth_tokens.revoke_grant(grant_id, user_id) > 0
+            if await uow.oauth_tokens.revoke_grant(grant_id, user_id) == 0:
+                return False
+            await uow.audit_log.log(
+                user_id,
+                "oauth_grant.revoke",
+                {"grant_id": grant_id},
+                "succeeded",
+                client_id=grant.get("client_id"),
+            )
+            return True
 
     # ── Settings UI: connection management ──────────────────────────────────
 
@@ -773,6 +789,10 @@ class McpOAuthService:
             revoked = await uow.oauth_tokens.revoke_client_grant(
                 user_id, token["client_id"], token["resource"]
             )
+            if revoked > 0:
+                await uow.audit_log.log(
+                    user_id, "oauth_grant.revoke", {}, "succeeded", client_id=token["client_id"]
+                )
         return revoked > 0
 
     # ── Metadata (RFC 8414 / RFC 9728) ──────────────────────────────────────

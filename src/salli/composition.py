@@ -307,6 +307,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         notifications=notifications,
         storage=storage,
         conversations=_build_conversations(checkpointer),
+        pseudonym_key=_mcp_signing_secret(settings),
     )
 
     return Services(

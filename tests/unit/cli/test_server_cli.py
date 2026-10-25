@@ -68,6 +68,7 @@ def test_the_server_has_only_operator_commands():
         "doctor",
         "db upgrade",
         "db current",
+        "audit verify",
         "members add",
         "members invite",
         "members list",

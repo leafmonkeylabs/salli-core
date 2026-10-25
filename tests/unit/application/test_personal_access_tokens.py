@@ -19,6 +19,7 @@ from salli.application.services.personal_access_token_service import (
 )
 from salli.config import Settings
 from salli.interfaces.api.deps import get_principal
+from tests.fakes import FakeAuditLog
 
 
 class Store:
@@ -70,7 +71,7 @@ def tokens():
 
     @asynccontextmanager
     async def uow_factory():
-        yield SimpleNamespace(personal_access_tokens=store)
+        yield SimpleNamespace(personal_access_tokens=store, audit_log=FakeAuditLog())
 
     return PersonalAccessTokenService(uow_factory), store
 
