@@ -32,7 +32,9 @@ async def test_the_whole_ledger_exports_and_loads(uow_factory):
                 {"account_id": bank, "direction": Direction.CREDIT, "amount": Decimal(amount)},
             ],
         )
-    await ledger.deactivate_account("u1", old)
+    # Closed with a balance (as before closing one was refused), and still owned.
+    async with uow_factory() as uow:
+        await uow.ledger.deactivate_account("u1", old)
 
     export = DataPortabilityService(uow_factory, *([None] * 12))
     text = await export.export_plaintext("u1", "beancount")

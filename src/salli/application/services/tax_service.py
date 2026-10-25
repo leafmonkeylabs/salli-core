@@ -41,6 +41,7 @@ from salli.application.services.tax_rule_service import (
     form_rows,
     line_rows,
 )
+from salli.domain.accounting.models import BooksLocked
 from salli.domain.currency import normalize_currency
 from salli.domain.jurisdiction import COUNTRIES, UnknownCountryError, country_phrase
 from salli.domain.money import from_minor, to_minor
@@ -354,9 +355,27 @@ class TaxService:
         rules = await self.resolve(user_id, country=country, region=region, year=year)
         applied = await self._apply(user_id, rules, answers)
         record = _record(rules, applied)
-        if not persist:
-            return _view({**record, "id": None, "created_at": None}), applied
+        end = record["inputs"]["period_end"]
         async with self._uow_factory() as uow:
+            profile: Mapping[str, Any] = (await uow.user_profiles.get(user_id)) or {}
+            locked: str | None = profile.get("lock_date")
+            closed = locked is not None and end <= locked
+            if locked is not None and closed and persist:
+                # The filed figure stays the one stored when the year closed.
+                raise BooksLocked(
+                    end,
+                    locked,
+                    f"The books are closed up to and including {locked}, so the tax for "
+                    f"{rules.year} (to {end}) is filed and its stored figure can't be "
+                    "replaced. Preview it without storing, or move the lock date earlier.",
+                )
+            if closed:
+                record["warnings"].append(
+                    f"The books are closed up to and including {locked}: this year is "
+                    "closed, so this figure is a preview and is not stored."
+                )
+            if not persist:
+                return _view({**record, "id": None, "created_at": None}), applied
             stored = await uow.tax_computations.save(user_id, record)
         return _view(stored), applied
 
@@ -530,14 +549,19 @@ class TaxService:
                 or [(ln["key"], ln["amount"]) for ln in fresh["lines"]]
                 != [(ln["key"], ln["amount"]) for ln in old["lines"]]
             )
+            applied = False
             if changed and apply:
-                await self.compute_tax(
-                    user_id,
-                    country=stored["country"],
-                    region=stored["region"],
-                    year=stored["year"],
-                    answers=stored["inputs"].get("answers") or {},
-                )
+                try:
+                    await self.compute_tax(
+                        user_id,
+                        country=stored["country"],
+                        region=stored["region"],
+                        year=stored["year"],
+                        answers=stored["inputs"].get("answers") or {},
+                    )
+                    applied = True
+                except BooksLocked:
+                    pass  # a closed year keeps its filed figure
             report.append(
                 {
                     **row,
@@ -549,7 +573,7 @@ class TaxService:
                     "new_refund_due": fresh["refund_due"],
                     "reproduces": reproduced["reproduced"],
                     "changed": changed,
-                    "applied": bool(changed and apply),
+                    "applied": applied,
                 }
             )
         return report
