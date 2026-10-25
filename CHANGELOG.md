@@ -4,6 +4,14 @@
 
 ### Added
 
+- **The phone's first screen asks where the books live.** "Salli's server"
+  (by invitation during the pilot) takes a pasted invitation link
+  (`/join?t=…`), opens its page in the secure browser sheet to set the
+  password and two-step code, then signs in to that server like any other;
+  "Your own server" goes to the address screen. A link opened outside the
+  app opens the browser, so it is pasted. Home's tile is "Left to spend"
+  with one line, and "How it's worked out" opens the server's parts, low
+  point and notes in a sheet.
 - **The fidelity benchmark and the MCP tool interface are Apache-2.0.**
   `benchmark/` (questions, key, scorer, judge prompt) and the tool names,
   schemas and descriptions the MCP server publishes may be run, cited and

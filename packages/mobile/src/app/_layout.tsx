@@ -78,6 +78,8 @@ function Navigator() {
         </Stack.Protected>
         {/* Signed out, the way in; signed in, the way to add another server. */}
         <Stack.Screen name="welcome" />
+        <Stack.Screen name="address" />
+        <Stack.Screen name="join" />
         <Stack.Screen name="connect" />
       </Stack>
       <Glance />

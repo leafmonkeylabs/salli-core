@@ -28,6 +28,29 @@ export function serverUrlOf(typed: string): string | undefined {
   }
 }
 
+/**
+ * An invitation link, as `salli-server members invite` makes it
+ * (`https://<host>/join?t=<token>`): the link to open and the server it is
+ * on, which the app then signs in to like any other. Undefined when it isn't
+ * one.
+ */
+export function invitationOf(typed: string): { link: string; server: string } | undefined {
+  const text = typed.trim();
+  const schemed = /^[a-z][a-z0-9+.-]*:\/\//i.test(text);
+  let url: URL;
+  try {
+    url = new URL(schemed ? text : `https://${text}`);
+  } catch {
+    return undefined;
+  }
+  const at = url.pathname.replace(/\/+$/, '');
+  if (!at.endsWith('/join') || !url.searchParams.get('t')) return undefined;
+  // Without a scheme, as typed: serverUrlOf picks https, or http for this machine.
+  const server = serverUrlOf(`${schemed ? `${url.protocol}//` : ''}${url.host}${at.slice(0, -'/join'.length)}`);
+  if (server && !schemed) url.protocol = new URL(server).protocol;
+  return server ? { link: url.toString(), server } : undefined;
+}
+
 /** Whether a URL is this machine, where plain HTTP is allowed (a simulator). */
 export function isThisMachine(url: string): boolean {
   const host = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, '');

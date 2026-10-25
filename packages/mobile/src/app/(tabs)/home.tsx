@@ -7,7 +7,6 @@ import {
   insightsNetWorth,
   insightsSafeToSpend,
   insightsSignals,
-  isZeroAmount,
   ledgerIncomeStatement,
   remindersList,
   remindersMarkDone,
@@ -28,6 +27,7 @@ import { useSession, labelIn } from '../../session';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
 import { Glow, Header, Pull, UNDER_AI } from '../../shell';
+import { WorkedOut } from '../../workedout';
 
 const t = strings.home;
 
@@ -51,6 +51,7 @@ export default function Home() {
   const { session } = useSession();
   const endedOn = session.status === 'signed-in' ? session.endedOn : undefined;
   const [dismissed, setDismissed] = useState<string | undefined>(undefined);
+  const [explain, setExplain] = useState(false);
   const reach = useReach();
   const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
   const api = useApi();
@@ -97,46 +98,37 @@ export default function Home() {
             <Button kind="tertiary" label={strings.servers.dismiss} onPress={() => setDismissed(endedOn)} />
           </Card>
         ) : null}
-        <Card tile style={{ gap: 6 }}>
-          <SectionLabel onTile>{safe.data && !safe.data.next_income ? t.safe30 : t.safe}</SectionLabel>
+        <Card tile style={{ gap: 4 }}>
+          <SectionLabel onTile>{t.left}</SectionLabel>
           {safe.data ? (
             <>
               <Money amount={safe.data.amount} currency={safe.data.currency} figure="hero" onTile />
-              <Text
-                accessibilityLabel={safe.data.next_income ? t.safeUntilSpoken(displayDate(safe.data.until), safe.data.next_income.description) : t.safeNoIncome}
-                style={[styles.tileLine, { color: theme.tileMuted }]}
-              >
-                {safe.data.next_income ? t.safeUntil(displayDay(safe.data.until), safe.data.next_income.description) : t.safeNoIncome}
+              <Text style={[styles.tileLine, { color: theme.tileMuted }]}>
+                {safe.data.next_income ? t.leftUntil(displayDay(safe.data.until), safe.data.next_income.description) : t.leftNoIncome}
               </Text>
               {/* As of a time only when the figures are old: the server is out of reach. */}
               {reach.unreachable && reach.lastAnswer ? (
                 <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{strings.reach.asOfThen(displayDateTime(reach.lastAnswer))}</Text>
               ) : null}
               {forecast.data && forecast.data.daily.length > 1 ? (
-                <Spark
-                  amounts={forecast.data.daily.map((d) => d.balance)}
-                  low={forecast.data.daily.findIndex((d) => d.date === forecast.data?.lowest_date)}
-                  colour={theme.tileMuted}
-                  height={44}
-                  label={t.lowSpoken(`${forecast.data.lowest} ${forecast.data.currency}`, displayDate(forecast.data.lowest_date))}
-                />
+                <View style={{ marginTop: 6 }}>
+                  <Spark
+                    amounts={forecast.data.daily.map((d) => d.balance)}
+                    low={forecast.data.daily.findIndex((d) => d.date === forecast.data?.lowest_date)}
+                    colour={theme.tileMuted}
+                    height={44}
+                    label={t.lowSpoken(`${forecast.data.lowest} ${forecast.data.currency}`, displayDate(forecast.data.lowest_date))}
+                  />
+                </View>
               ) : null}
-              {/* What the figure is made of, the server's figures and notes as it sends them. */}
-              <View style={styles.parts}>
-                <Part label={t.cashToday} amount={safe.data.cash_today} currency={safe.data.currency} />
-                <Part label={t.everyday} amount={safe.data.everyday_spending} currency={safe.data.currency} />
-                <Part label={t.cushion} amount={safe.data.cushion} currency={safe.data.currency} />
-                {!isZeroAmount(safe.data.held_for_goals) ? <Part label={t.goals} amount={safe.data.held_for_goals} currency={safe.data.currency} /> : null}
-                <Part label={t.lowPoint(displayDay(safe.data.low_point_date))} amount={safe.data.low_point} currency={safe.data.currency} />
-              </View>
-              {safe.data.notes.map((note, i) => (
-                <Text key={i} style={[styles.tileSmall, { color: theme.tileMuted }]}>
-                  {note}
-                </Text>
-              ))}
+              <Pressable accessibilityRole="button" onPress={() => setExplain(true)} style={[styles.workedOut, { borderTopColor: theme.tileMuted }]}>
+                <Text style={[styles.tileLine, { color: theme.tileText, flex: 1 }]}>{t.workedOut}</Text>
+                <Icon name="chevron" size={16} colour={theme.tileText} />
+              </Pressable>
+              <WorkedOut safe={safe.data} visible={explain} onClose={() => setExplain(false)} />
             </>
           ) : (
-            <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{reach.unreachable ? strings.reach.notKnown : t.loading('safe to spend')}</Text>
+            <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{reach.unreachable ? strings.reach.notKnown : t.loading('left to spend')}</Text>
           )}
         </Card>
 
@@ -176,19 +168,6 @@ export default function Home() {
         {/* First run books opening balances, not flows: no month of income and spending yet, and importing a statement comes first. */}
         <Attention unreachable={reach.unreachable} noFlows={fi.data?.months_observed === 0} />
       </ScrollView>
-    </View>
-  );
-}
-
-/** One part of free until payday, on the tile: what it is and the server's amount. */
-function Part({ label, amount, currency }: { label: string; amount: string; currency: string }) {
-  const theme = useTheme();
-  return (
-    <View accessible accessibilityLabel={`${label}: ${amountParts(amount, currency).spoken}`} style={styles.part}>
-      <Text style={[styles.tileSmall, { color: theme.tileMuted, flex: 1 }]} numberOfLines={1}>
-        {label}
-      </Text>
-      <Money amount={amount} currency={currency} onTile style={styles.partFigure} />
     </View>
   );
 }
@@ -393,9 +372,7 @@ const styles = StyleSheet.create({
   plus: { width: size.target, height: size.target, alignItems: 'center', justifyContent: 'center' },
   tileLine: { fontFamily: font.regular, fontSize: 15, lineHeight: 21 },
   tileSmall: { fontFamily: font.regular, fontSize: size.small },
-  parts: { gap: 2, marginTop: 4 },
-  part: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  partFigure: { fontSize: size.small },
+  workedOut: { flexDirection: 'row', alignItems: 'center', minHeight: size.target, marginTop: 2, borderTopWidth: StyleSheet.hairlineWidth },
   tiles: { flexDirection: 'row', gap: 8 },
   tile: { flex: 1, padding: 12 },
   tileLabel: { fontFamily: font.regular, fontSize: 13 },
