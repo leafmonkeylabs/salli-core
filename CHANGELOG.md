@@ -17,7 +17,7 @@
   `budget_over` and `budget_pace` signals. Push alerts: devices (`/v1/devices`, `salli
   devices`), sent through `SALLI_PUSH_RELAY_URL` by `salli-server jobs
   send-push`, once per state, worded like digests. Migration
-  `core_0046_household_basics`.
+  `core_0047_household_basics`.
 - **More of Salli over MCP.** `get_portfolio_performance` reads the
   portfolio's performance; `import_statement` imports a statement file
   (base64, a write the user confirms) for review; `list_holdings`,

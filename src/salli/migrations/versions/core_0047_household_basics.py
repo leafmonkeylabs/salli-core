@@ -3,8 +3,8 @@
 Additive: a source the entries' check allows, a profile column (empty list)
 and a new table, empty on an existing instance.
 
-Revision ID: core_0046_household_basics
-Revises: core_0045_mcp_client_refs
+Revision ID: core_0047_household_basics
+Revises: core_0046_audit_chain
 Create Date: 2026-10-25
 """
 
@@ -14,8 +14,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "core_0046_household_basics"
-down_revision: str | None = "core_0045_mcp_client_refs"
+revision: str = "core_0047_household_basics"
+down_revision: str | None = "core_0046_audit_chain"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
