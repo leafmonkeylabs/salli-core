@@ -27,7 +27,7 @@ with a `source` and a `note`, and stored as user data:
 - `safe_withdrawal_rate`: what the FI number is built on;
 - `surplus_invested`: the share, from 0 to 1, of each month's regular
   surplus that goes into investments and grows at the real return; the rest
-  stays in cash, which earns nothing (`baseline.timelines` says what is
+  stays in cash, which earns an active CMA pack's cash yield or nothing (`baseline.timelines` says what is
   regular). Not a rate: a share of money, the same in every year.
 
 **What applies** (`resolve`): the user's own figure, else the placeholder.
@@ -40,6 +40,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, cast
+
+from salli.domain.fi import cma as cma_
 
 Origin = Literal["user", "placeholder"]
 
@@ -331,6 +333,15 @@ class FiAssumptions:
     inflation: Applied | None = None
     #: The user's nominal return, when it is what the real return came from.
     nominal_return: Applied | None = None
+    #: The capital-market assumptions in use: the user's active pack, or the
+    #: labelled placeholder pack.
+    cma: cma_.CmaPack = cma_.PLACEHOLDER
+
+    @property
+    def cash_yield(self) -> Decimal:
+        """What cash earns a year after inflation: the active pack's; nothing
+        without one."""
+        return Decimal(0) if self.cma.placeholder else self.cma.cash_yield.value
 
     @property
     def placeholders(self) -> tuple[str, ...]:
@@ -383,10 +394,26 @@ def _yours(figure: OwnFigure) -> Applied:
     return Applied(figure.value, "user", figure.source or _NO_SOURCE, figure.note)
 
 
-def resolve(own: OwnAssumptions) -> FiAssumptions:
-    """The assumptions that apply: the user's own, then the placeholders. A nominal return without inflation (which
-    `check_consistent` keeps from being stored) is not used."""
-    inflation = _yours(own.inflation) if own.inflation is not None else None
+def _from_pack(pack: cma_.CmaPack, what: str, figure: str) -> str:
+    return f"Your capital-market assumptions ({pack.label}): {what}. Sources: {figure}"
+
+
+def resolve(own: OwnAssumptions, cma: cma_.CmaPack | None = None) -> FiAssumptions:
+    """The assumptions that apply: the user's own, then their active
+    capital-market assumptions (`cma`: the mix's expected real return, and
+    inflation), then the placeholders. A nominal return without inflation
+    (which `check_consistent` keeps from being stored) is not used."""
+    pack = cma or cma_.PLACEHOLDER
+    if own.inflation is not None:
+        inflation: Applied | None = _yours(own.inflation)
+    elif not pack.placeholder and pack.inflation is not None:
+        inflation = Applied(
+            pack.inflation.value,
+            "user",
+            _from_pack(pack, "inflation", f"{pack.inflation.source} ({pack.inflation.date})"),
+        )
+    else:
+        inflation = None
 
     nominal: Applied | None = None
     if own.real_return is not None:
@@ -404,6 +431,18 @@ def resolve(own: OwnAssumptions) -> FiAssumptions:
             own.nominal_return.note,
         )
         scenarios = Scenarios.around(real)
+    elif not pack.placeholder:
+        sources = "; ".join(
+            f"{c.label}: {c.real_return.source} ({c.real_return.date})"
+            for c in pack.classes
+            if c.key in pack.mix
+        )
+        base = Applied(
+            pack.expected_return,
+            "user",
+            _from_pack(pack, "the mix's expected real return", sources),
+        )
+        scenarios = Scenarios.around(base.value)
     else:
         placeholder = PLACEHOLDERS["real_return"]
         base = Applied(placeholder.value, "placeholder", placeholder.source)
@@ -428,6 +467,7 @@ def resolve(own: OwnAssumptions) -> FiAssumptions:
         surplus_invested=share,
         inflation=inflation,
         nominal_return=nominal,
+        cma=pack,
     )
 
 
@@ -474,4 +514,7 @@ def assumptions_dict(applied: FiAssumptions) -> dict[str, Any]:
         "nominal_return": _applied_dict(applied.nominal_return),
         "real_returns": scenarios_dict(applied.real_returns),
         "nominal_returns": scenarios_dict(applied.nominal_returns),
+        # Only with the user's own pack, so figures on the placeholder are
+        # described (and hashed) as before packs existed.
+        **({} if applied.cma.placeholder else {"cma": cma_.summary(applied.cma)}),
     }

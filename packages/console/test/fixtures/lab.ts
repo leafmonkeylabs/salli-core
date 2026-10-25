@@ -5508,7 +5508,8 @@ export const BASELINE: Baseline = {
       "base": "0.04",
       "growth": "0.06"
     },
-    "nominal_returns": null
+    "nominal_returns": null,
+    "cma": null
   },
   "placeholders": [
     "real_return",
@@ -8165,7 +8166,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "base": "0.04",
             "growth": "0.06"
           },
-          "nominal_returns": null
+          "nominal_returns": null,
+          "cma": null
         },
         "placeholders": [
           "real_return",
@@ -8538,7 +8540,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "base": "0.04",
             "growth": "0.06"
           },
-          "nominal_returns": null
+          "nominal_returns": null,
+          "cma": null
         },
         "placeholders": [
           "real_return",
@@ -8894,7 +8897,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "base": "0.04",
             "growth": "0.06"
           },
-          "nominal_returns": null
+          "nominal_returns": null,
+          "cma": null
         },
         "placeholders": [
           "real_return",
@@ -9829,6 +9833,7 @@ export const AFFORD_IT_START: DecisionStart = {
   },
   "cover": null,
   "level": null,
+  "odds": null,
   "placeholders": [
     "real_return",
     "safe_withdrawal_rate",
@@ -10590,7 +10595,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "base": "0.04",
             "growth": "0.06"
           },
-          "nominal_returns": null
+          "nominal_returns": null,
+          "cma": null
         },
         "placeholders": [
           "real_return",
@@ -11120,7 +11126,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "base": "0.04",
             "growth": "0.06"
           },
-          "nominal_returns": null
+          "nominal_returns": null,
+          "cma": null
         },
         "placeholders": [
           "real_return",
@@ -11654,7 +11661,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "base": "0.04",
             "growth": "0.06"
           },
-          "nominal_returns": null
+          "nominal_returns": null,
+          "cma": null
         },
         "placeholders": [
           "real_return",
@@ -13282,6 +13290,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
     ],
     "says": "The first month-end from 2026-11 on from which the option's net worth, in today's money, is at least Keep renting's at every month-end to 2046-10; null when it is behind at the horizon. `months` counts from the purchase's month, and the net worth figures are the option's less Keep renting's."
   },
+  "odds": null,
   "placeholders": [
     "real_return",
     "safe_withdrawal_rate",
@@ -13853,7 +13862,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "base": "0.04",
             "growth": "0.06"
           },
-          "nominal_returns": null
+          "nominal_returns": null,
+          "cma": null
         },
         "placeholders": [
           "real_return",
@@ -14189,7 +14199,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "base": "0.04",
             "growth": "0.06"
           },
-          "nominal_returns": null
+          "nominal_returns": null,
+          "cma": null
         },
         "placeholders": [
           "real_return",
@@ -14525,7 +14536,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "base": "0.04",
             "growth": "0.06"
           },
-          "nominal_returns": null
+          "nominal_returns": null,
+          "cma": null
         },
         "placeholders": [
           "real_return",
@@ -15416,6 +15428,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
     "says": "The first month at whose end cash, in today's money, covers the target; null when it doesn't within 50 years. Cash covers `now` months today."
   },
   "level": null,
+  "odds": null,
   "placeholders": [
     "real_return",
     "safe_withdrawal_rate",
@@ -15802,7 +15815,8 @@ export const SCENARIO_RUN: ScenarioRun = {
       "base": "0.04",
       "growth": "0.06"
     },
-    "nominal_returns": null
+    "nominal_returns": null,
+    "cma": null
   },
   "placeholders": [
     "real_return",
@@ -18955,7 +18969,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "base": "0.04",
           "growth": "0.06"
         },
-        "nominal_returns": null
+        "nominal_returns": null,
+        "cma": null
       },
       "placeholders": [
         "real_return",
@@ -22131,7 +22146,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "base": "0.04",
           "growth": "0.06"
         },
-        "nominal_returns": null
+        "nominal_returns": null,
+        "cma": null
       },
       "placeholders": [
         "real_return",

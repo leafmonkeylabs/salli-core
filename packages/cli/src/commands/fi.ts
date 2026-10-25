@@ -14,6 +14,17 @@ import {
   advisorRun,
   fiAssumptions,
   fiAssumptionsSet,
+  fiCmaActivate,
+  fiCmaGet,
+  fiCmaImport,
+  fiCmaList,
+  fiOdds,
+  fiPlanGet,
+  fiPlanSet,
+  scenariosOdds,
+  type FiOdds,
+  type FiPlanIn,
+  type Scenario,
   fiProjections,
   fiScoreGet,
   fiScoreHistory,
@@ -38,6 +49,7 @@ import { CliError, UsageError } from '../errors';
 import { singleLine } from '../output/text';
 import { displayDate, displayMonth, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
+import { readScenario } from './scenarios';
 import { AccountBook, amountArg, confirmAction, countArg, rateArg } from './shared';
 
 /** A field from the server, as one line of safe text. */
@@ -119,6 +131,35 @@ function scoreView(app: App, s: FiScore): void {
       ]),
     );
   }
+}
+
+function oddsView(app: App, d: FiOdds): void {
+  const out = app.out;
+  const pct = (v: string | null | undefined): string => (v === null || v === undefined ? 'n/a' : out.percent(v, 1));
+  out.line(
+    out.details([
+      ['FI number', out.money(d.fi_number, d.currency)],
+      ['Retiring', d.retire_month ? displayMonth(d.retire_month, out.locale) : 'not in reach: give --retire'],
+      ['Lasts to the horizon', pct(d.success)],
+      ['Reaches the FI number', pct(d.reach)],
+      ['Withdrawal rate', `${pct(d.withdrawal_rate.applied)} used; ${pct(d.withdrawal_rate.horizon_derived)} lasts ${d.withdrawal_rate.years} years on ${pct(d.withdrawal_rate.success_level)} of paths`],
+      d.guardrails ? ['With guardrails', `${pct(d.guardrails.success)} last; ${pct(d.guardrails.cut)} cut spending at some point`] : false,
+      ['Returns', `${pct(d.real_return)} a year after inflation, volatility ${pct(d.volatility)}${d.cma.placeholder ? ' (placeholder)' : ''}`],
+    ]),
+  );
+  out.line();
+  out.line(
+    out.table(
+      d.percentiles.filter((y) => y.year % 5 === 0),
+      [
+        { header: 'YEAR', get: (y) => y.year, align: 'right' },
+        { header: '10TH', get: (y) => out.amount(y.p10, d.currency), align: 'right' },
+        { header: 'MEDIAN', get: (y) => out.amount(y.p50, d.currency), align: 'right' },
+        { header: '90TH', get: (y) => out.amount(y.p90, d.currency), align: 'right' },
+      ],
+    ),
+  );
+  out.note(`${singleLine(d.message)} ${singleLine(d.withdrawal_tax.message)} ${d.paths} paths, seed ${d.seed}.`);
 }
 
 function registerFi(program: Command, app: App): void {
@@ -284,6 +325,134 @@ function registerFi(program: Command, app: App): void {
           assumptionsNote(app, d.assumptions);
         },
       });
+    });
+
+  fi.command('odds')
+    .description('The odds of reaching and sustaining FI: a seeded Monte Carlo of returns (reads only)')
+    .option('--retire <YYYY-MM>', 'When withdrawals start (default: your FI month)')
+    .option('--horizon <years>', 'How far to run, 1 to 50 years (default 50)', countArg('--horizon'))
+    .option('--paths <n>', 'How many return paths (default 1000)', countArg('--paths'))
+    .option('--seed <n>', 'The seed: the same one gives the same figures (default 1)')
+    .option('--success <rate>', 'The share of paths the horizon-derived withdrawal rate must last on (default 90%)')
+    .option('--guardrails <rate>', 'A spending band (20%): spending is cut or raised when the withdrawal rate leaves it')
+    .option('--adjust <rate>', 'By how much guardrails cut or raise spending (default 10%)')
+    .option('--file <path>', 'The odds of a scenario document\'s plan instead ("-" reads stdin)')
+    .action(async (opts) => {
+      if (opts.retire && !/^\d{4}-(0[1-9]|1[0-2])$/.test(opts.retire)) throw new UsageError('--retire takes a month, YYYY-MM.');
+      if (opts.seed && !/^\d+$/.test(opts.seed)) throw new UsageError('--seed takes a whole number.');
+      if (opts.adjust && !opts.guardrails) throw new UsageError('--adjust goes with --guardrails.');
+      const query = {
+        ...(opts.retire ? { retire_month: opts.retire } : {}),
+        ...(opts.horizon ? { horizon_years: opts.horizon } : {}),
+        ...(opts.paths ? { paths: opts.paths } : {}),
+        // eslint-disable-next-line no-restricted-syntax -- not money: a seed
+        ...(opts.seed ? { seed: Number(opts.seed) } : {}),
+        ...(opts.success ? { success_level: rateArg(opts.success, '--success') } : {}),
+        ...(opts.guardrails ? { guardrail_band: rateArg(opts.guardrails, '--guardrails') } : {}),
+        ...(opts.adjust ? { guardrail_adjust: rateArg(opts.adjust, '--adjust') } : {}),
+      };
+      const api = await app.api();
+      const odds = opts.file
+        ? await api.call(scenariosOdds, { body: (await readScenario(app, opts.file)) as unknown as Scenario, query })
+        : await api.call(fiOdds, { query });
+      app.out.emit(odds, { records: (d) => d.percentiles, human: (d) => oddsView(app, d) });
+    });
+
+  const plan = fi.command('plan').description('Guaranteed income (pensions, annuities) and spending phases by age');
+  plan
+    .command('show', { isDefault: true })
+    .description('Your income streams and spending phases')
+    .action(async () => {
+      const api = await app.api();
+      const p = await api.call(fiPlanGet);
+      app.out.emit(p, {
+        human: (d) => {
+          const out = app.out;
+          out.line(out.heading('Guaranteed income'));
+          if (!d.income_streams.length) out.note('None. Add them with `salli fi plan set <file>`.');
+          for (const s of d.income_streams) {
+            out.line(`  ${str(s.name)}: ${str(s.monthly)} a month from ${displayMonth(s.start, out.locale)} (${s.terms === 'real' ? 'today’s money' : 'money of then'}${s.indexed ? ', indexed' : ''})${s.lump_sum !== '0' ? `, lump sum ${str(s.lump_sum)}` : ''}`);
+          }
+          out.line(out.heading('Spending phases'));
+          if (!d.spending_phases.length) out.note('None: your average spending applies throughout.');
+          for (const ph of d.spending_phases) out.line(`  From age ${ph.from_age}: ${str(ph.monthly)} a month`);
+          if (d.spending_phases.length && !d.date_of_birth) out.note('Phases go by age: set your date of birth on your profile.');
+        },
+      });
+    });
+  plan
+    .command('set')
+    .description('Replace your income streams and spending phases with a JSON file ("-" reads stdin)')
+    .argument('<path>', 'A file of {"income_streams": [...], "spending_phases": [...]}')
+    .action(async (path) => {
+      const body = (await readScenario(app, path)) as unknown as FiPlanIn;
+      const api = await app.api();
+      const p = await api.call(fiPlanSet, { body });
+      app.out.emit(p, { human: () => app.out.success('Your FI plan is saved.') });
+    });
+
+  const cma = fi.command('cma').description('Capital-market assumptions (salli.cma/1): returns, volatility, cash yield, inflation');
+  cma
+    .command('list', { isDefault: true })
+    .description('Your packs, which is active, and the placeholder')
+    .action(async () => {
+      const api = await app.api();
+      const l = await api.call(fiCmaList);
+      app.out.emit(l, {
+        records: (d) => d.packs,
+        human: (d) => {
+          const out = app.out;
+          if (!d.packs.length) out.note('No packs: the placeholder stands in. Import one with `salli fi cma import <file>`.');
+          else
+            out.line(
+              out.table(d.packs, [
+                { header: 'ID', get: (r) => r.id },
+                { header: 'NAME', get: (r) => str(r.name) },
+                { header: 'VERSION', get: (r) => str(r.version) },
+                { header: 'ACTIVE', get: (r) => (r.is_active ? 'yes' : '') },
+              ]),
+            );
+        },
+      });
+    });
+  cma
+    .command('show')
+    .description('One pack, its figures and sources')
+    .argument('<id>')
+    .action(async (id) => {
+      const api = await app.api();
+      const p = await api.call(fiCmaGet, { path: { pack_id: id } });
+      app.out.emit(p, {
+        human: (d) =>
+          app.out.line(
+            app.out.details([
+              ['Pack', `${str(d.name)} ${str(d.version)}`],
+              ['Expected real return', app.out.percent(d.summary.expected_real_return, 2)],
+              ['Volatility', app.out.percent(d.summary.volatility, 2)],
+              ['Cash yield', app.out.percent(d.summary.cash_yield, 2)],
+              ['Active', d.is_active ? 'yes' : 'no'],
+            ]),
+          ),
+      });
+    });
+  cma
+    .command('import')
+    .description('Import a pack from a JSON file ("-" reads stdin): stored inactive, never changed')
+    .argument('<path>')
+    .action(async (path) => {
+      const body = await readScenario(app, path);
+      const api = await app.api();
+      const p = await api.call(fiCmaImport, { body });
+      app.out.emit(p, { human: (d) => app.out.success(`Imported ${str(d.name)} ${str(d.version)} (${d.id}). Activate it with \`salli fi cma activate ${d.id}\`.`) });
+    });
+  cma
+    .command('activate')
+    .description('Make a pack the one projections and the odds read; "none" for the placeholder')
+    .argument('<id>')
+    .action(async (id) => {
+      const api = await app.api();
+      const l = await api.call(fiCmaActivate, { body: { pack_id: id === 'none' ? null : id } });
+      app.out.emit(l, { human: () => app.out.success(id === 'none' ? 'The placeholder stands in again.' : `Pack ${id} is active.`) });
     });
 
   fi.command('surplus')

@@ -181,8 +181,10 @@ let an agent do it: tag the gross one.
 - **What tax doesn't touch.** The FI number: the tax on a salary is not
   spending to live on once it has stopped. Investment growth: no role
   taxes it, so set your real return after the tax you pay on it. Tax on
-  withdrawals in retirement, when tax is settled, and a loan's interest as
-  a deduction are out of scope.
+  withdrawals in retirement grosses up the FI number itself, through a
+  `withdrawal` role ([baseline](baseline.md#financial-independence)), not
+  a scenario's tax. When tax is settled, and a loan's interest as a
+  deduction, are out of scope.
 
 The result's `tax` section:
 
@@ -304,7 +306,8 @@ string in your currency's precision. A month's change is in months
 | **Tax** | For changes tagged with a tax role, each tax year's role totals and the change in tax, from your active rules ([Tax](#tax)). |
 
 The share of your surplus you invest grows with your investments at your
-real return, cash earns nothing, and debts follow their schedules, as on the
+real return, cash earns your capital-market assumptions' cash yield (or
+nothing), and debts follow their schedules, as on the
 [baseline's monthly timeline](baseline.md#the-two-timelines). The lowest cash
 counts the share you invest leaving cash at each month's end; the
 emergency-fund months count cash alone.
@@ -447,6 +450,19 @@ rate, and there is no break-even in range. Set your share to 0 and both come
 out of cash: the break-even is then 0%, any rate above it costing more.
 Which matters more, the buffer or the money, is yours to say.
 
+## The odds of a scenario
+
+`POST /v1/scenarios/odds` (`salli fi odds --file scenario.json`, MCP
+`get_fi_odds` with `scenario`) runs [the odds](baseline.md#the-odds) on the
+scenario's timeline and spending: the share of seeded return paths whose
+money lasts, the percentile paths and the horizon-derived withdrawal rate,
+as for the baseline. It takes the same options (`retire_month`,
+`horizon_years`, `paths`, `seed`, `success_level`, `guardrail_band`,
+`guardrail_adjust`) and stores nothing. [Debt or invest](templates.md)'s
+start carries `odds`: the share of paths on which the money invested grows,
+over the horizon, by more than paying down the debt saves at its rate after
+inflation (drawn a year at a time, as only the end matters).
+
 ## For agents
 
 - Build every option with the schema (`get_scenario_schema`), and let Salli
@@ -476,7 +492,8 @@ Which matters more, the buffer or the money, is yours to say.
 
 ## Not modelled yet
 
-- Tax on investment growth, dividends and withdrawals in retirement; when
+- Tax on investment growth and dividends (withdrawals are taxed in the FI
+  number, through a `withdrawal` role: [baseline](baseline.md#financial-independence)); when
   tax is settled; a loan's interest as a deduction.
 - A target for your cash: after a one-off has spent some of it, the share of
   the surplus you invest doesn't rebuild it unless a scenario sets an amount

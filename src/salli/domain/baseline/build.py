@@ -247,6 +247,9 @@ def fingerprint(inputs: BaselineInputs) -> str:
             # Only when goals claim cash, so a baseline without any
             # fingerprints as it did before.
             **({"goal_claims": dict(inputs.goal_claims)} if inputs.goal_claims else {}),
+            # Only when set, so a baseline without either fingerprints as before.
+            **({"cma": inputs.cma.content_hash} if inputs.cma is not None else {}),
+            **({"plan": inputs.plan} if not inputs.plan.empty else {}),
             "rule_sets": sorted(inputs.rule_sets, key=lambda r: (r.rule_set_id, r.version)),
             # Only when there are rules to compute tax with, so a baseline
             # without any fingerprints as it did before scenarios computed tax.
@@ -342,7 +345,8 @@ def build(inputs: BaselineInputs) -> Baseline:
         rates=rates,
         flows=flows,
         debts=tuple(debts),
-        assumptions=resolve(inputs.own_assumptions),
+        assumptions=resolve(inputs.own_assumptions, inputs.cma),
+        plan=inputs.plan,
         recurring=tuple(found),
         covered_by=tuple(covering),
         charges=tuple(charges),

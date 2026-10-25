@@ -134,8 +134,12 @@ past spending, never below zero, and the answer lists each part.
 **Monthly, to a horizon of up to 50 years,** at each calendar month's end, in
 today's money:
 
-- **Cash** keeps what you don't invest of each month's surplus (below). Cash
-  earns nothing, so in today's money it loses what inflation takes.
+- **Cash** keeps what you don't invest of each month's surplus (below). With
+  an active [capital-market assumptions pack](#capital-market-assumptions),
+  cash (above zero) earns the pack's cash yield after inflation; without
+  one it earns nothing, so in today's money it loses what inflation takes.
+  [Guaranteed income](#the-fi-plan) that starts after the as-of month comes
+  into cash from its start, and its lump sum in its first month.
 - **Investments** grow at your real return (the base scenario's), a twelfth of
   it a month, compounded, and take the share of each month's surplus you
   invest at its end.
@@ -204,14 +208,194 @@ used.
 
 ## Financial independence
 
-FI reads the monthly timeline. The FI number is a year of your spending over
-your safe withdrawal rate; the month FI is
-reached is the first whose end your cash and investments, less your debts,
-reach it, looked for up to 50 years ahead. The projections are the same
-timeline with your investments at each scenario's real return. The share of
-your surplus you invest grows with your investments; what you keep in cash
-earns nothing. So the share you set moves the month: the less you invest,
-the later it comes.
+FI reads the monthly timeline. The FI number at a month is a year of the
+spending to fund then, grossed up for tax on withdrawals, over your safe
+withdrawal rate; the month FI is reached is the first whose end your cash
+and investments, less your debts, reach that month's number, looked for up
+to 50 years ahead. The projections are the same timeline with your
+investments at each scenario's real return. The share of your surplus you
+invest grows with your investments; what you keep in cash earns the cash
+yield, or nothing. So the share you set moves the month: the less you
+invest, the later it comes.
+
+- **The spending to fund** is your average monthly spending, or your
+  [spending phase's](#the-fi-plan) for your age that month (plus a
+  scenario's change in spending), less the guaranteed income paying that
+  month. Without a plan every month's number is the same.
+- **Gross of tax.** When your active tax rules (in your base currency)
+  declare an income role keyed `withdrawal`, the year's spending is grossed
+  up to what must be withdrawn so that, after the tax those rules take on
+  the withdrawal alone, the spending is left (the as-of year's rules, their
+  bands level in today's money). Without such a role it is not, and the
+  odds say so (`withdrawal_tax.status` `not_computed`). Add the role to
+  your rule set to have it taxed.
+
+## The FI plan
+
+Guaranteed income and spending phases, yours to set (`salli fi plan set
+plan.json`, `PUT /v1/fi/plan`); no model chooses them:
+
+```json
+{
+  "income_streams": [
+    {"name": "Work pension", "start": "2049-04", "monthly": "1200.00",
+     "terms": "real", "indexed": true, "lump_sum": "30000.00",
+     "source": "statement of 2026"}
+  ],
+  "spending_phases": [
+    {"from_age": 60, "monthly": "3000.00"},
+    {"from_age": 75, "monthly": "2200.00"}
+  ]
+}
+```
+
+- **A stream** (a pension, an annuity, a provident fund's payout) pays
+  `monthly` from `start`, in today's money (`terms` `real`) or in the start
+  month's own money (`nominal`). `indexed` keeps its value against inflation
+  from its start; otherwise it is fixed in money and inflation wears it
+  down. `lump_sum` is paid once in its start month. A stream that started
+  on or before the as-of month is already in your ledger's income, so it
+  only reduces the FI number.
+- **A phase** is the monthly spending to live on, in today's money, from an
+  age on, by the date of birth on your profile. Before the first, or
+  without a date of birth, your average spending applies.
+
+## Capital-market assumptions
+
+A pack (`salli.cma/1`) is user data, as tax rules are: per asset class an
+expected yearly return after inflation and a volatility, the correlations
+between classes, the yield cash earns after inflation, inflation, and the
+mix the figures are for; each figure with its source and the day it was
+given. A country's pack is a document a person or their agent writes and
+cites; Salli holds none. Import one (`salli fi cma import pack.json`,
+`POST /v1/fi/cma-packs`): it is stored as written and never changes (an
+edit is a new import; the same document twice is one pack). Activate one
+(`salli fi cma activate <id>`): at most one is active.
+
+With an active pack, where you set no figure of your own:
+
+- the real return is the mix's expected return (`Σ wᵢ rᵢ`);
+- inflation is the pack's, if it gives one;
+- cash earns the pack's cash yield;
+- the [odds](#the-odds) draw returns with the mix's volatility
+  (`√(wᵀΣw)`, from the classes' volatilities and correlations);
+- [debt or invest](templates.md) sets investing against the debt under it.
+
+Without one, a neutral placeholder pack stands in (one class at the 4% real
+return placeholder, a 12% volatility, cash earning nothing), labelled
+wherever it is used. Every FI response carries `assumptions.cma` when a pack
+of yours is active.
+
+The format, as JSON Schema (draft 2020-12):
+
+```json
+{
+  "type": "object",
+  "required": ["format", "name", "version", "asset_classes", "cash_yield", "mix"],
+  "properties": {
+    "format": {"const": "salli.cma/1"},
+    "name": {"type": "string"},
+    "version": {"type": "string"},
+    "asset_classes": {
+      "type": "object", "minProperties": 1, "maxProperties": 20,
+      "additionalProperties": {
+        "type": "object", "required": ["real_return", "volatility"],
+        "properties": {
+          "label": {"type": "string"},
+          "real_return": {"$ref": "#/$defs/figure"},
+          "volatility": {"$ref": "#/$defs/figure"}
+        }
+      }
+    },
+    "correlations": {
+      "type": "array",
+      "items": {
+        "allOf": [{"$ref": "#/$defs/figure"}],
+        "required": ["a", "b"],
+        "properties": {"a": {"type": "string"}, "b": {"type": "string"}}
+      }
+    },
+    "cash_yield": {"$ref": "#/$defs/figure"},
+    "inflation": {"$ref": "#/$defs/figure"},
+    "mix": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": {"type": "string", "pattern": "^(0(\\.\\d+)?|1(\\.0+)?)$"}
+    }
+  },
+  "$defs": {
+    "figure": {
+      "type": "object", "required": ["value", "source", "date"],
+      "properties": {
+        "value": {"type": "string", "pattern": "^-?\\d+(\\.\\d+)?$"},
+        "source": {"type": "string", "minLength": 1, "maxLength": 500},
+        "date": {"type": "string", "format": "date"}
+      }
+    }
+  }
+}
+```
+
+Values are yearly fractions in decimal strings ("0.05" is 5%): a real return
+from -0.10 to 0.20, a volatility from 0 to 0.80, a cash yield from -0.10 to
+0.10, inflation from -0.05 to 1, a correlation from -1 to 1. A correlation
+not listed is 0; the mix names classes of the pack and sums to 1. An example,
+for a fictional market XA:
+
+```json
+{
+  "format": "salli.cma/1",
+  "name": "XA reference", "version": "2031-06",
+  "asset_classes": {
+    "equity": {"label": "Equity",
+      "real_return": {"value": "0.05", "source": "XA statistics", "date": "2031-05-31"},
+      "volatility": {"value": "0.18", "source": "XA statistics", "date": "2031-05-31"}},
+    "bonds": {"label": "Bonds",
+      "real_return": {"value": "0.01", "source": "XA statistics", "date": "2031-05-31"},
+      "volatility": {"value": "0.06", "source": "XA statistics", "date": "2031-05-31"}}
+  },
+  "correlations": [
+    {"a": "equity", "b": "bonds", "value": "0.2", "source": "XA", "date": "2031-05-31"}
+  ],
+  "cash_yield": {"value": "0.01", "source": "XA bank", "date": "2031-05-31"},
+  "mix": {"equity": "0.6", "bonds": "0.4"}
+}
+```
+
+## The odds
+
+`salli fi odds` (`GET /v1/fi/odds`; a scenario's: `--file`, `POST
+/v1/scenarios/odds`; MCP `get_fi_odds`) runs a seeded Monte Carlo on the
+monthly timeline, in today's money. No model computes or chooses any of it.
+
+- **Returns.** Each of `paths` paths (1,000 by default) draws a month's real
+  return for the investments from a normal distribution: the real return
+  over twelve, the volatility over √12. Draws come from a seeded generator
+  (`seed`, 1 by default), each written to nine places as a Decimal, so the
+  same seed gives the same figures.
+- **Building up**, to the retirement month (`retire_month`, by default the
+  FI month): the investments grow at the path's returns and take what the
+  timeline moves into them; cash and debts follow the timeline.
+- **Drawing down**, after it: your cash and investments less debts are one
+  pool at the path's returns, less each month's spending to fund, grossed
+  up for tax. `success` is the share of paths that never run out by the
+  horizon (`horizon_years`, 50 by default); `reach` the share whose asset
+  base reaches the FI number within it.
+- **Percentile paths**: the 10th, 50th and 90th percentile of the asset base
+  at each whole year.
+- **A horizon-derived withdrawal rate**, beside yours (or the placeholder):
+  for each path the highest constant real withdrawal, as a share of the
+  pool at retirement, that lasts the years drawn down (exactly
+  12 / Σₖ 1/Gₖ, with Gₖ the path's growth to month k); the rate shown is the
+  one `success_level` (90% by default) of paths sustain. It informs; the FI
+  number still uses your rate.
+- **Guardrails** (`--guardrails 20%`): each year after retirement, a
+  withdrawal rate more than the band above the starting one cuts spending
+  by `--adjust` (10%), more than the band below raises it. They report the
+  share of paths that last, that cut at some point, and the 10th percentile
+  of the lowest spending reached.
+
+`placeholders` lists every placeholder the odds rest on (`volatility` while
+no pack is active). The odds are not a forecast.
 
 ## What it records
 
@@ -229,6 +413,11 @@ Your holdings (their transactions, recorded prices and links, to the as-of
 date) are in it once you have any.
 
 ## What is not modelled yet
+
+- Fat tails, serial correlation and asset classes drawn apart: the odds
+  draw one normal return for the mix a month.
+- Tax on withdrawals beside other income in retirement: the gross-up taxes
+  the withdrawal alone.
 
 - Extra payments and new loans are changes a [scenario](scenarios.md) makes;
   the baseline is where they start.

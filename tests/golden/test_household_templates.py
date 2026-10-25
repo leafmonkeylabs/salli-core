@@ -184,6 +184,11 @@ async def test_debt_or_invest_once(baseline):
         (("Invest it", "Split"), "Invest it"): "0.0451",
         (("Pay down Student loan", "Split"), "Split"): "0.045",
     }
+    # The loan's 4.5% is certain; the placeholder 4% return isn't. Over ten
+    # years, the share of 1,000 seeded paths on which investing grows more.
+    odds = result["odds"]
+    assert (odds["debt"], odds["debt_real_rate"], odds["months"]) == ("debt-student", "0.045", 120)
+    assert D(0) < D(odds["invest_beats_paying_down"]) < D("0.5")
 
 
 async def test_debt_or_invest_every_month(baseline):

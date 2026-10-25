@@ -8,11 +8,12 @@ from collections.abc import Iterable
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from salli.application.ports import Surface
 from salli.domain.currency import quantize
+from salli.domain.fi.montecarlo import Guardrails
 from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, DecimalIn, Ref
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 
@@ -71,6 +72,24 @@ class FiScenarioReturns(BaseModel):
     growth: str | None = None
 
 
+class CmaSummary(BaseModel):
+    """A capital-market assumptions pack's figures, as projections use them."""
+
+    #: The stored pack's id; null for the placeholder.
+    id: str | None = None
+    name: str
+    version: str
+    #: True for the code's neutral pack: every figure a placeholder.
+    placeholder: bool
+    #: The mix's expected yearly return after inflation.
+    expected_real_return: str
+    #: The mix's yearly volatility, √(wᵀΣw).
+    volatility: str
+    #: What cash earns a year after inflation (the placeholder's is never used).
+    cash_yield: str
+    inflation: str | None = None
+
+
 class FiAssumptions(BaseModel):
     """The assumptions these figures were computed with, in real terms.
 
@@ -93,7 +112,7 @@ class FiAssumptions(BaseModel):
     safe_withdrawal_rate: FiAssumption
     #: The share (0 to 1) of each month's regular surplus that goes into
     #: investments and grows at the real return; the rest stays in cash,
-    #: which earns nothing. Not a rate: "0.8" is 80% of the surplus.
+    #: which earns an active CMA pack's cash yield or nothing. Not a rate: "0.8" is 80% of the surplus.
     surplus_invested: FiAssumption
     #: The user's inflation; null when they have not set one, and then every
     #: figure is in today's money only.
@@ -104,6 +123,9 @@ class FiAssumptions(BaseModel):
     real_returns: FiScenarioReturns
     #: Each scenario's return before inflation; only with the user's inflation.
     nominal_returns: FiScenarioReturns | None = None
+    #: The capital-market assumptions in use: the user's active pack, or
+    #: the labelled placeholder pack.
+    cma: CmaSummary | None = None
 
 
 AssumptionName = Literal[
@@ -633,3 +655,253 @@ async def set_goal_allocation(
     except ValueError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     return GoalUpdated(updated=True)
+
+
+# ── The odds (a seeded Monte Carlo) ────────────────────────────────────────────
+
+
+class OddsQuery(BaseModel):
+    """How to run the odds: every field optional."""
+
+    #: "YYYY-MM": when withdrawals start; the FI month when left out.
+    retire_month: Annotated[str | None, Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")] = None
+    horizon_years: Annotated[int, Field(ge=1, le=50)] = 50
+    paths: Annotated[int, Field(ge=1, le=5000)] = 1000
+    #: The same seed gives the same figures.
+    seed: Annotated[int, Field(ge=0, le=2**31)] = 1
+    #: The share of paths the horizon-derived withdrawal rate must last on.
+    success_level: Annotated[str, Field(pattern=r"^0?\.\d+$")] = "0.9"
+    #: A spending band, as a fraction of the starting withdrawal rate: with
+    #: it, guardrails cut or raise spending by `guardrail_adjust`.
+    guardrail_band: Annotated[str | None, Field(pattern=r"^0?\.\d+$")] = None
+    guardrail_adjust: Annotated[str, Field(pattern=r"^0?\.\d+$")] = "0.1"
+
+    def options(self) -> dict[str, Any]:
+        return {
+            "retire_month": self.retire_month,
+            "horizon_years": self.horizon_years,
+            "paths": self.paths,
+            "seed": self.seed,
+            "success_level": Decimal(self.success_level),
+            "guardrails": None
+            if self.guardrail_band is None
+            else Guardrails(Decimal(self.guardrail_band), Decimal(self.guardrail_adjust)),
+        }
+
+
+class OddsWithdrawalRate(BaseModel):
+    #: The rate the FI number uses: the user's, or the placeholder.
+    applied: str
+    origin: Literal["user", "placeholder"]
+    #: The rate `success_level` of paths sustain over `years` drawn down.
+    horizon_derived: str
+    years: int
+    success_level: str
+
+
+class OddsGuardrails(BaseModel):
+    band: str
+    adjust: str
+    #: The share of paths that last to the horizon with guardrails.
+    success: str
+    #: The share of paths that cut spending at least once.
+    cut: str
+    #: The 10th percentile of the lowest spending reached, a share of planned.
+    low_spending_p10: str
+
+
+class OddsYear(BaseModel):
+    """The asset base across paths at a whole year, in today's money."""
+
+    year: int
+    p10: Amount
+    p50: Amount
+    p90: Amount
+
+
+class WithdrawalTaxRules(BaseModel):
+    rule_set_id: str
+    version: int
+    year: str
+
+
+class WithdrawalTax(BaseModel):
+    """Whether the FI number is grossed up for tax on withdrawals."""
+
+    status: Literal["computed", "not_computed"]
+    rules: WithdrawalTaxRules | None = None
+    message: str
+
+
+class FiOdds(BaseModel):
+    """The odds of the plan, from a seeded Monte Carlo on the baseline's
+    monthly timeline, in today's money. Shares are fractions. Not a forecast."""
+
+    currency: CurrencyCode
+    as_of: str
+    paths: int
+    seed: int
+    horizon_years: int
+    #: The mean yearly real return and volatility the paths are drawn with.
+    real_return: str
+    volatility: str
+    cma: CmaSummary
+    fi_number: Amount
+    fi_month: str | None = None
+    #: When withdrawals start; null when FI isn't reached and none was given.
+    retire_month: str | None = None
+    #: The share of paths that never run out by the horizon; null without
+    #: a retirement month.
+    success: str | None = None
+    #: The share of paths that reach the FI number within the horizon.
+    reach: str
+    withdrawal_rate: OddsWithdrawalRate
+    guardrails: OddsGuardrails | None = None
+    percentiles: list[OddsYear]
+    withdrawal_tax: WithdrawalTax
+    placeholders: list[str]
+    message: str
+
+
+@router.get("/odds")
+async def get_odds(
+    user_id: CurrentUser, svc: AppServices, query: Annotated[OddsQuery, Query()]
+) -> FiOdds:
+    """The odds of reaching and sustaining FI: a seeded, reproducible Monte
+    Carlo of returns from your capital-market assumptions (or the labelled
+    placeholder), with 10/50/90 percentile wealth paths, a horizon-derived
+    withdrawal rate beside yours, and optional guardrails. Reads only."""
+    return FiOdds.model_validate(await svc.fi.odds(user_id, **query.options()))
+
+
+# ── The FI plan: guaranteed income and spending phases ─────────────────────────
+
+
+class IncomeStream(BaseModel):
+    """A guaranteed income: a pension, an annuity, a provident fund's payout."""
+
+    name: Annotated[str, Field(min_length=1, max_length=500)]
+    #: "YYYY-MM": the first month it pays.
+    start: Annotated[str, Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
+    #: A month's payment, in today's money (`real`) or the start month's own (`nominal`).
+    monthly: AmountIn
+    terms: Literal["real", "nominal"] = "real"
+    #: Keeps its value against inflation from its start.
+    indexed: bool = True
+    #: Paid once in its start month, in the same terms.
+    lump_sum: AmountIn = Decimal(0)
+    source: Annotated[str | None, Field(max_length=500)] = None
+
+
+class SpendingPhase(BaseModel):
+    """The monthly spending to live on, in today's money, from an age on."""
+
+    from_age: Annotated[int, Field(ge=0, le=120)]
+    monthly: AmountIn
+    source: Annotated[str | None, Field(max_length=500)] = None
+
+
+class FiPlanIn(BaseModel):
+    income_streams: Annotated[list[IncomeStream], Field(max_length=20)] = []
+    spending_phases: Annotated[list[SpendingPhase], Field(max_length=20)] = []
+
+
+class IncomeStreamOut(BaseModel):
+    name: str
+    start: str
+    monthly: str
+    terms: Literal["real", "nominal"]
+    indexed: bool
+    lump_sum: str
+    source: str | None = None
+
+
+class SpendingPhaseOut(BaseModel):
+    from_age: int
+    monthly: str
+    source: str | None = None
+
+
+class FiPlan(BaseModel):
+    """Guaranteed income and spending phases: they reduce, and step, the FI
+    number, and the income enters the monthly timeline."""
+
+    income_streams: list[IncomeStreamOut]
+    spending_phases: list[SpendingPhaseOut]
+    #: From the profile; the phases go by it, and apply only with it.
+    date_of_birth: str | None = None
+
+
+@router.get("/plan")
+async def get_plan(user_id: CurrentUser, svc: AppServices) -> FiPlan:
+    """Your guaranteed income streams and spending phases."""
+    return FiPlan.model_validate(await svc.fi.plan(user_id))
+
+
+@router.put("/plan")
+async def set_plan(body: FiPlanIn, user_id: CurrentUser, svc: AppServices) -> FiPlan:
+    """Replace your guaranteed income streams and spending phases."""
+    return FiPlan.model_validate(await svc.fi.set_plan(user_id, body.model_dump(mode="json")))
+
+
+# ── Capital-market assumptions (`salli.cma/1`) ─────────────────────────────────
+
+
+class CmaPackRow(BaseModel):
+    id: str
+    name: str
+    version: str
+    content_hash: str
+    is_active: bool
+    created_at: str
+    activated_at: str | None = None
+
+
+class CmaPack(CmaPackRow):
+    summary: CmaSummary
+    #: The document as imported; it never changes.
+    content: dict[str, Any]
+
+
+class CmaPackList(BaseModel):
+    packs: list[CmaPackRow]
+    #: What stands in while no pack is active.
+    placeholder: CmaSummary
+
+
+class CmaActivate(BaseModel):
+    #: One of your packs; null to use the placeholder again.
+    pack_id: str | None
+
+
+@router.get("/cma-packs")
+async def list_cma_packs(user_id: CurrentUser, svc: AppServices) -> CmaPackList:
+    """Your capital-market assumptions packs, and the placeholder."""
+    return CmaPackList.model_validate(await svc.fi.cma_packs(user_id))
+
+
+@router.post("/cma-packs", status_code=status.HTTP_201_CREATED)
+async def import_cma_pack(body: dict[str, Any], user_id: CurrentUser, svc: AppServices) -> CmaPack:
+    """Import a `salli.cma/1` pack (docs/baseline.md): stored inactive, and
+    never changed. A document that isn't valid is a 422 saying why."""
+    return CmaPack.model_validate(await svc.fi.import_cma_pack(user_id, body))
+
+
+@router.get("/cma-packs/{pack_id}")
+async def get_cma_pack(pack_id: str, user_id: CurrentUser, svc: AppServices) -> CmaPack:
+    found = await svc.fi.cma_pack(user_id, pack_id)
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such pack")
+    return CmaPack.model_validate(found)
+
+
+@router.put("/cma-packs/active")
+async def activate_cma_pack(
+    body: CmaActivate, user_id: CurrentUser, svc: AppServices
+) -> CmaPackList:
+    """Make one of your packs the one projections, the odds and debt or
+    invest read; null for the placeholder."""
+    try:
+        return CmaPackList.model_validate(await svc.fi.activate_cma_pack(user_id, body.pack_id))
+    except LookupError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such pack") from None

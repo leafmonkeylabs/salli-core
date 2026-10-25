@@ -647,6 +647,21 @@ class LevelReading(BaseModel):
     says: str
 
 
+class StartOdds(BaseModel):
+    """For debt or invest: how often investing grows by more than paying
+    down the debt saves, under the Monte Carlo. A share, not a forecast."""
+
+    debt: str
+    #: The debt's yearly rate after inflation (as given, without inflation).
+    debt_real_rate: str
+    months: int
+    paths: int
+    seed: int
+    #: The share of paths (0 to 1) on which investing grows by more.
+    invest_beats_paying_down: str
+    says: str
+
+
 class StartRecord(BaseModel):
     """What `POST /v1/decisions` needs besides the person's own: their
     choice (one of `labels`), their reasons and a review date."""
@@ -679,6 +694,8 @@ class DecisionStart(BaseModel):
     cover: CoverReading | None
     #: For rent or buy: when each way of buying draws level with renting.
     level: LevelReading | None
+    #: For debt or invest: the odds investing grows by more than paying down.
+    odds: StartOdds | None = None
     #: What any option's figures rest on: FI's assumptions, inflation, tax,
     #: an asset's growth ("asset_growth"), and a template's own placeholder
     #: answers ("rent_growth").

@@ -870,7 +870,7 @@ def evaluate(
         cash=timelines.daily(baseline, changes),
         safe=timelines.safe_to_spend(baseline, changes),
         monthly=monthly,
-        fi=fi.outlook(baseline, monthly, fi.fi_number(baseline, spending)),
+        fi=fi.outlook(baseline, monthly, spending),
         spending=spending,
     )
 

@@ -354,6 +354,39 @@ class TaxComputationORM(Base):
     )
 
 
+# ── Capital-market assumptions (user data: docs/baseline.md) ────────────────
+
+
+class CmaPackORM(Base):
+    """A `salli.cma/1` pack a user (or their agent) imported: its document
+    never changes once written (an edit is a new import), and at most one
+    of a user's packs is active (the partial unique index)."""
+
+    __tablename__ = "cma_packs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(500), nullable=False)
+    version: Mapped[str] = mapped_column(String(500), nullable=False)
+    content: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "content_hash", name="uq_cma_packs_user_hash"),
+        Index(
+            "uq_cma_packs_one_active",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_active"),
+        ),
+    )
+
+
 # ── Tax rule sets (user data: docs/taxrules.md) ───────────────────────────────
 
 #: A version's lifecycle (application/services/tax_rule_service.py).
@@ -871,6 +904,11 @@ class UserProfileORM(Base):
     # "set_at": "..."}, ...}, values as decimal strings. One that is missing
     # uses a labelled placeholder (domain/fi/assumptions.py).
     fi_assumptions: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    # Their guaranteed income and spending phases (domain/fi/plan.py):
+    # {"income_streams": [...], "spending_phases": [...]}.
+    fi_plan: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
     # Where the person lives in time: an IANA name ("Europe/Lisbon"), or NULL

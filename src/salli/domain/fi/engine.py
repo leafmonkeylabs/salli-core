@@ -105,6 +105,7 @@ def compute(
     *,
     swr: Decimal,
     projected_fi_months: int | None = None,
+    fi_number: Decimal | None = None,
 ) -> FiScore:
     """
     Score a snapshot.
@@ -122,7 +123,8 @@ def compute(
     savings_rate = (surplus / income) if income > 0 else Decimal(0)
 
     annual_expenses = expenses * 12
-    fi_number = (annual_expenses / swr) if annual_expenses > 0 and swr > 0 else Decimal(0)
+    if fi_number is None:
+        fi_number = (annual_expenses / swr) if annual_expenses > 0 and swr > 0 else Decimal(0)
 
     net_worth = snapshot.total_assets - snapshot.total_liabilities
     asset_base = fi_asset_base(snapshot)

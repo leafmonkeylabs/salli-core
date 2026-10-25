@@ -63,7 +63,7 @@ jobs:
           src/salli/interfaces/api/routers/ai.py
           src/salli/domain/jurisdiction.py src/salli/domain/taxrules
           src/salli/domain/agents/jurisdiction.py src/salli/domain/agents/prompting.py
-          src/salli/domain/fi/assumptions.py
+          src/salli/domain/fi/assumptions.py src/salli/domain/fi/cma.py src/salli/domain/fi/plan.py src/salli/domain/fi/montecarlo.py
           src/salli/domain/baseline src/salli/application/services/baseline_service.py
           src/salli/interfaces/api/routers/baseline.py
           src/salli/domain/canonical.py src/salli/domain/scenarios

@@ -2530,6 +2530,142 @@ export type CheckedOption = {
 };
 
 /**
+ * CmaActivate
+ */
+export type CmaActivate = {
+    /**
+     * Pack Id
+     */
+    pack_id: string | null;
+};
+
+/**
+ * CmaPack
+ */
+export type CmaPack = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Activated At
+     */
+    activated_at?: string | null;
+    summary: CmaSummary;
+    /**
+     * Content
+     */
+    content: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * CmaPackList
+ */
+export type CmaPackList = {
+    /**
+     * Packs
+     */
+    packs: Array<CmaPackRow>;
+    placeholder: CmaSummary;
+};
+
+/**
+ * CmaPackRow
+ */
+export type CmaPackRow = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Activated At
+     */
+    activated_at?: string | null;
+};
+
+/**
+ * CmaSummary
+ *
+ * A capital-market assumptions pack's figures, as projections use them.
+ */
+export type CmaSummary = {
+    /**
+     * Id
+     */
+    id?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Placeholder
+     */
+    placeholder: boolean;
+    /**
+     * Expected Real Return
+     */
+    expected_real_return: string;
+    /**
+     * Volatility
+     */
+    volatility: string;
+    /**
+     * Cash Yield
+     */
+    cash_yield: string;
+    /**
+     * Inflation
+     */
+    inflation?: string | null;
+};
+
+/**
  * CommittedFlow
  */
 export type CommittedFlow = {
@@ -3783,6 +3919,7 @@ export type DecisionStart = {
     principles: StartPrinciples;
     cover: CoverReading | null;
     level: LevelReading | null;
+    odds?: StartOdds | null;
     /**
      * Placeholders
      */
@@ -4764,6 +4901,7 @@ export type FiAssumptions = {
     nominal_return?: FiAssumption | null;
     real_returns: FiScenarioReturns;
     nominal_returns?: FiScenarioReturns | null;
+    cma?: CmaSummary | null;
 };
 
 /**
@@ -4848,6 +4986,83 @@ export type FiNominalPoint = {
 };
 
 /**
+ * FiOdds
+ *
+ * The odds of the plan, from a seeded Monte Carlo on the baseline's
+ * monthly timeline, in today's money. Shares are fractions. Not a forecast.
+ */
+export type FiOdds = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Paths
+     */
+    paths: number;
+    /**
+     * Seed
+     */
+    seed: number;
+    /**
+     * Horizon Years
+     */
+    horizon_years: number;
+    /**
+     * Real Return
+     */
+    real_return: string;
+    /**
+     * Volatility
+     */
+    volatility: string;
+    cma: CmaSummary;
+    /**
+     * Fi Number
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    fi_number: string;
+    /**
+     * Fi Month
+     */
+    fi_month?: string | null;
+    /**
+     * Retire Month
+     */
+    retire_month?: string | null;
+    /**
+     * Success
+     */
+    success?: string | null;
+    /**
+     * Reach
+     */
+    reach: string;
+    withdrawal_rate: OddsWithdrawalRate;
+    guardrails?: OddsGuardrails | null;
+    /**
+     * Percentiles
+     */
+    percentiles: Array<OddsYear>;
+    withdrawal_tax: WithdrawalTax;
+    /**
+     * Placeholders
+     */
+    placeholders: Array<string>;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
  * FiOwnAssumption
  *
  * A planning assumption the user (or their agent) set.
@@ -4927,6 +5142,41 @@ export type FiPlaceholderValues = {
     real_return: FiPlaceholder;
     safe_withdrawal_rate: FiPlaceholder;
     surplus_invested: FiPlaceholder;
+};
+
+/**
+ * FiPlan
+ *
+ * Guaranteed income and spending phases: they reduce, and step, the FI
+ * number, and the income enters the monthly timeline.
+ */
+export type FiPlan = {
+    /**
+     * Income Streams
+     */
+    income_streams: Array<IncomeStreamOut>;
+    /**
+     * Spending Phases
+     */
+    spending_phases: Array<SpendingPhaseOut>;
+    /**
+     * Date Of Birth
+     */
+    date_of_birth?: string | null;
+};
+
+/**
+ * FiPlanIn
+ */
+export type FiPlanIn = {
+    /**
+     * Income Streams
+     */
+    income_streams?: Array<IncomeStream>;
+    /**
+     * Spending Phases
+     */
+    spending_phases?: Array<SpendingPhase>;
 };
 
 /**
@@ -6288,6 +6538,80 @@ export type IncomeStatementLine = {
 };
 
 /**
+ * IncomeStream
+ *
+ * A guaranteed income: a pension, an annuity, a provident fund's payout.
+ */
+export type IncomeStream = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * Monthly
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    monthly: string;
+    /**
+     * Terms
+     */
+    terms?: 'real' | 'nominal';
+    /**
+     * Indexed
+     */
+    indexed?: boolean;
+    /**
+     * Lump Sum
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    lump_sum?: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+};
+
+/**
+ * IncomeStreamOut
+ */
+export type IncomeStreamOut = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * Monthly
+     */
+    monthly: string;
+    /**
+     * Terms
+     */
+    terms: 'real' | 'nominal';
+    /**
+     * Indexed
+     */
+    indexed: boolean;
+    /**
+     * Lump Sum
+     */
+    lump_sum: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+};
+
+/**
  * InsurancePolicy
  */
 export type InsurancePolicy = {
@@ -7225,6 +7549,88 @@ export type OAuthInfo = {
      * Mobile Redirect Uri
      */
     mobile_redirect_uri: string;
+};
+
+/**
+ * OddsGuardrails
+ */
+export type OddsGuardrails = {
+    /**
+     * Band
+     */
+    band: string;
+    /**
+     * Adjust
+     */
+    adjust: string;
+    /**
+     * Success
+     */
+    success: string;
+    /**
+     * Cut
+     */
+    cut: string;
+    /**
+     * Low Spending P10
+     */
+    low_spending_p10: string;
+};
+
+/**
+ * OddsWithdrawalRate
+ */
+export type OddsWithdrawalRate = {
+    /**
+     * Applied
+     */
+    applied: string;
+    /**
+     * Origin
+     */
+    origin: 'user' | 'placeholder';
+    /**
+     * Horizon Derived
+     */
+    horizon_derived: string;
+    /**
+     * Years
+     */
+    years: number;
+    /**
+     * Success Level
+     */
+    success_level: string;
+};
+
+/**
+ * OddsYear
+ *
+ * The asset base across paths at a whole year, in today's money.
+ */
+export type OddsYear = {
+    /**
+     * Year
+     */
+    year: number;
+    /**
+     * P10
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    p10: string;
+    /**
+     * P50
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    p50: string;
+    /**
+     * P90
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    p90: string;
 };
 
 /**
@@ -10609,6 +11015,46 @@ export type SpendingLine = {
 };
 
 /**
+ * SpendingPhase
+ *
+ * The monthly spending to live on, in today's money, from an age on.
+ */
+export type SpendingPhase = {
+    /**
+     * From Age
+     */
+    from_age: number;
+    /**
+     * Monthly
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    monthly: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+};
+
+/**
+ * SpendingPhaseOut
+ */
+export type SpendingPhaseOut = {
+    /**
+     * From Age
+     */
+    from_age: number;
+    /**
+     * Monthly
+     */
+    monthly: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+};
+
+/**
  * StartAnswer
  */
 export type StartAnswer = {
@@ -10628,6 +11074,43 @@ export type StartAnswer = {
      * Note
      */
     note: string | null;
+};
+
+/**
+ * StartOdds
+ *
+ * For debt or invest: how often investing grows by more than paying
+ * down the debt saves, under the Monte Carlo. A share, not a forecast.
+ */
+export type StartOdds = {
+    /**
+     * Debt
+     */
+    debt: string;
+    /**
+     * Debt Real Rate
+     */
+    debt_real_rate: string;
+    /**
+     * Months
+     */
+    months: number;
+    /**
+     * Paths
+     */
+    paths: number;
+    /**
+     * Seed
+     */
+    seed: number;
+    /**
+     * Invest Beats Paying Down
+     */
+    invest_beats_paying_down: string;
+    /**
+     * Says
+     */
+    says: string;
 };
 
 /**
@@ -12994,6 +13477,41 @@ export type Updated = {
      * Updated
      */
     updated: boolean;
+};
+
+/**
+ * WithdrawalTax
+ *
+ * Whether the FI number is grossed up for tax on withdrawals.
+ */
+export type WithdrawalTax = {
+    /**
+     * Status
+     */
+    status: 'computed' | 'not_computed';
+    rules?: WithdrawalTaxRules | null;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
+ * WithdrawalTaxRules
+ */
+export type WithdrawalTaxRules = {
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Year
+     */
+    year: string;
 };
 
 /**
@@ -16342,6 +16860,240 @@ export type GoalsAllocationsSetResponses = {
 
 export type GoalsAllocationsSetResponse = GoalsAllocationsSetResponses[keyof GoalsAllocationsSetResponses];
 
+export type FiOddsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Retire Month
+         */
+        retire_month?: string | null;
+        /**
+         * Horizon Years
+         */
+        horizon_years?: number;
+        /**
+         * Paths
+         */
+        paths?: number;
+        /**
+         * Seed
+         */
+        seed?: number;
+        /**
+         * Success Level
+         */
+        success_level?: string;
+        /**
+         * Guardrail Band
+         */
+        guardrail_band?: string | null;
+        /**
+         * Guardrail Adjust
+         */
+        guardrail_adjust?: string;
+    };
+    url: '/v1/fi/odds';
+};
+
+export type FiOddsErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiOddsError = FiOddsErrors[keyof FiOddsErrors];
+
+export type FiOddsResponses = {
+    /**
+     * Successful Response
+     */
+    200: FiOdds;
+};
+
+export type FiOddsResponse = FiOddsResponses[keyof FiOddsResponses];
+
+export type FiPlanGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/fi/plan';
+};
+
+export type FiPlanGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiPlanGetError = FiPlanGetErrors[keyof FiPlanGetErrors];
+
+export type FiPlanGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FiPlan;
+};
+
+export type FiPlanGetResponse = FiPlanGetResponses[keyof FiPlanGetResponses];
+
+export type FiPlanSetData = {
+    body: FiPlanIn;
+    path?: never;
+    query?: never;
+    url: '/v1/fi/plan';
+};
+
+export type FiPlanSetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiPlanSetError = FiPlanSetErrors[keyof FiPlanSetErrors];
+
+export type FiPlanSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FiPlan;
+};
+
+export type FiPlanSetResponse = FiPlanSetResponses[keyof FiPlanSetResponses];
+
+export type FiCmaListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/fi/cma-packs';
+};
+
+export type FiCmaListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiCmaListError = FiCmaListErrors[keyof FiCmaListErrors];
+
+export type FiCmaListResponses = {
+    /**
+     * Successful Response
+     */
+    200: CmaPackList;
+};
+
+export type FiCmaListResponse = FiCmaListResponses[keyof FiCmaListResponses];
+
+export type FiCmaImportData = {
+    /**
+     * Body
+     */
+    body: {
+        [key: string]: unknown;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/fi/cma-packs';
+};
+
+export type FiCmaImportErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiCmaImportError = FiCmaImportErrors[keyof FiCmaImportErrors];
+
+export type FiCmaImportResponses = {
+    /**
+     * Successful Response
+     */
+    201: CmaPack;
+};
+
+export type FiCmaImportResponse = FiCmaImportResponses[keyof FiCmaImportResponses];
+
+export type FiCmaGetData = {
+    body?: never;
+    path: {
+        /**
+         * Pack Id
+         */
+        pack_id: string;
+    };
+    query?: never;
+    url: '/v1/fi/cma-packs/{pack_id}';
+};
+
+export type FiCmaGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiCmaGetError = FiCmaGetErrors[keyof FiCmaGetErrors];
+
+export type FiCmaGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CmaPack;
+};
+
+export type FiCmaGetResponse = FiCmaGetResponses[keyof FiCmaGetResponses];
+
+export type FiCmaActivateData = {
+    body: CmaActivate;
+    path?: never;
+    query?: never;
+    url: '/v1/fi/cma-packs/active';
+};
+
+export type FiCmaActivateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiCmaActivateError = FiCmaActivateErrors[keyof FiCmaActivateErrors];
+
+export type FiCmaActivateResponses = {
+    /**
+     * Successful Response
+     */
+    200: CmaPackList;
+};
+
+export type FiCmaActivateResponse = FiCmaActivateResponses[keyof FiCmaActivateResponses];
+
 export type AdvisorDailyBriefingGetData = {
     body?: never;
     path?: never;
@@ -19541,6 +20293,68 @@ export type ScenariosCompareResponses = {
 };
 
 export type ScenariosCompareResponse = ScenariosCompareResponses[keyof ScenariosCompareResponses];
+
+export type ScenariosOddsData = {
+    body: Scenario;
+    path?: never;
+    query?: {
+        /**
+         * Retire Month
+         */
+        retire_month?: string | null;
+        /**
+         * Horizon Years
+         */
+        horizon_years?: number;
+        /**
+         * Paths
+         */
+        paths?: number;
+        /**
+         * Seed
+         */
+        seed?: number;
+        /**
+         * Success Level
+         */
+        success_level?: string;
+        /**
+         * Guardrail Band
+         */
+        guardrail_band?: string | null;
+        /**
+         * Guardrail Adjust
+         */
+        guardrail_adjust?: string;
+    };
+    url: '/v1/scenarios/odds';
+};
+
+export type ScenariosOddsErrors = {
+    /**
+     * An account, a debt or a holding a change names is not one of yours
+     */
+    404: Problem;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ScenariosOddsError = ScenariosOddsErrors[keyof ScenariosOddsErrors];
+
+export type ScenariosOddsResponses = {
+    /**
+     * Successful Response
+     */
+    200: FiOdds;
+};
+
+export type ScenariosOddsResponse = ScenariosOddsResponses[keyof ScenariosOddsResponses];
 
 export type OauthAuthorizationServerMetadataData = {
     body?: never;

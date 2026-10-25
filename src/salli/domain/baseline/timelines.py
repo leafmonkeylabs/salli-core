@@ -29,7 +29,7 @@ The share invested (`Baseline.surplus_invested`, an FI assumption: the
 user's, or the placeholder of all of it) of a month's regular surplus moves
 into investments at the month's end, rounded to the currency's smallest
 unit, and grows at the real return from the next month; the rest stays in
-cash, which earns nothing. A scenario may set an amount aside first
+cash, which earns an active CMA pack's cash yield or nothing. A scenario may set an amount aside first
 (`Changes.kept`): that much of the month's regular surplus stays in cash,
 and the share invested is of what is left (none of it, when the amount set
 aside is the whole surplus or more). A month whose regular surplus is a deficit
@@ -893,8 +893,28 @@ def monthly(
         )
     ]
     below_zero: str | None = None
+    # Cash earns the active capital-market assumptions' yield after
+    # inflation (nothing without them), and guaranteed income that starts
+    # after the as-of month comes in from its start.
+    cash_yield = baseline.assumptions.cash_yield
+    levels = {m.period.month: m.deflator for m in plan}
+    as_of_month = first[:7]
+    streams = [s for s in baseline.plan.streams if s.start > as_of_month]
+    previous = Decimal(1)
     for i, month in enumerate(plan):
         cash += month.cash_change
+        if cash_yield and cash > 0:
+            growth = (
+                month.deflator / previous * (Decimal(1) + cash_yield / _TWELVE * month.period.share)
+            )
+            cash += cash * (growth - Decimal(1))
+        previous = month.deflator
+        for stream in streams:
+            if month.period.month >= stream.start:
+                at_start = levels.get(stream.start, month.deflator)
+                cash += stream.real_at(month.deflator, at_start) * month.deflator
+                if month.period.month == stream.start:
+                    cash += stream.lump_real(month.deflator, at_start) * month.deflator
         if cash < 0 and below_zero is None:
             below_zero = month.period.month
         level = month.deflator

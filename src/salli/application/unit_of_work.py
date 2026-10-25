@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from salli.adapters.db.cma_packs import SQLCmaPackRepository
 from salli.adapters.db.decisions import SQLDecisionRepository, SQLPrincipleRepository
 from salli.adapters.db.notifications import SQLNotificationRepository
 from salli.adapters.db.repositories import (
@@ -61,6 +62,7 @@ from salli.application.ports import (
     AuditLogRepository,
     BankConnectionRepository,
     BudgetRepository,
+    CmaPackRepository,
     DataPortabilityRepository,
     DebtRepository,
     DecisionRepository,
@@ -114,6 +116,7 @@ class UnitOfWork:
     ledger: LedgerRepository
     tax_computations: TaxComputationRepository
     tax_rule_sets: TaxRuleSetRepository
+    cma_packs: CmaPackRepository
     statements: StatementRepository
     reminders: ReminderRepository
     agent_documents: AgentDocumentRepository
@@ -160,6 +163,7 @@ class UnitOfWork:
         self.ledger = SQLLedgerRepository(self._session)
         self.tax_computations = SQLTaxComputationRepository(self._session)
         self.tax_rule_sets = SQLTaxRuleSetRepository(self._session)
+        self.cma_packs = SQLCmaPackRepository(self._session)
         self.statements = SQLStatementRepository(self._session)
         self.reminders = SQLReminderRepository(self._session)
         self.agent_documents = SQLAgentDocumentRepository(self._session)

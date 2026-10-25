@@ -199,6 +199,34 @@ class RuleSetExists(ValueError):
         self.rule_set_id = rule_set_id
 
 
+class CmaPackRepository(ABC):
+    """A user's capital-market assumptions packs (`domain/fi/cma.py`). A
+    pack's document never changes once added; one at most is active."""
+
+    @abstractmethod
+    async def add(
+        self, user_id: str, *, name: str, version: str, content: Any, content_hash: str
+    ) -> dict[str, Any]:
+        """Store a pack (inactive) and return it; the stored one when the
+        user already has a pack with this content hash."""
+
+    @abstractmethod
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        """The user's packs, newest first, without their documents."""
+
+    @abstractmethod
+    async def get(self, user_id: str, pack_id: str) -> dict[str, Any] | None:
+        """One of the user's packs with its document; None if not theirs."""
+
+    @abstractmethod
+    async def activate(self, user_id: str, pack_id: str | None) -> None:
+        """Make `pack_id` the user's active pack (None: none is)."""
+
+    @abstractmethod
+    async def active(self, user_id: str) -> dict[str, Any] | None:
+        """The user's active pack with its document, or None."""
+
+
 class TaxRuleSetRepository(ABC):
     """A user's tax rule sets and their versions, as plain dicts.
 
@@ -982,6 +1010,11 @@ class UserProfileRepository(ABC):
     ) -> None:
         """Write the tax residency (None clears it) and the tax ids exactly as
         given. `ProfileMissing` if there is no profile."""
+        raise NotImplementedError
+
+    async def set_fi_plan(self, user_id: str, stored: dict[str, Any]) -> None:
+        """Replace the user's FI plan with `stored`, as `FiPlan.as_stored()`
+        writes it. `ProfileMissing` if there is no profile."""
         raise NotImplementedError
 
     async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:

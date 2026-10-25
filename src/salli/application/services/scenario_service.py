@@ -36,6 +36,7 @@ from pydantic import ValidationError
 from salli.application.ownership import require_own_accounts
 from salli.application.ports import DebtNotFound, HoldingNotFound
 from salli.application.services.baseline_service import BaselineService
+from salli.domain.fi import montecarlo
 from salli.domain.scenarios import comparison, engine, schema, views
 from salli.domain.scenarios.engine import ScenarioError
 from salli.domain.taxrules.common import Problem, join_path
@@ -218,6 +219,26 @@ class ScenarioService:
         await self.check_own(user_id, [scenario])
         baseline = await self._baselines.build(user_id, as_of)
         return views.result_view(engine.run(baseline, scenario, timeline=timeline))
+
+    async def odds(
+        self,
+        user_id: str,
+        data: schema.Scenario | Mapping[str, Any],
+        **options: Any,
+    ) -> dict[str, Any]:
+        """The odds of the scenario's plan: the FI odds (`montecarlo.plan_odds`,
+        with `options`) on the scenario's timeline and spending. Stores nothing."""
+        scenario = load_scenario(data)
+        as_of = self.as_of_for([scenario])
+        await self.check_own(user_id, [scenario])
+        baseline = await self._baselines.build(user_id, as_of)
+        translated = engine.translate(baseline, scenario)
+        return montecarlo.plan_odds(
+            baseline,
+            changes=translated.changes,
+            monthly_spending=translated.spending,
+            **options,
+        )
 
     async def compare(
         self,

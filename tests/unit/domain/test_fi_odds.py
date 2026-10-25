@@ -1,0 +1,204 @@
+"""
+The wealth manager's planning figures: capital-market assumptions as user
+data, guaranteed income and spending phases, the FI number gross of tax on
+withdrawals, cash earning the pack's yield, and a seeded Monte Carlo
+(domain/fi/cma.py, plan.py, montecarlo.py; docs/baseline.md). Every figure
+is made up; XA is a user-assigned code, no country's.
+"""
+
+from __future__ import annotations
+
+import copy
+import datetime as dt
+from decimal import Decimal
+from typing import Any
+
+import pytest
+
+from salli.domain.baseline import fi, timelines
+from salli.domain.fi import cma, montecarlo
+from salli.domain.fi import plan as fi_plan
+from tests.baseline_ledger import USER, Ledger
+from tests.golden import taxed
+
+AS_OF = dt.date(2031, 6, 30)
+
+
+def pack(**over: Any) -> dict[str, Any]:
+    doc: dict[str, Any] = {
+        "format": "salli.cma/1",
+        "name": "XA reference",
+        "version": "2031-06",
+        "asset_classes": {
+            "equity": {
+                "label": "Equity",
+                "real_return": {"value": "0.05", "source": "XA statistics", "date": "2031-05-31"},
+                "volatility": {"value": "0.18", "source": "XA statistics", "date": "2031-05-31"},
+            },
+            "bonds": {
+                "label": "Bonds",
+                "real_return": {"value": "0.01", "source": "XA statistics", "date": "2031-05-31"},
+                "volatility": {"value": "0.06", "source": "XA statistics", "date": "2031-05-31"},
+            },
+        },
+        "correlations": [
+            {"a": "equity", "b": "bonds", "value": "0.2", "source": "XA", "date": "2031-05-31"}
+        ],
+        "cash_yield": {"value": "0.01", "source": "XA bank", "date": "2031-05-31"},
+        "mix": {"equity": "0.6", "bonds": "0.4"},
+    }
+    doc.update(over)
+    return doc
+
+
+def books() -> Ledger:
+    """Rent of 1,500 a month, a salary of 4,000, 10,000 of cash: taxed's household."""
+    return taxed.ledger()
+
+
+def with_pack(ledger: Ledger, doc: dict[str, Any]) -> None:
+    ledger.uow.cma_packs.rows.append(
+        {
+            "id": "p1",
+            "user_id": USER,
+            "name": doc["name"],
+            "version": doc["version"],
+            "content": doc,
+            "content_hash": cma.content_hash(doc),
+            "is_active": True,
+            "created_at": None,
+            "activated_at": None,
+        }
+    )
+
+
+# ── The pack ─────────────────────────────────────────────────────────────────
+
+
+def test_a_pack_gives_its_mix_expected_return_and_volatility() -> None:
+    p = cma.parse(pack())
+    assert p.expected_return == Decimal("0.034")
+    # √(0.6²·0.18² + 0.4²·0.06² + 2·0.6·0.4·0.2·0.18·0.06)
+    assert p.volatility.quantize(Decimal("0.0001")) == Decimal("0.1152")
+
+
+@pytest.mark.parametrize(
+    ("over", "says"),
+    [
+        ({"format": "salli.cma/2"}, "format"),
+        ({"mix": {"equity": "0.6"}}, "sum to 1"),
+        ({"mix": {"gold": "1"}}, "not one of the asset classes"),
+        ({"cash_yield": {"value": "0.01", "date": "2031-05-31"}}, "cash_yield.source"),
+        ({"cash_yield": {"value": 0.01, "source": "x", "date": "2031-05-31"}}, "decimal string"),
+    ],
+)
+def test_a_pack_that_is_wrong_says_why(over: dict[str, Any], says: str) -> None:
+    with pytest.raises(ValueError, match=says):
+        cma.parse(pack(**over))
+
+
+def test_an_active_pack_sets_the_return_and_cash_earns_its_yield() -> None:
+    plain = books().baseline(AS_OF)
+    ledger = books()
+    with_pack(ledger, pack())
+    held = ledger.baseline(AS_OF)
+    assert held.assumptions.real_return.value == Decimal("0.034")
+    assert "XA reference" in held.assumptions.real_return.source
+    assert "real_return" not in held.assumptions.placeholders
+    a = timelines.monthly(plain, 1).points[-1].cash
+    b = timelines.monthly(held, 1).points[-1].cash
+    assert b > a  # a year's 1% on what cash holds
+    # Without a pack, cash earns nothing and the placeholder pack is labelled.
+    assert plain.assumptions.cma.placeholder
+    assert plain.assumptions.cash_yield == 0
+
+
+# ── The FI number: gross of tax, less guaranteed income, by phase ───────────
+
+
+def test_the_fi_number_is_grossed_up_by_the_withdrawal_role() -> None:
+    ledger = books()
+    doc = copy.deepcopy(taxed.RULES)
+    doc["roles"].append({"key": "withdrawal", "kind": "income", "label": "Withdrawals"})
+    doc["lines"][0]["expr"] = "max(0, role.salary + role.withdrawal - role.pension)"
+    ledger.uow.tax_rule_sets.active[:] = [taxed.rules_row(doc)]
+    baseline = ledger.baseline(AS_OF)
+    # 18,000 a year to spend: G − 20% × (G − 12,000) = 18,000, so G = 19,500.
+    assert fi.gross_up(baseline, Decimal(18000)) == Decimal("19500.00")
+    assert fi.fi_number(baseline) == Decimal("19500.00") / Decimal("0.04")
+    assert fi.withdrawal_tax(baseline)["status"] == "computed"
+    # Without the role it isn't, and says so.
+    plain = books().baseline(AS_OF)
+    assert fi.fi_number(plain) == Decimal(18000) / Decimal("0.04")
+    assert fi.withdrawal_tax(plain)["status"] == "not_computed"
+
+
+def test_a_pension_steps_the_number_down_and_comes_into_cash() -> None:
+    ledger = books()
+    ledger.uow.user_profiles.rows.setdefault(USER, {})["fi_plan"] = {
+        "income_streams": [
+            {"name": "Pension", "start": "2041-01", "monthly": "500", "lump_sum": "20000"}
+        ]
+    }
+    baseline = ledger.baseline(AS_OF)
+    timeline = fi.full_timeline(baseline)
+    numbers = fi.fi_numbers(baseline, timeline.points)
+    assert numbers[0] == Decimal(450000)
+    at = next(i for i, p in enumerate(timeline.points) if p.month == "2041-01")
+    assert numbers[at] == Decimal(300000)  # 1,000 a month left to fund
+    plain = fi.full_timeline(books().baseline(AS_OF))
+    gained = timeline.points[at].cash - plain.points[at].cash
+    assert gained == Decimal(20500)
+
+
+def test_spending_phases_go_by_age() -> None:
+    plan = fi_plan.parse(
+        {
+            "spending_phases": [
+                {"from_age": 60, "monthly": "2000"},
+                {"from_age": 75, "monthly": "1200"},
+            ]
+        },
+        dt.date(1980, 3, 15),
+    )
+    assert plan.phase_spending("2040-02") is None
+    assert plan.phase_spending("2040-03") == Decimal(2000)
+    assert plan.phase_spending("2055-03") == Decimal(1200)
+    with pytest.raises(ValueError, match="same age"):
+        fi_plan.parse({"spending_phases": [{"from_age": 60, "monthly": "1"}] * 2})
+
+
+# ── The Monte Carlo ──────────────────────────────────────────────────────────
+
+
+def test_the_odds_are_reproducible_and_ordered() -> None:
+    baseline = books().baseline(AS_OF)
+    one = montecarlo.plan_odds(baseline, horizon_years=40, paths=200, seed=7)
+    two = montecarlo.plan_odds(baseline, horizon_years=40, paths=200, seed=7)
+    other = montecarlo.plan_odds(baseline, horizon_years=40, paths=200, seed=8)
+    assert one == two
+    assert one["percentiles"] != other["percentiles"]
+    for year in one["percentiles"]:  # type: ignore[union-attr]
+        assert Decimal(year["p10"]) <= Decimal(year["p50"]) <= Decimal(year["p90"])
+    assert "volatility" in one["placeholders"]  # type: ignore[operator]
+    assert one["retire_month"] == one["fi_month"]
+
+
+def test_the_horizon_rate_is_exact_without_volatility() -> None:
+    # Level returns of 0: a pool lasts 25 years at 4% exactly.
+    assert montecarlo.sustainable_rate([Decimal(0)] * 300) == Decimal("0.04")
+    rails = montecarlo.plan_odds(
+        books().baseline(AS_OF),
+        horizon_years=40,
+        paths=100,
+        guardrails=montecarlo.Guardrails(),
+    )["guardrails"]
+    assert rails is not None
+
+
+def test_investing_against_a_debt_is_a_share_of_paths() -> None:
+    sure = montecarlo.beats(Decimal("0.05"), Decimal(0), 60, Decimal("0.02"), paths=50)
+    never = montecarlo.beats(Decimal("0.01"), Decimal(0), 60, Decimal("0.08"), paths=50)
+    mixed = montecarlo.beats(Decimal("0.04"), Decimal("0.15"), 120, Decimal("0.04"), paths=400)
+    assert (sure, never) == (Decimal(1), Decimal(0))
+    assert Decimal("0.2") < mixed < Decimal("0.8")

@@ -28,6 +28,7 @@ from salli.adapters.db.models import (
     BankConnectionORM,
     BudgetORM,
     CategorizationRuleORM,
+    CmaPackORM,
     DebtORM,
     DecisionNoteORM,
     DecisionORM,
@@ -1386,6 +1387,7 @@ class SQLUserProfileRepository(UserProfileRepository):
             "tax_residency": row.tax_residency,
             "tax_ids": list(row.tax_ids or []),
             "fi_assumptions": dict(row.fi_assumptions or {}),
+            "fi_plan": dict(row.fi_plan or {}),
             "time_zone": row.time_zone,
             "lock_date": row.lock_date.isoformat() if row.lock_date else None,
         }
@@ -1396,6 +1398,14 @@ class SQLUserProfileRepository(UserProfileRepository):
         if row is None:
             raise ProfileMissing(user_id)
         row.lock_date = date.fromisoformat(lock_date) if lock_date else None
+        await self._s.flush()
+
+    async def set_fi_plan(self, user_id: str, stored: dict[str, Any]) -> None:
+        result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
+        row = result.scalar_one_or_none()
+        if row is None:
+            raise ProfileMissing(user_id)
+        row.fi_plan = stored
         await self._s.flush()
 
     async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
@@ -2894,6 +2904,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # deleted before its versions (its active version points back at it),
         # which cascade from it; deleting them by owner after is then a no-op,
         # kept so nothing depends on the cascade alone.
+        await _delete(CmaPackORM, CmaPackORM.user_id)
         await _delete(TaxRuleSetORM, TaxRuleSetORM.user_id)
         await _delete(TaxRuleSetVersionORM, TaxRuleSetVersionORM.user_id)
         await _delete(AuditLogORM, AuditLogORM.user_id)

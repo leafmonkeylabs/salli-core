@@ -269,11 +269,10 @@ def sensitivity(
     the return the investments do."""
     returns = tuple(baseline.assumptions.real_returns.as_dict().items())
     at = 12 * horizon_years + 1
-    base_number = fi.fi_number(baseline)
+    base_spend = fi.spending(baseline)
     bases = {name: fi.full_timeline(baseline, real_return=rate) for name, rate in returns}
     out: list[OptionSensitivity] = []
     for n, ((changes, spending), label) in enumerate(zip(translated, labels, strict=True)):
-        number = fi.fi_number(baseline, spending)
         rows: list[tuple[str, Sensitive]] = []
         scenario = scenarios[n] if scenarios is not None else None
         retrade = scenario is not None and trading.depends_on_return(baseline, scenario.changes)
@@ -281,8 +280,8 @@ def sensitivity(
             if retrade and scenario is not None:
                 changes = translate(baseline, scenario, real_return=rate).changes
             base, mine = bases[name], fi.full_timeline(baseline, changes, real_return=rate)
-            b_fi = fi.months_to_fi(base.points, base_number)
-            s_fi = fi.months_to_fi(mine.points, number)
+            b_fi = fi.months_to_fi(base.points, fi.fi_numbers(baseline, base.points, base_spend))
+            s_fi = fi.months_to_fi(mine.points, fi.fi_numbers(baseline, mine.points, spending))
             rows.append(
                 (
                     name,

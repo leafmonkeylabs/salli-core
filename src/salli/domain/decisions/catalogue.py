@@ -441,6 +441,7 @@ def _debt_or_invest_build(answers: Answers, facts: Facts) -> Built:
             "Once a debt is paid off, extra payments onto it stop, and that money stays in "
             "cash; the payments its schedule called for join your monthly surplus.",
         ),
+        odds_against_debt=debt.id,
     )
 
 
