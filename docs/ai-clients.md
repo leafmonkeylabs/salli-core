@@ -47,7 +47,11 @@ and the tax tools say so and what you can do.
 Every tool says whether it only reads (MCP tool annotations, `readOnlyHint`), so
 your AI app can run reads as it likes and ask you before anything that writes; the
 Salli app does. `post_journal_entry` takes your AI's own `client_ref`: sent again,
-it books nothing and returns the entry first booked with it.
+it books nothing and returns the entry first booked with it. So do
+`create_account`, `create_reminder`, `save_document` and `add_principle`: sent
+again, they change nothing and return the first answer, with `already_done`.
+`list_holdings`, `list_documents`, `list_decisions` and
+`list_pending_transactions` take `limit` and `cursor` (pass `next_cursor`).
 
 A tool that can't answer returns an MCP error result (`isError`) whose `error`
 says why in a `code` (`invalid_input`, `not_found`, `refused`, `scope`,
@@ -114,6 +118,7 @@ A scenario may invest into one of your own holdings or sell part of one
 | Tool | What it does |
 |---|---|
 | `list_holdings` | Your holdings, by your own id, symbol and name, with their units, value at your last recorded price and the investment account each is linked to. |
+| `get_portfolio_performance` | Gains, income and returns over a period, per holding and for the portfolio, with volatility, largest fall and Sharpe ratio (`GET /v1/portfolio/performance`). |
 | `link_holding` | Links a holding to the investment account in your ledger that holds it (or unlinks it), so a scenario can sell it. A write: the AI shows you the holding and the account first. |
 
 Two reads describe your investments and cover without advising:

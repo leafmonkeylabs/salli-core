@@ -17,7 +17,20 @@
   `budget_over` and `budget_pace` signals. Push alerts: devices (`/v1/devices`, `salli
   devices`), sent through `SALLI_PUSH_RELAY_URL` by `salli-server jobs
   send-push`, once per state, worded like digests. Migration
-  `core_0045_household_basics`.
+  `core_0046_household_basics`.
+- **More of Salli over MCP.** `get_portfolio_performance` reads the
+  portfolio's performance; `import_statement` imports a statement file
+  (base64, a write the user confirms) for review; `list_holdings`,
+  `list_documents`, `list_decisions` and `list_pending_transactions` come in
+  pages (`limit`, `cursor`); `create_account`, `create_reminder`,
+  `save_document` and `add_principle` take a `client_ref`, so a retry is not
+  made twice. Migration `core_0045_mcp_client_refs`.
+- **A firmer benchmark scorer.** An answer whose headline sentence denies its
+  figure, or that takes it back ("actually", "ignore that", "double that"),
+  fails; a refusal that then guesses a month, a date or a number in words
+  fails; and every figure resting on a placeholder or provisional value (the
+  FI assumptions, a provisional tax value, a placeholder source) needs the
+  caveat. The key is regenerated.
 - **Filing on provisional figures is acknowledged.** A return whose
   computation uses values its rules mark provisional is filed (or amended)
   only with `acknowledge_provisional` and a `provisional_note` (`salli tax

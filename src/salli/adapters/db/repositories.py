@@ -50,6 +50,7 @@ from salli.adapters.db.models import (
     LoginFailureORM,
     LoginORM,
     LoginSessionORM,
+    McpClientRefORM,
     NotificationDeliveryORM,
     NotificationPreferencesORM,
     OAuthAccessTokenORM,
@@ -89,6 +90,7 @@ from salli.application.ports import (
     AuditLogRepository,
     BankConnectionRepository,
     BudgetRepository,
+    ClientRefRepository,
     DataPortabilityRepository,
     DebtRepository,
     EntryRefTaken,
@@ -3015,6 +3017,44 @@ class SQLAuditLogRepository(AuditLogRepository):
         return [_audit_log_to_dict(r) for r in (await self._s.execute(stmt)).scalars().all()]
 
 
+class SQLClientRefRepository(ClientRefRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    def _where(self, user_id: str, tool: str, client_ref: str) -> Any:
+        return (
+            (McpClientRefORM.user_id == user_id)
+            & (McpClientRefORM.tool == tool)
+            & (McpClientRefORM.client_ref == client_ref)
+        )
+
+    async def claim(self, user_id: str, tool: str, client_ref: str) -> dict[str, Any] | None:
+        claimed = await self._s.execute(
+            pg_insert(McpClientRefORM)
+            .values(user_id=user_id, tool=tool, client_ref=client_ref, created_at=datetime.now(UTC))
+            .on_conflict_do_nothing()
+            .returning(McpClientRefORM.client_ref)
+        )
+        if claimed.first() is not None:
+            return None
+        stored = await self._s.scalar(
+            select(McpClientRefORM.result).where(self._where(user_id, tool, client_ref))
+        )
+        return stored or {}
+
+    async def settle(
+        self, user_id: str, tool: str, client_ref: str, result: dict[str, Any]
+    ) -> None:
+        await self._s.execute(
+            update(McpClientRefORM)
+            .where(self._where(user_id, tool, client_ref))
+            .values(result=result)
+        )
+
+    async def release(self, user_id: str, tool: str, client_ref: str) -> None:
+        await self._s.execute(delete(McpClientRefORM).where(self._where(user_id, tool, client_ref)))
+
+
 # ── Data portability repository ───────────────────────────────────────────────
 
 
@@ -3124,6 +3164,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(TaxRuleSetORM, TaxRuleSetORM.user_id)
         await _delete(TaxRuleSetVersionORM, TaxRuleSetVersionORM.user_id)
         await _delete(AuditLogORM, AuditLogORM.user_id)
+        await _delete(McpClientRefORM, McpClientRefORM.user_id)
         await _delete(OAuthRefreshTokenORM, OAuthRefreshTokenORM.user_id)
         await _delete(OAuthAccessTokenORM, OAuthAccessTokenORM.user_id)
         # After their tokens, which point at them.

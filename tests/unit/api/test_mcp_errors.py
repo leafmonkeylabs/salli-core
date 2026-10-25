@@ -155,8 +155,10 @@ async def test_a_decimal_string_is_read_exactly():
 #: 40 KB until the lists of budgets, debts, goals and reminders, and entries
 #: by id and their reversal, were added; 42 KB until reconciliations, 43 KB
 #: until the investment policy, 44 KB until every tool carried a title, as
-#: the connector directories ask).
-TOOL_LIST_BUDGET = 46_500
+#: the connector directories ask; 46.5 KB until portfolio performance, statement
+#: import, pages of the longer lists and client_ref on four writes; 48.5 KB
+#: until recategorising an entry).
+TOOL_LIST_BUDGET = 49_000
 
 
 async def test_the_tool_list_stays_small(services):

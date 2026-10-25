@@ -133,7 +133,10 @@ async def compute() -> tuple[dict[str, Any], dict[str, list[Any]]]:
             entry["expected"] = expected(q["kind"], value, source.get("words"))
             entry["from"] = {"tool": source["tool"], "args": args, "path": shown(source["path"])}
             evidence[q["id"]] = [result]
-            if q["category"] == "fi" and q["kind"] == "month":
+            if q["kind"] != "text-contains" and provisional(result, source["path"]):
+                entry["caveat"] = "placeholder"
+            elif q["kind"] != "text-contains" and (q["category"] == "fi" or "fi" in source["path"]):
+                # every FI figure rests on the FI assumptions
                 assumptions = await call(q["household"], "get_fi_assumptions", {})
                 if assumptions["applied"]["status"] == "placeholder":
                     entry["caveat"] = "placeholder"
@@ -149,6 +152,34 @@ async def compute() -> tuple[dict[str, Any], dict[str, list[Any]]]:
         "answers": answers,
     }
     return key, evidence
+
+
+def provisional(value: Any, path: list[Any]) -> bool:
+    """Whether the figure at `path` rests on a placeholder or provisional
+    value: a step on the way to it (the result itself included) whose
+    status or origin says so, or that lists provisional tax values or
+    placeholder sources."""
+
+    def marked(node: Any) -> bool:
+        if not isinstance(node, dict):
+            return False
+        flags = [node.get("status"), node.get("origin")]
+        sources = node.get("sources")
+        return (
+            "placeholder" in flags
+            or bool(node.get("provisional"))
+            or (isinstance(sources, dict) and "placeholder" in sources.values())
+        )
+
+    for step in path:
+        if marked(value):
+            return True
+        if isinstance(step, dict):
+            [(field, wanted)] = step.items()
+            value = next(item for item in value if _text(item.get(field)) == wanted)
+        else:
+            value = value[step]
+    return False
 
 
 def shown(path: list[Any]) -> str:
