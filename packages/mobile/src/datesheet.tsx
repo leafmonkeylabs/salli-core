@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button, Icon } from './kit';
 import { addDays, addMonths, displayDate, displayDay, monthGrid, monthNameOf, todayIso } from './lib/display';
-import { Sheet } from './sheet';
+import { Sheet, SheetTitle } from './sheet';
 import { strings } from './strings';
 import { font, size, useTheme } from './theme';
 
@@ -30,9 +30,9 @@ export function DateSheet({ visible, value, onPick, onClose }: { visible: boolea
 
   return (
     <Sheet visible={visible} onClose={onClose} label={t.pickDay}>
-      <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+      <SheetTitle style={[styles.title, { color: theme.text }]}>
         {t.date}
-      </Text>
+      </SheetTitle>
       <View accessibilityRole="radiogroup" style={styles.quick}>
         {quick.map((q) => {
           const on = q.iso === chosen;

@@ -4,6 +4,16 @@
 
 ### Added
 
+- **The phone moves with purpose.** Sheets rise on a spring over a scrim
+  that fades on its own, close when dragged down (a tick as they pass the
+  point) and start VoiceOver at their title; buttons, rows, More's tiles and
+  the AI button press in on the UI thread, and look different unavailable;
+  a reminder marked done on Home or Attention leaves at once (back if the
+  server refuses), with a light tap and an announcement; booking an entry
+  is the one success haptic and its confirmation rises in and takes
+  VoiceOver's focus. Reduce Motion turns every motion into a fade, and the
+  app runs at 120 Hz. The rules and tokens are docs/design/mobile.md's
+  Motion.
 - **The phone's first screen asks where the books live.** "Salli's server"
   (by invitation during the pilot) takes a pasted invitation link
   (`/join?t=…`), opens its page in the secure browser sheet to set the

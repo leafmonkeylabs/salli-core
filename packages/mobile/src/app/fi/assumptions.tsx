@@ -7,7 +7,7 @@ import { useApi, useRead } from '../../api';
 import { Body, Button, Card, Icon, Waiting } from '../../kit';
 import { fractionOf, percentOf } from '../../lib/fi';
 import { Page } from '../../shell';
-import { Sheet } from '../../sheet';
+import { Sheet, SheetTitle } from '../../sheet';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
 
@@ -88,9 +88,9 @@ function EditSheet({ name, current, visible, onClose, onSave }: { name: string; 
   const input = [styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   return (
     <Sheet visible={visible} onClose={onClose} label={name}>
-      <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+      <SheetTitle style={[styles.title, { color: theme.text }]}>
         {name}
-      </Text>
+      </SheetTitle>
       <View style={styles.percentRow}>
         <TextInput value={typed} onChangeText={setTyped} keyboardType="decimal-pad" accessibilityLabel={`${name}, ${t.percent}`} autoFocus style={[...input, { flex: 1 }]} />
         <Body>%</Body>

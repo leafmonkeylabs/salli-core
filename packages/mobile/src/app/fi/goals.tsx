@@ -7,7 +7,7 @@ import { useApi, useRead } from '../../api';
 import { Body, Button, Card, Money, Waiting } from '../../kit';
 import { amountParts, displayMonth, wholeDigits } from '../../lib/display';
 import { Page } from '../../shell';
-import { Sheet } from '../../sheet';
+import { Sheet, SheetTitle } from '../../sheet';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
 
@@ -126,9 +126,9 @@ function GoalSheet({
   const input = [styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   return (
     <Sheet visible={!!goal} onClose={onClose} label={existing ? existing.name : t.newGoal}>
-      <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+      <SheetTitle style={[styles.title, { color: theme.text }]}>
         {existing ? existing.name : t.newGoal}
-      </Text>
+      </SheetTitle>
       <TextInput value={name} onChangeText={setName} placeholder={t.goalName} placeholderTextColor={theme.muted} accessibilityLabel={t.goalName} style={input} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <TextInput value={amount} onChangeText={setAmount} placeholder={t.target} placeholderTextColor={theme.muted} keyboardType="decimal-pad" accessibilityLabel={t.target} style={[...input, { flex: 1 }]} />
@@ -167,9 +167,9 @@ function FundSheet({ goal, onClose, onSaved }: { goal: Goal | undefined; onClose
 
   return (
     <Sheet visible={!!goal} onClose={onClose} label={goal ? t.fundTitle(goal.name) : ''}>
-      <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+      <SheetTitle style={[styles.title, { color: theme.text }]}>
         {goal ? t.fundTitle(goal.name) : ''}
-      </Text>
+      </SheetTitle>
       {held.map((a) => (
         <View key={a.id} style={styles.fundRow}>
           <Body style={{ flex: 1 }}>{a.name}</Body>

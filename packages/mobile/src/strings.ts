@@ -414,6 +414,8 @@ export const strings = {
     done: 'Done',
     review: 'Review',
     doneLabel: (what: string) => `Mark done: ${what}`,
+    doneSaid: (what: string) => `Done: ${what}`,
+    doneRefused: (what: string) => `Not marked done: ${what}. The server refused it.`,
     doneTitle: 'Mark it done?',
     doneBody: (what: string) => `${what} leaves your reminders.`,
     doneCount: (n: number) => `Done · ${n}`,

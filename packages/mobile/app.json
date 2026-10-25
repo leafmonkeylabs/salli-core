@@ -20,6 +20,7 @@
           "NSAllowsArbitraryLoads": false,
           "NSAllowsLocalNetworking": true
         },
+        "CADisableMinimumFrameDurationOnPhone": true,
         "NSFaceIDUsageDescription": "Salli opens with Face ID, so only you see your books."
       }
     },

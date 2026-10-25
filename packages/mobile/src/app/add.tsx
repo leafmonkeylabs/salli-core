@@ -10,6 +10,7 @@ import {
 } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -76,6 +77,8 @@ export default function Add() {
         },
       }),
     onSuccess: async (entry) => {
+      // The app's one success haptic: an entry booked.
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await queryClient.invalidateQueries({ queryKey: [api.server] });
       // The account the money moved in (what you own or owe), for its new balance on the entry.
       const held = (id: string | undefined) => accounts.data?.find((a) => a.id === id && (a.type === 'asset' || a.type === 'liability'));

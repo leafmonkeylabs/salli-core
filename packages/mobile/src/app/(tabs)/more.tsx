@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { cardOf, Icon, type IconName } from '../../kit';
+import { Linking, StyleSheet, Text, View } from 'react-native';
+import { cardOf, Icon, Press, type IconName } from '../../kit';
 import { useYourAI } from '../../ai/store';
 import { useAppearance } from '../../appearance';
 import { providerOf } from '../../lib/ai';
@@ -58,12 +58,12 @@ export default function More() {
 function Tile({ icon, title, status, label, hint, external, onPress }: { icon: IconName; title: string; status?: string; label?: string; hint?: string; external?: boolean; onPress: () => void }) {
   const theme = useTheme();
   return (
-    <Pressable
+    <Press
       accessibilityRole="link"
       accessibilityLabel={[label ?? title, status].filter(Boolean).join(', ')}
       {...(hint ? { accessibilityHint: hint } : {})}
       onPress={onPress}
-      style={({ pressed }) => [styles.tile, cardOf(theme), { opacity: pressed ? 0.8 : 1 }]}
+      style={[styles.tile, cardOf(theme)]}
     >
       <View style={styles.tileTop}>
         <Icon name={icon} size={24} colour={theme.text} />
@@ -79,7 +79,7 @@ function Tile({ icon, title, status, label, hint, external, onPress }: { icon: I
           </Text>
         ) : null}
       </View>
-    </Pressable>
+    </Press>
   );
 }
 

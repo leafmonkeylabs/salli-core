@@ -41,7 +41,7 @@ Every figure on screen is the server's, with the date it was true.
 | **Places** | The console's phone bar, unchanged: Home, Cash, Decide, Books, More. Adding an entry is the + on Home and the first action in Books. |
 | **Look** | The brand README, as the console builds it: paper bars, a bone work area, paper cards with a hairline, square corners. On night, night with deep-green cards. |
 | **Touch** | Buttons and rows 48 px; nothing answers to less than 48 × 48. Text follows the phone's text size; rows grow rather than clip. |
-| **Motion** | Energy 1, rhythm 1, motion 1: sheets and fades of 120–200 ms, none with Reduce Motion. |
+| **Motion** | Calm and short, on the UI thread; opacity only with Reduce Motion. See [Motion](#motion). |
 | **Discretion** | No amounts in widgets or the app switcher unless the person asks. Digests never carry one. |
 
 ## What stays with the console and the CLI
@@ -318,6 +318,52 @@ the app: core holds no key and runs no model for it.
   Each of those tabs leaves room below its last card so the button never
   covers it. Kept conversations open from More → Your AI. The page has no
   heading on screen; Back names the tab it came from.
+
+## Motion
+
+Built with Reanimated, gesture-handler and expo-haptics; the tokens are in
+`packages/mobile/src/motion.ts`, and the app runs at 120 Hz where the phone
+can (`CADisableMinimumFrameDurationOnPhone`).
+
+- **Motion explains a change** of state or place; it never decorates.
+- **A figure is never shown as a value it isn't:** no counting up, no
+  rolling digits. An amount that changes cross-fades.
+- **Things move to and from where they come from:** a sheet from the bottom
+  edge, a row out of its own place in the list.
+- **Calm and short:** 120–240 ms, critically damped springs, no bounce.
+- **Nothing loops or invites:** no pulse, shimmer or celebration.
+- **Reduce Motion is opacity only**, never no feedback at all.
+- **On the UI thread, interruptible:** a gesture always wins over an
+  animation running.
+
+| Token | Motion | With Reduce Motion |
+|---|---|---|
+| Press | Scale 0.98 and opacity 0.85, 80 ms in, 120 ms out, ease-out. Unavailable is 0.45 and still, never what a press looks like. | Opacity only |
+| Small change of state | 160 ms, cubic-bezier(0.2, 0, 0, 1) | None, or opacity over 100 ms |
+| Row in or out of a list | The others settle on a spring (stiffness 400, damping 40, mass 1); a new row fades in over 160 ms, a leaving one out over 120 ms | Opacity over 120 ms, nothing moves |
+| Sheet | Rises on a spring (stiffness 500, damping 50, mass 1; about 220 ms) while its scrim fades to 0.4 over 160 ms; leaves in 180 ms, cubic-bezier(0.3, 0, 1, 1), or faster with the drag. Dragged down past 30% of its height, or flicked faster than 800 pt/s, it closes. | Sheet and scrim fade over 150 ms |
+| Screen push | The native stack's own | The system's |
+| Number change | 140 ms cross-fade, the old out 4 px up, the new in 4 px up; never through the values between | Instant |
+| Chart | The line drawn once over 280 ms; new data morphs over 200 ms | Opacity over 150 ms |
+| Confirmation | Fades and rises 8 px over 200 ms, then holds | Opacity over 150 ms |
+| Loading to content | 160 ms cross-fade, no shimmer | Instant |
+
+**Haptics.** Booking an entry is the one success (`notificationAsync`
+Success); a reversal booked is a Warning; marking a reminder done is a light
+impact; a sheet's drag crossing its closing point, and picking a chip, date
+or option, are a selection tick. Never for loading, refreshing, a tab,
+an amount, a chart, an error reading, scrolling or anything repeating.
+They follow the phone's own System Haptics switch.
+
+**VoiceOver.** A sheet starts at its title (`SheetTitle`); after booking,
+the confirmation; a reminder marked done is announced as it leaves, and
+again if the server refuses it and it comes back.
+
+Built: the sheet, the press, Home's and Attention's rows (marking done
+removes the row at once and puts it back if the server refuses), booking's
+confirmation. Still to do: Home's placeholders cross-fading to their
+figures, the figure cross-fade, the chart's reveal, first run's steps and
+the selection tick on chips and pickers.
 
 ## Later
 

@@ -7,7 +7,7 @@ import { isZeroAmount, type SafeToSpend } from '@leafmonkeylabs/salli-sdk';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Money } from './kit';
 import { amountParts, displayDay } from './lib/display';
-import { Sheet } from './sheet';
+import { Sheet, SheetTitle } from './sheet';
 import { strings } from './strings';
 import { font, size, useTheme } from './theme';
 
@@ -20,9 +20,9 @@ export function WorkedOut({ safe, visible, onClose }: { safe: SafeToSpend; visib
   return (
     <Sheet visible={visible} onClose={onClose} label={t.title}>
       <View style={styles.head}>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+        <SheetTitle style={[styles.title, { color: theme.text }]}>
           {t.title}
-        </Text>
+        </SheetTitle>
         <Pressable accessibilityRole="button" onPress={onClose} style={styles.done}>
           <Text style={[styles.doneText, { color: theme.text }]}>{t.done}</Text>
         </Pressable>

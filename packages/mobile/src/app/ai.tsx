@@ -7,7 +7,7 @@ import { Body, Button, Card, CardHead, Icon, Toggle } from '../kit';
 import { PROVIDERS, providerOf, type Model, type ProviderId } from '../lib/ai';
 import { displayMoment } from '../lib/display';
 import { Page } from '../shell';
-import { Sheet } from '../sheet';
+import { Sheet, SheetTitle } from '../sheet';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
 
@@ -130,9 +130,7 @@ function SettingRow({ label, value, mono, disabled, onPress }: { label: string; 
 function Heading({ children }: { children: string }) {
   const theme = useTheme();
   return (
-    <Text accessibilityRole="header" style={[styles.sheetTitle, { color: theme.text }]}>
-      {children}
-    </Text>
+    <SheetTitle style={[styles.sheetTitle, { color: theme.text }]}>{children}</SheetTitle>
   );
 }
 
