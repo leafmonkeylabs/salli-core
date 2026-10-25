@@ -154,8 +154,9 @@ async def test_a_decimal_string_is_read_exactly():
 #: turn (it was 119 KB, with a scenario's schema written out in four tools;
 #: 40 KB until the lists of budgets, debts, goals and reminders, and entries
 #: by id and their reversal, were added; 42 KB until reconciliations, 43 KB
-#: until the investment policy).
-TOOL_LIST_BUDGET = 44_000
+#: until the investment policy, 44 KB until every tool carried a title, as
+#: the connector directories ask).
+TOOL_LIST_BUDGET = 46_500
 
 
 async def test_the_tool_list_stays_small(services):

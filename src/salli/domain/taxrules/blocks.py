@@ -46,15 +46,15 @@ from salli.domain.taxrules.common import (
     ExprText,
     Key,
     Label,
-    Model,
     NonNegativeFigure,
+    Provisional,
     Rate,
     RoundingSpec,
 )
 from salli.domain.taxrules.expr import Expr, unparse
 
 
-class _Block(Model):
+class _Block(Provisional):
     key: Key
     label: Label | None = None
     source: Key | None = None

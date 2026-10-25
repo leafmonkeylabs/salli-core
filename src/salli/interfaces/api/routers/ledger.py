@@ -292,6 +292,9 @@ class ChainBreak(BaseModel):
     #: `missing`: an entry before it is gone; `link`: it doesn't name the
     #: one before it; `content`: it changed after it was posted.
     reason: Literal["missing", "link", "content"]
+    #: The tax years with a filed return whose period holds the entry: what
+    #: was filed may rest on an entry that has since changed.
+    filed_years: list[str] = []
 
 
 class ChainCheck(BaseModel):
@@ -306,5 +309,6 @@ class ChainCheck(BaseModel):
 async def verify_ledger(user_id: CurrentUser, svc: AppServices) -> ChainCheck:
     """Check the ledger's hash chain from its first entry: each entry holds
     the hash of the one before and its own over what it says, so a changed,
-    removed or reordered entry shows as the first break."""
+    removed or reordered entry shows as the first break, with the filed tax
+    years it falls in."""
     return ChainCheck.model_validate(await svc.ledger.verify_chain(user_id))

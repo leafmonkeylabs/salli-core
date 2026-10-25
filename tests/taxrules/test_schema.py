@@ -146,3 +146,17 @@ def test_a_questions_default_and_choices_must_fit_its_type(question, ok):
     else:
         with pytest.raises(ValidationError):
             Question.model_validate(data)
+
+
+def test_a_provisional_value_says_why_and_is_listed():
+    doc = minimal()
+    doc["band_tables"]["main"].update(provisional=True)
+    with pytest.raises(ValidationError, match="note"):
+        RuleSet.model_validate(doc)
+    doc["band_tables"]["main"]["note"] = "Bands from a draft budget."
+    doc["result"].update(provisional=True, note="Rounding not found.")
+    assert RuleSet.model_validate(doc).provisional_values() == [
+        {"key": "band_tables.main", "note": "Bands from a draft budget."},
+        {"key": "result", "note": "Rounding not found."},
+    ]
+    Draft202012Validator(rule_set_json_schema()).validate(doc)

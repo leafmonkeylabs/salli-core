@@ -11,7 +11,10 @@ The profile's `books_start` (`salli profile set --books-start 2031-01-01`,
 `PATCH /v1/onboarding/profile`) is the day the books start. Opening balances
 (`POST /v1/onboarding/balance-sheet`) are posted on it, converted at that
 day's rate; declaring them without one starts the books today and says so on
-the profile. It can be no later than the first entry already booked. A report
+the profile. It can be no later than the first entry already booked, and
+nothing is posted before it, by hand or by an import (409,
+`/problems/before-books-start`): what happened earlier is in the opening
+balances. Income declared at onboarding opens accounts and posts nothing. A report
 for a time before it (the balance sheet as of an earlier day, an income
 statement from an earlier day) says in its `notes` that the books don't
 cover it.
@@ -58,10 +61,28 @@ cleared postings; the difference is the closing balance less that. A
 reconciliation completes (`salli reconcile complete`) only at a difference of
 zero, recording who completed it and when; its postings then stay as they
 are. Clearing is the one change a posting in closed books still takes
-(core_0038). An AI reads the state with `get_reconciliation`.
+(core_0038). An AI reads the state with `get_reconciliation`. Reversing an
+entry with a cleared posting, or dated in a completed reconciliation's
+period on one of its accounts, dates the reversal today, as in closed books,
+so the reconciled period still agrees with the bank.
 
 ## Imports
 
+- **Bank formats.** Salli works out most statement layouts itself. When it
+  can't, or to be certain, a bank's layout can be written down as a
+  `salli.bankformat/1` JSON document and given with the import (`salli import
+  statement.csv --format bank.json`, or `--format <directory>` to try every
+  format in it; the `formats` form field of `POST /v1/statements/upload`).
+  It states the columns (by header or 0-based position: `date`,
+  `description`, and `amount`, or `debit` and `credit`, or `amount` with a
+  `direction` column; `currency`, `reference`), `date_format` (strptime) or
+  `date_order`, `decimal_separator`, `thousands_separator`, `delimiter` and
+  `invert_sign`; `sources`, `verified` and `notes` are for the people who keep
+  it. It applies to CSV files and to the tables of PDF and Excel statements.
+  With several formats, each is tried and the one that reads the most rows
+  is used; the result's `formats` says, for each, how many rows it read and
+  how many it could not, and which was used. Market packs keep their banks'
+  formats in `markets/<country>/banks/`.
 - **The bank's base amount.** A row may carry its amount in your base
   currency as the bank gave it (`base_amount`, on a drafted transaction or a
   feed's row): the rate posted is derived from it (source `bank`) rather than
@@ -83,4 +104,11 @@ that has passed. There is none by default.
 ## Plain-text exports
 
 `GET /v1/exports/beancount` and `/hledger` write the ledger for Beancount and
-hledger; CI checks both with `bean-check` and `hledger check`.
+hledger; CI checks both with `bean-check` and `hledger check`. A transaction
+is flagged `*` when one of its postings is cleared, and `!` otherwise, and
+each cleared posting carries `*`. Each completed reconciliation becomes a
+balance assertion on its closing balance (Beancount's `balance` the day
+after the period, hledger's `= ` on its last day), when the ledger agrees on
+that day; otherwise it is left as a comment saying so. A reversal carries
+`reverses` (its original's id), and an account its `tax-role`, `asset-role`
+and `equity-role`.

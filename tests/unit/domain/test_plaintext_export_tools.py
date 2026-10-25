@@ -13,12 +13,16 @@ import os
 import shutil
 import subprocess
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
-from salli.domain.export.plaintext import beancount, hledger
+from salli.domain.export.plaintext import Assertion, beancount, hledger
 from tests.unit.domain.test_plaintext_export import ACCOUNTS, ENTRIES
+
+# A reconciled statement's balance, which the tools check for themselves.
+ASSERTED = [Assertion("bank", "2026-09-30", Decimal("350000.50"), "LKR", "s1")]
 
 
 def _tool(name: str) -> str:
@@ -39,14 +43,14 @@ def _run(*args: str) -> str:
 def test_bean_check_accepts_the_beancount_export(tmp_path):
     tool = _tool("bean-check")
     path = tmp_path / "ledger.beancount"
-    path.write_text(beancount(ACCOUNTS, ENTRIES, "LKR"), encoding="utf-8")
+    path.write_text(beancount(ACCOUNTS, ENTRIES, "LKR", (), ASSERTED), encoding="utf-8")
     _run(tool, str(path))
 
 
 def test_hledger_checks_and_reads_back_the_journal(tmp_path):
     tool = _tool("hledger")
     path = tmp_path / "ledger.journal"
-    path.write_text(hledger(ACCOUNTS, ENTRIES, "LKR"), encoding="utf-8")
+    path.write_text(hledger(ACCOUNTS, ENTRIES, "LKR", (), ASSERTED), encoding="utf-8")
     _run(tool, "check", "-f", str(path))
     printed = json.loads(_run(tool, "print", "-f", str(path), "-O", "json"))
-    assert len(printed) == len(ENTRIES)
+    assert len(printed) == len(ENTRIES) + len(ASSERTED)

@@ -91,6 +91,17 @@ class ParsedTransaction:
     splits: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
 
 
+@dataclass(frozen=True)
+class FormatOutcome:
+    """How one bank format did on one file: rows read, rows or tables it
+    could not read, and whether it was the one taken."""
+
+    name: str
+    parsed: int
+    failed: int
+    chosen: bool = False
+
+
 @dataclass
 class ParseResult:
     """Outcome of parsing one statement file."""
@@ -104,3 +115,5 @@ class ParseResult:
     errors: list[str] = field(default_factory=list)
     #: Rows left out as already imported (a bank feed's overlap), not kept.
     duplicates_dropped: int = 0
+    #: Each bank format tried on the file (`salli.bankformat/1`).
+    formats: list[FormatOutcome] = field(default_factory=list[FormatOutcome])

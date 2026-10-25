@@ -1,0 +1,29 @@
+{
+  "schema": "salli.bankformat/1",
+  "name": "Bank of Ceylon: statement of account (PDF table or CSV)",
+  "bank": "Bank of Ceylon",
+  "columns": {
+    "date": "Date",
+    "description": [
+      "Particulars"
+    ],
+    "debit": "Payments",
+    "credit": "Receipts"
+  },
+  "date_format": "%d/%m/%Y",
+  "decimal_separator": ".",
+  "thousands_separator": ",",
+  "sources": [
+    {
+      "url": "https://www.boc.lk/personal-banking/digital-banking",
+      "note": "Online banking statement download. Retrieved 2026-10-25"
+    },
+    {
+      "url": "https://www.scribd.com/document/679251766/Address-proof",
+      "note": "An unofficial 2022 'Statement of Account' showing Date, Particulars, Payments, Receipts and Balance columns; layout only, no figures used. Retrieved 2026-10-25"
+    }
+  ],
+  "notes": "Headers from one unofficial printed statement; the CSV export may differ.",
+  "verified": false,
+  "sample": "samples/boc.csv"
+}

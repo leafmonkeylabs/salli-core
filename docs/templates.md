@@ -1,5 +1,8 @@
 # Decision templates
 
+> **Experimental.** Part of the decision lab, which works but may change
+> before the first pilots end: see [scope](scope.md).
+
 A template is a common decision, packaged as a few questions and the
 options your answers build: can I afford it, debt or invest, a windfall, a
 big recurring change, borrowing, an emergency fund, rent or buy. Salli builds each option

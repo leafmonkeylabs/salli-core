@@ -1,5 +1,8 @@
 # Scenarios
 
+> **Experimental.** Part of the decision lab, which works but may change
+> before the first pilots end: see [scope](scope.md).
+
 A scenario is your [baseline](baseline.md) plus changes: a purchase, a loan,
 a new rent, a raise, an extra payment on a debt, money invested, part of a
 holding sold, a subscription cancelled, a home bought. Salli runs it and reports every figure twice, under

@@ -827,6 +827,10 @@ export type AuthorizationServerMetadata = {
      * Token Endpoint Auth Methods Supported
      */
     token_endpoint_auth_methods_supported: Array<string>;
+    /**
+     * Scopes Supported
+     */
+    scopes_supported: Array<string>;
 };
 
 /**
@@ -2291,6 +2295,10 @@ export type ChainBreak = {
      * Reason
      */
     reason: 'missing' | 'link' | 'content';
+    /**
+     * Filed Years
+     */
+    filed_years?: Array<string>;
 };
 
 /**
@@ -5907,6 +5915,28 @@ export type ForecastDay = {
      * Decimal string in the currency's own precision; never a float.
      */
     balance: string;
+};
+
+/**
+ * FormatOutcomeView
+ */
+export type FormatOutcomeView = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Parsed
+     */
+    parsed: number;
+    /**
+     * Failed
+     */
+    failed: number;
+    /**
+     * Chosen
+     */
+    chosen: boolean;
 };
 
 /**
@@ -9703,6 +9733,14 @@ export type ProtectedResourceMetadata = {
      * Authorization Servers
      */
     authorization_servers: Array<string>;
+    /**
+     * Scopes Supported
+     */
+    scopes_supported: Array<string>;
+    /**
+     * Bearer Methods Supported
+     */
+    bearer_methods_supported: Array<string>;
 };
 
 /**
@@ -12517,6 +12555,22 @@ export type StatementBalancesRequest = {
 };
 
 /**
+ * StatementFileUpload
+ *
+ * A statement file, and the bank formats to read it with.
+ */
+export type StatementFileUpload = {
+    /**
+     * File
+     */
+    file: Blob | File;
+    /**
+     * Formats
+     */
+    formats?: string | null;
+};
+
+/**
  * StatementTransaction
  *
  * A transaction read from a statement and classified, awaiting review.
@@ -12640,6 +12694,10 @@ export type StatementUpload = {
      * Transactions
      */
     transactions: Array<StatementTransaction>;
+    /**
+     * Formats
+     */
+    formats?: Array<FormatOutcomeView>;
 };
 
 /**
@@ -13158,6 +13216,12 @@ export type TaxComputation = {
      */
     roles: Array<TaxRuleRoleTotal>;
     /**
+     * Posting Ids
+     */
+    posting_ids?: {
+        [key: string]: Array<string>;
+    };
+    /**
      * Answers
      */
     answers: {
@@ -13193,6 +13257,10 @@ export type TaxComputation = {
      * Warnings
      */
     warnings: Array<string>;
+    /**
+     * Provisional
+     */
+    provisional?: Array<TaxRuleProvisional>;
     /**
      * Provenance
      */
@@ -13735,6 +13803,10 @@ export type TaxReturnRecord = {
      */
     snapshot_hash: string;
     /**
+     * Chain Head Hash
+     */
+    chain_head_hash?: string | null;
+    /**
      * Payments
      */
     payments: Array<TaxReturnPayment>;
@@ -14080,6 +14152,10 @@ export type TaxRuleEvaluation = {
      */
     warnings: Array<string>;
     /**
+     * Provisional
+     */
+    provisional?: Array<TaxRuleProvisional>;
+    /**
      * Provenance
      */
     provenance: string;
@@ -14275,6 +14351,22 @@ export type TaxRuleProblem = {
      * Snippet
      */
     snippet?: string | null;
+};
+
+/**
+ * TaxRuleProvisional
+ *
+ * A value of the rules not yet confirmed from a primary source.
+ */
+export type TaxRuleProvisional = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Note
+     */
+    note: string;
 };
 
 /**
@@ -17994,7 +18086,7 @@ export type AccountDeleteResponses = {
 export type AccountDeleteResponse = AccountDeleteResponses[keyof AccountDeleteResponses];
 
 export type StatementsUploadData = {
-    body: FileUpload;
+    body: StatementFileUpload;
     path?: never;
     query?: {
         /**

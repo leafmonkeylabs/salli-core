@@ -4,6 +4,86 @@
 
 ### Added
 
+- **Plan consistency.** The odds take their mean and volatility from one
+  source (your own return with your new `volatility` assumption, else your
+  pack's mix, else the placeholder pack's), less your holdings' weighted
+  expense ratio (`returns` in the odds), and resample a pack's optional
+  `history` of monthly returns instead of drawing a Student-t. A pack may
+  give `category_inflation`, and an FI plan's spending phases may name
+  `categories` with their own inflation (`category_inflation` in the plan),
+  which grow apart from general inflation. Every FI response labels the cash
+  yield (`assumptions.cash_yield`), a placeholder without a pack.
+- **A risk questionnaire in three parts.** Tolerance is attitude only: the
+  drawdown reaction and six optional 1-5 items (`loss_tolerance`,
+  `certainty`, `volatility_comfort`, `self_rating`, `loss_focus`,
+  `past_behaviour`; `salli profile risk --certainty 3`, …), scored over
+  those answered; capacity takes dependents as a measure; experience is
+  recorded, never scored; and need, the return the plan requires to reach
+  the FI number within the horizon, sits beside the profile
+  (`risk_profile.need`).
+- **An investment policy that holds.** Asset classes come from a controlled
+  taxonomy with sub-classes (`equity.international`, `fixed_income.government`, …);
+  a holding may carry a look-through `allocation` (`salli portfolio holdings
+  add --allocation equity:0.6,fixed_income:0.4`; migration
+  `core_0042_holding_allocation`); the drift report adds `tax_aware_sales`,
+  the open lots that bring a class above target back to it with the least
+  realised gain, as figures. A version whose equity target is above the risk
+  profile's band needs `override_reason`, stored with it.
+- **Benchmarks and lots.** Performance adds `tracking_error`, a
+  `blended_benchmark` (your policy's targets over the series you name,
+  `--blend equity:IDX`) and `net_of_fees`. A tax rule set may declare
+  `long_term_after_months` and `wash_sale_days`: lots then say their
+  `holding_period` and loss sales near a buy are flagged (`wash_sale`).
+- **Insurance against the needs.** Without a typed target, the coverage
+  report gaps life and liability cover against the needs analysis (`basis`
+  `needs`); the needs analysis adds liability cover (net worth) and a
+  `liability` policy type.
+
+- **Plain-text exports keep what the books know.** Beancount and hledger
+  flag a transaction `*` only when a posting of it is cleared (`!`
+  otherwise, the cleared postings marked), turn each completed
+  reconciliation into a balance assertion when the ledger agrees with it,
+  and carry a reversal's `reverses` link and accounts' tax, asset and
+  equity roles.
+- **A return keeps what it was made from.** A return version's snapshot
+  lists the posting ids behind each role (`posting_ids`, on computations
+  too), and the version keeps the ledger's chain head (`chain_head_hash`).
+  `salli ledger verify` names the filed tax years a break falls in
+  (`first_break.filed_years`). Migration `core_0041_return_chain_head`.
+- **Provisional rule-set values.** In `salli.tax/1`, a band table, block,
+  line, the result, a deadline or a form field may say `"provisional":
+  true` with a `note`; every computation (and the MCP tax reads) lists
+  them under `provisional`.
+- **Bank formats as data.** A bank's statement layout is a
+  `salli.bankformat/1` JSON document (columns by header or position, date
+  format, decimal and thousands separators, debit and credit columns, a
+  direction column or a sign), given with an import: `salli import
+  --format <file or directory>`, the `formats` field of `POST
+  /v1/statements/upload`. It reads CSV files and the tables of PDF and Excel
+  statements; with several, the one that reads the most rows is used, and
+  the result's `formats` counts what each read and could not. The first
+  market pack's banks are in `markets/lk/banks/`, each with a synthetic
+  sample the tests read, none yet verified against a real export.
+- **Usage counts for the owner.** `SALLI_USAGE_COUNTERS=true` (off by
+  default) enables `salli-server stats`: members active, statement entries
+  imported and reconciliations completed in the last seven days, counted
+  from the database when asked and never sent anywhere
+  (business/metrics.md).
+- **A hosted path.** `deploy/host.sh` sets up one instance per person or
+  household with the published image, HTTPS, the owner and nightly
+  backups, and upgrades it; docs/hosting.md is the guide, including where
+  a hosted service's extension would report counts and where a payment
+  processor sits (outside the core).
+- **Connector directory kit.** docs/connectors.md lists what Claude's and
+  ChatGPT's connector directories ask, and a test checks the server's side:
+  the OAuth metadata now carries `scopes_supported` (and
+  `bearer_methods_supported`), the protected resource metadata is also served
+  at `/.well-known/oauth-protected-resource/mcp`, a 401 from `/mcp` names it in
+  `WWW-Authenticate`, and every MCP tool has a title.
+- **docs/scope.md**: the surface is frozen until the first pilots (no new
+  engines), what is core and what is experimental; the decision lab's docs
+  say it is experimental.
+
 - **An investment policy statement.** Target allocation by asset class with
   a band each, a rebalancing rule (bands, calendar or both), horizon,
   objectives, constraints and a review date, stored as versions and never
@@ -155,41 +235,6 @@
   active tax rules' `cost_basis`, as portfolio reads are, else first in,
   first out.
 
-- **Plan consistency.** The odds take their mean and volatility from one
-  source (your own return with your new `volatility` assumption, else your
-  pack's mix, else the placeholder pack's), less your holdings' weighted
-  expense ratio (`returns` in the odds), and resample a pack's optional
-  `history` of monthly returns instead of drawing a Student-t. A pack may
-  give `category_inflation`, and an FI plan's spending phases may name
-  `categories` with their own inflation (`category_inflation` in the plan),
-  which grow apart from general inflation. Every FI response labels the cash
-  yield (`assumptions.cash_yield`), a placeholder without a pack.
-- **A risk questionnaire in three parts.** Tolerance is attitude only: the
-  drawdown reaction and six optional 1-5 items (`loss_tolerance`,
-  `certainty`, `volatility_comfort`, `self_rating`, `loss_focus`,
-  `past_behaviour`; `salli profile risk --certainty 3`, …), scored over
-  those answered; capacity takes dependents as a measure; experience is
-  recorded, never scored; and need, the return the plan requires to reach
-  the FI number within the horizon, sits beside the profile
-  (`risk_profile.need`).
-- **An investment policy that holds.** Asset classes come from a controlled
-  taxonomy with sub-classes (`equity.international`, `fixed_income.government`, …);
-  a holding may carry a look-through `allocation` (`salli portfolio holdings
-  add --allocation equity:0.6,fixed_income:0.4`; migration
-  `core_0041_holding_allocation`); the drift report adds `tax_aware_sales`,
-  the open lots that bring a class above target back to it with the least
-  realised gain, as figures. A version whose equity target is above the risk
-  profile's band needs `override_reason`, stored with it.
-- **Benchmarks and lots.** Performance adds `tracking_error`, a
-  `blended_benchmark` (your policy's targets over the series you name,
-  `--blend equity:IDX`) and `net_of_fees`. A tax rule set may declare
-  `long_term_after_months` and `wash_sale_days`: lots then say their
-  `holding_period` and loss sales near a buy are flagged (`wash_sale`).
-- **Insurance against the needs.** Without a typed target, the coverage
-  report gaps life and liability cover against the needs analysis (`basis`
-  `needs`); the needs analysis adds liability cover (net worth) and a
-  `liability` policy type.
-
 ### Security
 
 - **Outside text is fenced everywhere a model reads it.** Every free-text
@@ -222,6 +267,15 @@
   and dependents no longer score tolerance, and experience never does.
 - **Investment policy targets take the taxonomy's classes**: free text is
   refused.
+
+- **Nothing is posted before the books start.** An entry or an imported
+  row dated before the profile's `books_start` is refused (409,
+  `/problems/before-books-start`): the opening balances cover that time.
+- **A reconciled entry is reversed today.** Reversing an entry with a
+  cleared posting, or dated in a completed reconciliation's period on one
+  of its accounts, dates the reversal today, as in closed books.
+- **Plain-text exports flag uncleared transactions `!`** rather than every
+  transaction `*`.
 - **The odds move.** Monte Carlo draws are fat-tailed now (above), so
   the same seed gives different odds, percentiles and horizon-derived
   rates than before; the share of paths where investing beats paying down

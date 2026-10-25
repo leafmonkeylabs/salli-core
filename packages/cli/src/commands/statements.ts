@@ -29,7 +29,7 @@ import type { App } from '../app';
 import { NotFoundError, UsageError } from '../errors';
 import { plural, singleLine } from '../output/text';
 import { displayDate, displayRange, parseDate } from '../util/dates';
-import { readUpload } from '../util/files';
+import { readBankFormats, readUpload } from '../util/files';
 import { resolveById } from '../util/resolve';
 import { AccountBook, accountAmountArg, amountArg, collect, confirmAction, currencyArg, limitArg } from './shared';
 
@@ -205,6 +205,7 @@ export function registerStatements(program: Command, app: App): void {
     .option('--account <account>', 'The bank, cash or card account the statement is for (code, name or id)')
     .option('--currency <code>', 'The statement’s currency, for a file that names none')
     .option('--bank <name>', 'The bank, as a hint for reading the file')
+    .option('--format <path>', 'The bank’s layout: a salli.bankformat/1 file, or a directory of them to pick from')
     .addOption(new Option('--date-order <order>', 'How to read dates the file leaves ambiguous (01/02/2026)').choices(DATE_ORDERS))
     .option('--source-account <name>', 'For a file holding several accounts: which of the file’s accounts to import')
     .option('--replaces <statement>', 'An earlier import of this statement, imported again on purpose (its id)')
@@ -222,10 +223,12 @@ for you to review later (salli statements pending).
 Examples:
   $ salli import ~/Downloads/september.ofx --account checking
   $ salli import statement.csv --account "credit card" --date-order DMY --yes
-  $ salli import september.csv --account checking --replaces 3fa85f64`,
+  $ salli import september.csv --account checking --replaces 3fa85f64
+  $ salli import statement.csv --account checking --format ./banks/`,
     )
     .action(async (file, opts) => {
       const upload = await readUpload(file, MAX_BYTES);
+      const formats = opts.format ? await readBankFormats(opts.format) : undefined;
       const api = await app.api();
       const book = await AccountBook.load(api);
       const account = opts.account ? book.resolve(opts.account) : undefined;
@@ -235,7 +238,7 @@ Examples:
       let parsed: StatementUpload;
       try {
         parsed = await api.call(statementsUpload, {
-          body: { file: upload },
+          body: { file: upload, ...(formats ? { formats } : {}) },
           query: {
             ...(opts.bank ? { bank: opts.bank } : {}),
             ...(opts.currency ? { currency: currencyArg(opts.currency) } : {}),
@@ -255,6 +258,9 @@ Examples:
       const into = account ? ` into ${singleLine(`${account.code} ${account.name}`)}` : '';
       out.info(`Read ${plural(transactions.length, 'transaction')} from ${singleLine(parsed.bank || upload.name)}${period}${into}.`);
       for (const problem of parsed.errors) out.warn(singleLine(String(problem)));
+      for (const f of parsed.formats ?? []) {
+        out.note(`${singleLine(f.name)}: ${plural(f.parsed, 'row')} read, ${f.failed} not${f.chosen ? ' (used)' : ''}.`);
+      }
       if (!account && transactions.some((t) => !t.account_id)) {
         out.note('No --account: the classifier guessed both sides. Name the statement’s account to choose only where money went.');
       }

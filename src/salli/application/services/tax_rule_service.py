@@ -1082,5 +1082,6 @@ def _evaluation(applied: Applied) -> dict[str, Any]:
         "refund_due": normalized_str(result.refund_due),
         "forms": form_rows(applied.compiled, result),
         "warnings": applied.warnings,
+        "provisional": doc.provisional_values(),
         "provenance": PROVENANCE,
     }

@@ -344,7 +344,8 @@ def _optional(schema: dict[str, Any]) -> dict[str, Any]:
 def _compact(tool: MCPTool) -> MCPTool:
     """A tool as an agent reads it, on every turn: its description on one
     line, its arguments without generated titles, and no output schema
-    (each would only say "an object")."""
+    (each would only say "an object"). It carries a title for people
+    (`get_overview`: "Get overview"), as the connector directories ask."""
     schema = _untitled(tool.inputSchema)
     properties = {k: _optional(v) for k, v in schema.get("properties", {}).items()}
     return tool.model_copy(
@@ -352,6 +353,7 @@ def _compact(tool: MCPTool) -> MCPTool:
             "description": " ".join((tool.description or "").split()),
             "inputSchema": {**schema, "properties": properties},
             "outputSchema": None,
+            "title": tool.title or tool.name.replace("_", " ").capitalize(),
         }
     )
 
@@ -644,7 +646,11 @@ def build_mcp_server(
         # No scope is required to connect: a grant from before the scopes
         # reads. Writing needs mcp:write, checked in _SalliMCP.call_tool.
         auth=AuthSettings(
-            issuer_url=AnyHttpUrl(issuer_url), resource_server_url=None, required_scopes=None
+            issuer_url=AnyHttpUrl(issuer_url),
+            resource_server_url=AnyHttpUrl(f"{issuer_url.rstrip('/')}/mcp"),
+            required_scopes=None,
+            # SalliTokenVerifier checks each token's resource itself.
+            validate_token_resource=False,
         ),
         # Default streamable_http_path ("/mcp") — main.py mounts this app at
         # root "/", so the served path is exactly /mcp, matching the resource

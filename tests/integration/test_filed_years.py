@@ -51,6 +51,9 @@ async def test_a_filed_year_stays_closed_until_an_amendment_is_recorded(filed, d
     assert (ret["version"], ret["status"], ret["supersedes_id"]) == (1, "filed", None)
     assert ret["snapshot"]["id"] == computation["id"]
     assert ret["snapshot_hash"].startswith("sha256:")
+    # The postings behind each role, and the ledger as it stood.
+    assert any(ret["snapshot"]["posting_ids"].values())
+    assert ret["chain_head_hash"] == (await ledger.get_entries(A))[-1].hash
 
     for wanted in ("2031-12-31", None):
         with pytest.raises(BooksLocked) as refused:
@@ -215,3 +218,27 @@ async def test_a_document_behind_a_filed_return_is_kept_from_the_filing(uow_fact
         await docs.delete_document(A, receipt)
     day[0] = datetime.date(2033, 6, 1)
     await docs.delete_document(A, receipt)
+
+
+async def test_a_break_in_a_filed_year_is_reported(filed, db):
+    _, ledger, _, _ = filed
+    assert await ledger.verify_chain(A) == {
+        "ok": True,
+        "checked": len(await ledger.get_entries(A)),
+        "first_break": None,
+    }
+    engine = create_engine(_sync(db))
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("alter table journal_entries disable trigger user"))
+            conn.execute(
+                text(
+                    "update journal_entries set description = 'Changed' where seq = 1 and user_id = :u"
+                ),
+                {"u": A},
+            )
+            conn.execute(text("alter table journal_entries enable trigger user"))
+    finally:
+        engine.dispose()
+    check = await ledger.verify_chain(A)
+    assert check["first_break"]["filed_years"] == ["2031/32"]

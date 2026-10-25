@@ -4,6 +4,7 @@ import pytest
 
 from salli.domain.accounting.models import (
     AccountNotEmpty,
+    BeforeBooksStart,
     BooksLocked,
     Direction,
     Posting,
@@ -249,3 +250,11 @@ async def test_search_pages_entries_with_totals_over_every_match(client, mock_se
     assert (await client.get("/entries/search?min_amount=1e3", headers=AUTH)).status_code == 422
     mock_services.ledger.search_entries.side_effect = ValueError("That cursor is not one")
     assert (await client.get("/entries/search?cursor=x", headers=AUTH)).status_code == 422
+
+
+async def test_an_entry_before_the_books_start_is_a_conflict(client, mock_services):
+    mock_services.ledger.reverse_entry.side_effect = BeforeBooksStart("2025-03-31", "2025-04-01")
+    r = await client.post("/v1/entries/e1/reverse", json={"reason": "Wrong"}, headers=AUTH)
+    assert r.status_code == 409
+    assert r.json()["type"] == "/problems/before-books-start"
+    assert "opening balances" in r.json()["detail"]

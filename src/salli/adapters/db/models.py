@@ -509,6 +509,9 @@ class TaxReturnORM(Base):
     content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     snapshot_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    # The hash of the user's last journal entry when this version was
+    # recorded: the ledger it was made from, as its hash chain stood.
+    chain_head_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
     # The authority's reference for what was filed, and the day it was.
     reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
     filed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -1469,7 +1472,7 @@ class HoldingORM(Base):
     # The user's figure for its yearly running cost, a fraction of its value.
     expense_ratio: Mapped[Decimal | None] = mapped_column(Numeric(10, 6), nullable=True)
     # A fund's look-through: asset class → share as a decimal string,
-    # summing to 1 (core_0041); NULL, its own asset class.
+    # summing to 1 (core_0042); NULL, its own asset class.
     allocation: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now

@@ -9,7 +9,12 @@ from decimal import Decimal
 import pytest
 
 from salli.application.services.ledger_service import LedgerService
-from salli.domain.accounting.models import Account, Direction, StoredJournalEntry
+from salli.domain.accounting.models import (
+    Account,
+    BeforeBooksStart,
+    Direction,
+    StoredJournalEntry,
+)
 from tests.fakes import FakeProfiles
 
 # ── In-memory fakes ────────────────────────────────────────────────────────────
@@ -308,3 +313,26 @@ async def test_multi_posting_entry():
     assert entry_id
     balances = await svc.get_trial_balance("u1")
     assert sum(balances.values()) == Decimal(0)
+
+
+@pytest.mark.asyncio
+async def test_nothing_is_posted_before_the_books_start():
+    repo, profiles = FakeLedgerRepo(), FakeProfiles()
+    profiles.rows["u1"] = {"books_start": "2025-04-01"}
+
+    @asynccontextmanager
+    async def uow_factory():
+        uow = FakeUoW(repo, FakeTaxComputationRepo())
+        uow.user_profiles = profiles
+        yield uow
+
+    svc = LedgerService(uow_factory)
+    bank_id = await svc.add_account("u1", "1001", "Bank", "asset")
+    income_id = await svc.add_account("u1", "4001", "Salary", "income")
+    legs = [
+        {"account_id": bank_id, "direction": Direction.DEBIT, "amount": Decimal("5")},
+        {"account_id": income_id, "direction": Direction.CREDIT, "amount": Decimal("5")},
+    ]
+    with pytest.raises(BeforeBooksStart, match="opening balances"):
+        await svc.add_entry("u1", "2025-03-31", "Pay", "manual", legs)
+    assert await svc.add_entry("u1", "2025-04-01", "Pay", "manual", legs)

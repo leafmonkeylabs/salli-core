@@ -133,7 +133,8 @@ export const UPLOADED: StatementUpload = {
       "base_amount": null,
       "splits": []
     }
-  ]
+  ],
+  "formats": []
 };
 
 export const STATEMENTS: BankStatementList = {

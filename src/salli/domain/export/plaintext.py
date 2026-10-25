@@ -11,13 +11,22 @@ Liabilities, Equity, Income, Expenses), then the account's parents and its own
 name as CamelCase components, so `Bank Account` under `Savings` becomes
 `Assets:Savings:BankAccount`. A posting in a currency other than the base
 carries its exchange rate as a price (`100.00 USD @ 0.92 EUR`), so the entry
-balances in the base currency exactly as it does in Salli. Pure: no I/O.
+balances in the base currency exactly as it does in Salli.
+
+A transaction is flagged `*` when one of its postings has been cleared against
+a bank statement, and `!` otherwise; the cleared postings carry `*` themselves.
+A completed reconciliation goes out as a balance assertion (Beancount's
+`balance`, hledger's `= `) on its closing balance, when the ledger agrees with
+it on that day; a reversal names the entry it reverses, and an account its
+tax, asset and equity roles. Pure: no I/O.
 """
 
 from __future__ import annotations
 
+import datetime as dt
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Iterator, Sequence
+from dataclasses import dataclass
 from decimal import Decimal
 
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
@@ -32,6 +41,18 @@ _ROOTS = {
 }
 # hledger's account types, so its reports classify accounts without guessing.
 _HLEDGER_TYPES = {"asset": "A", "liability": "L", "equity": "E", "income": "R", "expense": "X"}
+
+
+@dataclass(frozen=True)
+class Assertion:
+    """A completed reconciliation: the account's balance in `currency` at the
+    end of `on`, debit-positive."""
+
+    account_id: str
+    on: str
+    balance: Decimal
+    currency: str
+    statement_id: str
 
 
 def _component(name: str) -> str:
@@ -82,12 +103,53 @@ def _signed(posting: Posting) -> Decimal:
     return posting.amount if posting.direction == Direction.DEBIT else -posting.amount
 
 
+def _flag(entry: StoredJournalEntry, cleared: Collection[str]) -> str:
+    return "*" if any(p.id in cleared for p in entry.postings) else "!"
+
+
+def _roles(account: Account) -> list[tuple[str, str]]:
+    roles = [
+        ("tax-role", account.tax_role),
+        ("asset-role", account.asset_role),
+        ("equity-role", account.equity_role),
+    ]
+    return [(key, value) for key, value in roles if value]
+
+
+def _held(
+    assertions: Sequence[Assertion], entries: Sequence[StoredJournalEntry]
+) -> Iterator[tuple[Assertion, bool]]:
+    """The assertions the ledger itself agrees with: a statement's balance
+    that the ledger doesn't reach on that day (history before the statement
+    left out, say) would make the file fail its own check."""
+    for a in assertions:
+        total = sum(
+            (
+                _signed(p)
+                for e in entries
+                if e.entry_date <= a.on
+                for p in e.postings
+                if p.account_id == a.account_id and p.currency == a.currency
+            ),
+            Decimal(0),
+        )
+        yield (
+            a,
+            quantize(total, a.currency, strict=False)
+            == quantize(a.balance, a.currency, strict=False),
+        )
+
+
 def _first_date(entries: Iterable[StoredJournalEntry]) -> str:
     return min((e.entry_date for e in entries), default="1970-01-01")
 
 
 def beancount(
-    accounts: Sequence[Account], entries: Sequence[StoredJournalEntry], base_currency: str
+    accounts: Sequence[Account],
+    entries: Sequence[StoredJournalEntry],
+    base_currency: str,
+    cleared: Collection[str] = (),
+    assertions: Sequence[Assertion] = (),
 ) -> str:
     """The ledger as a Beancount file that `bean-check` accepts."""
     names = account_names(accounts)
@@ -101,20 +163,33 @@ def beancount(
         lines.append(f"{opened} open {names[account.id]}")
         if not account.is_active:
             lines.append('  salli-status: "inactive"')
+        lines += [f"  {key}: {_string(value)}" for key, value in _roles(account)]
     for entry in sorted(entries, key=lambda e: (e.entry_date, e.id)):
-        lines += ["", f"{entry.entry_date} * {_string(entry.description)}"]
+        flag = _flag(entry, cleared)
+        lines += ["", f"{entry.entry_date} {flag} {_string(entry.description)}"]
         lines.append(f"  salli-id: {_string(entry.id)}")
+        if entry.reverses:
+            lines.append(f"  reverses: {_string(entry.reverses)}")
         lines.append(f"  source: {_string(entry.source)}")
         if entry.external_ref:
             lines.append(f"  external-ref: {_string(entry.external_ref)}")
         for posting in entry.postings:
             name = names.get(posting.account_id, f"Equity:Unknown:{_component(posting.account_id)}")
-            line = f"  {name}  {_amount(_signed(posting), posting.currency)}"
+            mark = "* " if posting.id in cleared else ""
+            line = f"  {mark}{name}  {_amount(_signed(posting), posting.currency)}"
             if posting.currency != base_currency:
                 line += f" @ {_rate(posting.fx_rate)} {base_currency}"
             lines.append(line)
             for axis, slug in sorted(posting.tags.items()):
                 lines.append(f"    {axis}: {_string(slug)}")
+    for a, held in _held(assertions, entries):
+        if a.account_id not in names:
+            continue
+        # Beancount checks a balance at the start of its day.
+        day = dt.date.fromisoformat(a.on) + dt.timedelta(days=1)
+        text = f"{day} balance {names[a.account_id]}  {_amount(a.balance, a.currency)}"
+        lines += ["", text if held else f"; not asserted, the ledger differs: {text}"]
+        lines.append(f"{'  ' if held else ';   '}salli-statement: {_string(a.statement_id)}")
     # An entry posted to an account that no longer exists still has to parse.
     unknown = sorted(
         {
@@ -130,25 +205,40 @@ def beancount(
 
 
 def hledger(
-    accounts: Sequence[Account], entries: Sequence[StoredJournalEntry], base_currency: str
+    accounts: Sequence[Account],
+    entries: Sequence[StoredJournalEntry],
+    base_currency: str,
+    cleared: Collection[str] = (),
+    assertions: Sequence[Assertion] = (),
 ) -> str:
     """The ledger as an hledger journal (also readable by Ledger)."""
     names = account_names(accounts)
     lines = ["; Exported from Salli. Every transaction carries its Salli id (salli-id).", ""]
     for account in sorted(accounts, key=lambda a: names[a.id]):
         note = "" if account.is_active else ", salli-status:inactive"
+        note += "".join(f", {key}:{value}" for key, value in _roles(account))
         lines.append(f"account {names[account.id]}  ; type:{_HLEDGER_TYPES[account.type]}{note}")
     for entry in sorted(entries, key=lambda e: (e.entry_date, e.id)):
         description = " ".join(entry.description.split()).replace(";", ",")
+        link = f", reverses:{entry.reverses}" if entry.reverses else ""
         lines += [
             "",
-            f"{entry.entry_date} * {description}  ; salli-id:{entry.id}, source:{entry.source}",
+            f"{entry.entry_date} {_flag(entry, cleared)} {description}"
+            f"  ; salli-id:{entry.id}, source:{entry.source}{link}",
         ]
         for posting in entry.postings:
             name = names.get(posting.account_id, f"Equity:Unknown:{_component(posting.account_id)}")
-            line = f"    {name}  {_amount(_signed(posting), posting.currency)}"
+            mark = "* " if posting.id in cleared else ""
+            line = f"    {mark}{name}  {_amount(_signed(posting), posting.currency)}"
             if posting.currency != base_currency:
                 line += f" @ {_rate(posting.fx_rate)} {base_currency}"
             tags = ", ".join(f"{axis}:{slug}" for axis, slug in sorted(posting.tags.items()))
             lines.append(line + (f"  ; {tags}" if tags else ""))
+    # After every entry, so a same-day entry is inside the asserted balance.
+    for a, held in _held(assertions, entries):
+        if a.account_id not in names:
+            continue
+        text = f"    {names[a.account_id]}  0 {a.currency} = {_amount(a.balance, a.currency)}"
+        head = f"{a.on} * Reconciled statement  ; salli-statement:{a.statement_id}"
+        lines += ["", head, text] if held else ["", f"; not asserted, the ledger differs: {text}"]
     return "\n".join(lines) + "\n"

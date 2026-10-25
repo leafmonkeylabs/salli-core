@@ -25,12 +25,17 @@ from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from salli.application.fx import rate_to_base
 from salli.application.ports import StoragePort
 from salli.application.services.ledger_service import balanced_in_base
-from salli.domain.accounting.models import MONEY_TYPES, money_account_problem, refuse_if_locked
+from salli.domain.accounting.models import (
+    MONEY_TYPES,
+    money_account_problem,
+    refuse_before_books_start,
+    refuse_if_locked,
+)
 from salli.domain.currency import UnknownCurrencyError, normalize_currency, quantize
 from salli.domain.dedup.matcher import (
     DATE_WINDOW_DAYS,
@@ -44,13 +49,20 @@ from salli.domain.dedup.matcher import (
 from salli.domain.files import safe_filename
 from salli.domain.llm import LLMError
 from salli.domain.money import to_minor
-from salli.domain.parsing.models import DedupState, ParsedTransaction, ParseResult, RawRow
+from salli.domain.parsing.models import (
+    DedupState,
+    FormatOutcome,
+    ParsedTransaction,
+    ParseResult,
+    RawRow,
+)
 from salli.domain.rules.engine import Facts, Rule
 from salli.domain.rules.history import booked_transactions
 from salli.domain.secrets import redact
 from salli.domain.usage import AIAction, UsageLimitReached
 
 if TYPE_CHECKING:
+    from salli.adapters.parsing.bankformat import BankFormat
     from salli.adapters.parsing.csv_import import CsvMapping
     from salli.adapters.parsing.dates import DateOrder
     from salli.adapters.parsing.support import Extraction
@@ -176,6 +188,7 @@ class ParsingService:
         replaces: str | None = None,
         date_order: DateOrder | None = None,
         csv_mapping: CsvMapping | None = None,
+        bank_formats: Sequence[BankFormat] = (),
         api_key: Any = None,
         email: str | None = None,
     ) -> ParseResult:
@@ -191,7 +204,10 @@ class ParsingService:
         row in another currency than the account's is skipped. `date_order`
         ("DMY", "MDY" or "YMD") settles dates a QIF or CSV file leaves
         ambiguous, and `csv_mapping` states a CSV's layout instead of
-        detecting it. Rows the importer could not read are listed in
+        detecting it. `bank_formats` (`salli.bankformat/1`) state the
+        layout of a CSV file or a PDF's or workbook's tables: each is tried
+        and the one that reads the most rows is taken, and the result's
+        `formats` counts what each read and failed to. Rows the importer could not read are listed in
         `errors`, and so are its guesses.
 
         A file holding several accounts (a QIF with a card register, an OFX
@@ -224,6 +240,7 @@ class ParsingService:
         # Reading a file is CPU work, kept off the event loop: a heavy PDF or
         # workbook must not stall every other request this worker serves.
         balances: dict[str, tuple[Decimal | None, Decimal | None]] = {}
+        outcomes: list[FormatOutcome] = []
         raw_rows, errors = await asyncio.to_thread(
             _extract,
             filename,
@@ -231,6 +248,8 @@ class ParsingService:
             currency,
             date_order=date_order,
             csv_mapping=csv_mapping,
+            bank_formats=bank_formats,
+            outcomes=outcomes,
             balances=balances,
         )
         raw_rows, refusal = _on_account(raw_rows, account, source_account, errors)
@@ -245,8 +264,9 @@ class ParsingService:
                     *errors,
                     refusal or "No transactions found in the file. Check the format is supported.",
                 ],
+                formats=outcomes,
             )
-        return await self._import(
+        result = await self._import(
             user_id,
             raw_rows,
             account=account,
@@ -259,6 +279,8 @@ class ParsingService:
             replaces=replaces,
             balances=balances.get(on.pop()) if len(on) == 1 else None,
         )
+        result.formats = outcomes
+        return result
 
     async def import_rows(
         self,
@@ -745,6 +767,7 @@ class ParsingService:
                 if not txn.debit_account_id or not txn.credit_account_id:
                     continue
                 refuse_if_locked(txn.raw.date, profile.get("lock_date"))
+                refuse_before_books_start(txn.raw.date, profile.get("books_start"))
 
                 # What the row was for — the classifier's label or a rule's
                 # category, and a rule's need — tags the other side of the
@@ -1134,6 +1157,24 @@ def _statement_format(filename: str, data: bytes) -> str | None:
     return "csv" if b"\x00" not in data[:8192] else None
 
 
+def load_bank_formats(text: str) -> list[BankFormat]:
+    """A JSON array (or one object) of `salli.bankformat/1` documents as
+    formats; ValueError says what is wrong."""
+    import json
+
+    from salli.adapters.parsing.bankformat import load_bank_format
+
+    try:
+        documents = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"The bank formats are not JSON: {exc.msg}") from exc
+    if not isinstance(documents, list):
+        documents = [documents]
+    if not documents or len(documents) > 50:
+        raise ValueError("Give one to 50 bank formats")
+    return [load_bank_format(d) for d in cast("list[object]", documents)]
+
+
 def _extract(
     filename: str,
     data: bytes,
@@ -1141,12 +1182,16 @@ def _extract(
     *,
     date_order: DateOrder | None = None,
     csv_mapping: CsvMapping | None = None,
+    bank_formats: Sequence[BankFormat] = (),
+    outcomes: list[FormatOutcome] | None = None,
     balances: dict[str, tuple[Decimal | None, Decimal | None]] | None = None,
 ) -> tuple[list[RawRow], list[str]]:
     """The file's transactions as RawRows, and what could not be read. Each
     row names the account in the file it is on, when the file holds several.
     `balances`, when given, takes the opening and closing balances the file
-    states (`Extraction.balances`).
+    states (`Extraction.balances`). With `bank_formats`, the file's tables
+    are read with each and the best taken (`bankformat.pick`); `outcomes`
+    gets each format's counts.
 
     Numbers come from deterministic importers only, never the LLM. Dates
     that read either way are read the way the statement's country writes
@@ -1156,18 +1201,34 @@ def _extract(
 
     prefer = default_order(currency)
     kind = _statement_format(filename, data)
-    if kind == "pdf":
+    if kind in ("pdf", "xlsx", "csv"):
+        from salli.adapters.parsing.csv_import import extract_from_csv
+        from salli.adapters.parsing.excel_extractor import extract_from_excel
         from salli.adapters.parsing.pdf_extractor import extract_from_pdf
 
-        extraction = extract_from_pdf(
-            data, date_order=date_order, prefer_order=prefer, currency=currency
-        )
-    elif kind == "xlsx":
-        from salli.adapters.parsing.excel_extractor import extract_from_excel
+        def read(mapping: CsvMapping | None) -> Extraction:
+            if kind == "pdf":
+                return extract_from_pdf(
+                    data, date_order=date_order, prefer_order=prefer, currency=currency,
+                    mapping=mapping,
+                )  # fmt: skip
+            if kind == "xlsx":
+                return extract_from_excel(
+                    data, date_order=date_order, prefer_order=prefer, currency=currency,
+                    mapping=mapping,
+                )  # fmt: skip
+            return extract_from_csv(
+                data, mapping, date_order=date_order, prefer_order=prefer, currency=currency
+            )
 
-        extraction = extract_from_excel(
-            data, date_order=date_order, prefer_order=prefer, currency=currency
-        )
+        if bank_formats:
+            from salli.adapters.parsing.bankformat import pick
+
+            extraction, found = pick(bank_formats, read)
+            if outcomes is not None:
+                outcomes.extend(found)
+        else:
+            extraction = read(csv_mapping)
     elif kind == "xls":
         message = (
             "This is an old-style (.xls) or password-protected Excel workbook, which Salli "
@@ -1190,12 +1251,6 @@ def _extract(
         from salli.adapters.parsing.mt940 import extract_from_mt940
 
         extraction = extract_from_mt940(data)
-    elif kind == "csv":
-        from salli.adapters.parsing.csv_import import extract_from_csv
-
-        extraction = extract_from_csv(
-            data, csv_mapping, date_order=date_order, prefer_order=prefer, currency=currency
-        )
     else:
         message = (
             "Salli can't read this file. It reads PDF, Excel (.xlsx), CSV, OFX/QFX, QIF, "
