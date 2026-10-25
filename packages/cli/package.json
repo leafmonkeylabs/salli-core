@@ -45,6 +45,6 @@
     "string-width": "^8.3.0"
   },
   "dependencies": {
-    "@napi-rs/keyring": "^2.1.0"
+    "@napi-rs/keyring": "^2.1.2"
   }
 }
