@@ -5276,6 +5276,107 @@
         }
       }
     },
+    "/v1/statements/check": {
+      "post": {
+        "tags": [
+          "statements"
+        ],
+        "summary": "Check Statement",
+        "description": "Read a statement file without importing it: how many transactions,\nmoney in and out, the dates, and the opening and closing balances, so\nyou can compare them with the bank's statement before trusting a bank\nformat (`formats`, as on upload). Stores nothing and runs no model.",
+        "operationId": "statements.check",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$",
+                  "description": "ISO 4217 currency code",
+                  "examples": [
+                    "USD"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "name": "date_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "DMY",
+                    "MDY",
+                    "YMD"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date Order"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementFileUpload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementCheck"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/statements/drafts": {
       "post": {
         "tags": [
@@ -6590,7 +6691,8 @@
     "/v1/fi/odds": {
       "get": {
         "tags": [
-          "financial-independence"
+          "financial-independence",
+          "experimental"
         ],
         "summary": "Get Odds",
         "description": "The odds of reaching and sustaining FI: a seeded, reproducible Monte\nCarlo of returns from your capital-market assumptions (or the labelled\nplaceholder), with 10/50/90 percentile wealth paths, a horizon-derived\nwithdrawal rate beside yours, and optional guardrails. Reads only.",
@@ -6725,7 +6827,8 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/fi/plan": {
@@ -9249,7 +9352,8 @@
     "/v1/ips": {
       "get": {
         "tags": [
-          "portfolio"
+          "portfolio",
+          "experimental"
         ],
         "summary": "Get Policy",
         "description": "The investment policy statement in force (its latest version).",
@@ -9280,11 +9384,13 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       },
       "post": {
         "tags": [
-          "portfolio"
+          "portfolio",
+          "experimental"
         ],
         "summary": "Adopt Policy",
         "description": "Adopt a new version of the investment policy statement. Earlier\nversions are kept, never changed.",
@@ -9335,13 +9441,15 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/ips/versions": {
       "get": {
         "tags": [
-          "portfolio"
+          "portfolio",
+          "experimental"
         ],
         "summary": "List Policy Versions",
         "operationId": "ips.versions",
@@ -9371,13 +9479,15 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/ips/drift": {
       "get": {
         "tags": [
-          "portfolio"
+          "portfolio",
+          "experimental"
         ],
         "summary": "Get Drift",
         "description": "The portfolio against the policy in force, class by class, with the\nrisk profile beside it.",
@@ -9408,13 +9518,15 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/ips/risk-profile": {
       "get": {
         "tags": [
-          "portfolio"
+          "portfolio",
+          "experimental"
         ],
         "summary": "Get Risk Profile",
         "description": "Risk tolerance (the questionnaire), risk capacity (the baseline) and\nthe profile, the lower of the two.",
@@ -9445,7 +9557,8 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/subscriptions/": {
@@ -9977,7 +10090,8 @@
     "/v1/insurance/needs": {
       "get": {
         "tags": [
-          "insurance"
+          "insurance",
+          "experimental"
         ],
         "summary": "Get Needs",
         "description": "Life cover from income replacement years, debts and goals less assets;\nincome protection from spending. Policies of type \"life\" count as held.",
@@ -10034,13 +10148,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/insurance/targets": {
       "get": {
         "tags": [
-          "insurance"
+          "insurance",
+          "experimental"
         ],
         "summary": "List Targets",
         "operationId": "insurance.targets.list",
@@ -10070,11 +10186,13 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       },
       "put": {
         "tags": [
-          "insurance"
+          "insurance",
+          "experimental"
         ],
         "summary": "Set Target",
         "operationId": "insurance.targets.set",
@@ -10124,13 +10242,15 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/insurance/targets/{policy_type}": {
       "delete": {
         "tags": [
-          "insurance"
+          "insurance",
+          "experimental"
         ],
         "summary": "Delete Target",
         "operationId": "insurance.targets.delete",
@@ -10174,7 +10294,8 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/insurance/policies/{policy_id}": {
@@ -12949,7 +13070,8 @@
     "/v1/scenarios/run": {
       "post": {
         "tags": [
-          "scenarios"
+          "scenarios",
+          "experimental"
         ],
         "summary": "Run Scenario",
         "description": "Run a scenario on your baseline: cash over the next twelve months, the\nmonthly figures at 1, 5, 10 and 20 years and the horizon, debts,\nresilience and FI, each under the baseline and the scenario with the\ndelta; with `timeline`, the timelines they are read from. Stores\nnothing.",
@@ -13024,13 +13146,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/scenarios/compare": {
       "post": {
         "tags": [
-          "scenarios"
+          "scenarios",
+          "experimental"
         ],
         "summary": "Compare Scenarios",
         "description": "Compare two to five options side by side: each one's figures, what\neach gains and gives up against the others, their sensitivity to the\nreal return, and the break-evens; with `timeline`, each option's\ntimelines. Never a ranking. Stores nothing.",
@@ -13105,13 +13229,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/scenarios/odds": {
       "post": {
         "tags": [
-          "scenarios"
+          "scenarios",
+          "experimental"
         ],
         "summary": "Scenario Odds",
         "description": "The odds of the scenario's plan: the FI odds (`GET /v1/fi/odds`) on\nthe scenario's timeline and spending. Stores nothing.",
@@ -13266,7 +13392,8 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/.well-known/oauth-authorization-server": {
@@ -13813,7 +13940,8 @@
     "/v1/principles": {
       "get": {
         "tags": [
-          "principles"
+          "principles",
+          "experimental"
         ],
         "summary": "List Principles",
         "description": "Your principles, oldest first: those in use, or every one with\ninclude_archived.",
@@ -13866,11 +13994,13 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       },
       "post": {
         "tags": [
-          "principles"
+          "principles",
+          "experimental"
         ],
         "summary": "Add Principle",
         "description": "Keep a principle. Its check is validated first: a figure that doesn't\nexist, a check that isn't true or false, or account_lowest without an\naccount is a 422 with each problem's path.",
@@ -13931,13 +14061,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/principles/figures": {
       "get": {
         "tags": [
-          "principles"
+          "principles",
+          "experimental"
         ],
         "summary": "Principle Figures",
         "description": "The figures a check may read, each with its unit and whether it is in\ntoday's money (real) or each day's own (nominal).",
@@ -13963,13 +14095,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/principles/check": {
       "post": {
         "tags": [
-          "principles"
+          "principles",
+          "experimental"
         ],
         "summary": "Check Principles",
         "description": "Check your principles against your baseline and each option: which\neach keeps, breaks or can't tell, with the figures each check read.\nNever a ranking. Stores nothing.",
@@ -14030,13 +14164,15 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/principles/{principle_id}": {
       "patch": {
         "tags": [
-          "principles"
+          "principles",
+          "experimental"
         ],
         "summary": "Update Principle",
         "description": "Edit a principle in use; its version counts up. Decisions already\nrecorded keep the principle as it stood.",
@@ -14108,13 +14244,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/principles/{principle_id}/archive": {
       "post": {
         "tags": [
-          "principles"
+          "principles",
+          "experimental"
         ],
         "summary": "Archive Principle",
         "description": "Stop checking against a principle. It stays, archived: nothing is deleted.",
@@ -14176,13 +14314,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/decisions/templates": {
       "get": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "List Decision Templates",
         "description": "The decision templates: common decisions as a few questions and the\noptions they build. Conveniences, not advice.",
@@ -14208,13 +14348,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/decisions/templates/{template_id}": {
       "get": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "Get Decision Template",
         "description": "A template's questions, each default as it stands for you (from your\ndebts, cash accounts and principles, or the date), and the answers'\nJSON Schema.",
@@ -14276,13 +14418,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/decisions/start": {
       "post": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "Start Decision",
         "description": "Start a decision from a template: the options your answers build,\ncompared on your baseline (the trade, sensitivity and break-evens),\nchecked against your principles, and what recording needs. Never a\nranking. Stores nothing: record with `POST /v1/decisions` once you\nhave chosen.",
@@ -14343,13 +14487,15 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/decisions": {
       "get": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "List Decisions",
         "description": "Your decision journal, newest first.",
@@ -14380,11 +14526,13 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       },
       "post": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "Record Decision",
         "description": "Record a decision: Salli runs every option on your baseline, checks\nyour principles, and keeps the entry, its projection and its hash, with\nyour reasons. A review reminder is set for the review date. Entries\ncan't be edited or deleted: append notes and reviews.",
@@ -14445,13 +14593,15 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/decisions/reviews": {
       "get": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "Due Reviews",
         "description": "Decisions whose review date has come and that have no review yet,\neach with what the chosen option projected against what happened.\nStores nothing.",
@@ -14482,13 +14632,15 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/decisions/export": {
       "get": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "Export Decisions",
         "description": "The whole journal as JSON: every entry, note and review exactly as\nrecorded, with its hash.",
@@ -14519,13 +14671,15 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/decisions/export/markdown": {
       "get": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "Export Decisions Markdown",
         "description": "The whole journal as Markdown, to read or keep.",
@@ -14557,13 +14711,15 @@
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "x-experimental": true
       }
     },
     "/v1/decisions/{decision_id}": {
       "get": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "Get Decision",
         "description": "An entry with its notes and reviews, each hashed again (`verified`).",
@@ -14625,13 +14781,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/decisions/{decision_id}/markdown": {
       "get": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "Decision Markdown",
         "description": "One entry, with its notes and reviews, as Markdown.",
@@ -14694,13 +14852,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/decisions/{decision_id}/notes": {
       "post": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "Add Decision Note",
         "description": "Append a note to an entry. The entry doesn't change.",
@@ -14772,13 +14932,15 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/decisions/{decision_id}/review": {
       "post": {
         "tags": [
-          "decisions"
+          "decisions",
+          "experimental"
         ],
         "summary": "Review Decision",
         "description": "Review a decision, from its review date on: Salli compares what the\nchosen option projected with what happened, and appends it with your\nreflection. The entry doesn't change.",
@@ -14850,7 +15012,8 @@
               }
             }
           }
-        }
+        },
+        "x-experimental": true
       }
     },
     "/v1/notifications/preferences": {
@@ -38064,6 +38227,136 @@
         ],
         "title": "StatementBalancesRequest"
       },
+      "StatementCheck": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "transactions": {
+            "type": "integer",
+            "title": "Transactions"
+          },
+          "money_in": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Money In",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "money_out": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Money Out",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "first_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Date"
+          },
+          "last_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Date"
+          },
+          "opening_balance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Balance"
+          },
+          "closing_balance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Balance"
+          },
+          "balances_agree": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balances Agree"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "formats": {
+            "items": {
+              "$ref": "#/components/schemas/FormatOutcomeView"
+            },
+            "type": "array",
+            "title": "Formats",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "transactions",
+          "money_in",
+          "money_out",
+          "first_date",
+          "last_date",
+          "opening_balance",
+          "closing_balance",
+          "balances_agree",
+          "errors"
+        ],
+        "title": "StatementCheck",
+        "description": "What a statement holds, read and not stored: to check a bank format\nagainst the bank's own figures."
+      },
       "StatementFileUpload": {
         "properties": {
           "file": {
@@ -43162,5 +43455,11 @@
         "scheme": "bearer"
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "experimental",
+      "description": "Working and tested, but no pilot has relied on it yet: its shape may change (docs/scope.md). Also marked `x-experimental: true`."
+    }
+  ]
 }

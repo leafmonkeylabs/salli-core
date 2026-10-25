@@ -56,3 +56,44 @@ def test_stats_is_off_by_default(db, monkeypatch):
     result = CliRunner().invoke(app, ["stats"])
     assert result.exit_code == 0, result.output
     assert "Members active" in result.output
+
+
+def test_a_report_sends_the_week_s_totals_only_when_set_up(db, monkeypatch):
+    import httpx
+
+    sent: list[tuple[str, dict]] = []
+
+    def post(url, json, timeout):
+        sent.append((url, json))
+        return httpx.Response(204, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", post)
+    on = {"database_url": db, "salli_usage_counters": True}
+    monkeypatch.setattr(config, "_settings", Settings(_env_file=None, **on))
+    result = CliRunner().invoke(app, ["stats", "--send"])
+    assert result.exit_code == 1 and "SALLI_USAGE_REPORT_URL" in result.output
+    result = CliRunner().invoke(app, ["stats", "--send", "--dry-run"])
+    assert result.exit_code == 0 and sent == []
+
+    url = "https://counts.example.org/v1/usage"
+    monkeypatch.setattr(
+        config,
+        "_settings",
+        Settings(
+            _env_file=None, salli_usage_report_url=url, salli_usage_install_id="pilot-7", **on
+        ),
+    )
+    result = CliRunner().invoke(app, ["jobs", "send-usage"])
+    assert result.exit_code == 0, result.output
+    [(to, body)] = sent
+    assert to == url
+    assert set(body) == {
+        "schema",
+        "install_id",
+        "salli_version",
+        "week_ending",
+        "active_members",
+        "entries_imported",
+        "reconciliations_completed",
+    }
+    assert body["install_id"] == "pilot-7" and body["schema"] == "salli.usage/1"

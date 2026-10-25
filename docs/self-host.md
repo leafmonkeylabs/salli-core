@@ -84,6 +84,7 @@ There is no sign-up. The owner adds everyone else, from the server:
 | To… | Run |
 |---|---|
 | Add a member (a partner, a household member) | `docker compose exec salli salli-server members add partner@example.com` |
+| Invite someone to set their own password (and two-step sign-in) | `docker compose exec salli salli-server members invite partner@example.com`: a link, good once for seven days, that you pass on yourself |
 | See who can sign in | `docker compose exec salli salli-server members list` |
 | Set a forgotten password | `docker compose exec salli salli-server members reset-password partner@example.com` |
 | …and sign them out everywhere | add `--sign-out-everywhere` |
@@ -218,7 +219,10 @@ is needed to start.
 | `SALLI_CONSOLE_DIR` | `/opt/salli-console` in the image | Where the console's built files are (`index.html` and `assets/`). Without them, no console is served: from a source checkout, build it (`npm run build --workspace @leafmonkeylabs/salli-console`) and point this at `packages/console/dist`. |
 | `SALLI_CONSOLE_SIGN_IN_HOURS` | `12` | How long a console sign-in lasts after its password, however often it refreshes (1 to 168). The CLI's sign-ins are not affected. |
 | `SALLI_CHATGPT_PLAN_USAGE` | `true` | Whether people may run Salli's AI on their ChatGPT plan. |
-| `SALLI_USAGE_COUNTERS` | `false` | Lets the owner see this instance's weekly usage counts with `salli-server stats` (members active, statement entries imported, reconciliations completed). Counts only, read from the database when asked; never sent anywhere. |
+| `SALLI_USAGE_COUNTERS` | `false` | Lets the owner see this instance's weekly usage counts with `salli-server stats` (members active, statement entries imported, reconciliations completed). Counts only, read from the database when asked; sent nowhere unless the next two are set ([usage reports](#usage-reports)). |
+| `SALLI_EXPERIMENTAL` | `true` | `false` leaves the experimental engines' tools out of what AI agents see over MCP ([scope.md](scope.md#experimental)). |
+| `SALLI_USAGE_REPORT_URL` | (none) | Where `salli-server stats --send` and `jobs send-usage` POST the week's totals. Unset, nothing is sent. |
+| `SALLI_USAGE_INSTALL_ID` | (none) | The id a report carries: any value you pick (`uuidgen`); change it to rotate. |
 | `TAVILY_API_KEY` | none | Web search for the agents. |
 | `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` | none, `salli` | Tracing. |
 | `LOG_LEVEL` | `INFO` | |
@@ -295,6 +299,30 @@ A scheduler that calls the API instead uses each job's cron route with the
 `X-Cron-Secret` header (the `CRON_SECRET` in the secrets volume):
 `POST /v1/advisor/cron/run-due`, `/v1/bank-connections/cron/sync-due` and
 `/v1/notifications/cron/send-due`.
+
+## Usage reports
+
+Off unless you turn on `SALLI_USAGE_COUNTERS` and set both
+`SALLI_USAGE_REPORT_URL` and `SALLI_USAGE_INSTALL_ID`, for a pilot whose
+participants have agreed to it. Then `salli-server jobs send-usage`, weekly
+from cron (or `salli-server stats --send`), POSTs this JSON and nothing else:
+
+```json
+{
+  "schema": "salli.usage/1",
+  "install_id": "the value you set",
+  "salli_version": "0.5.0",
+  "week_ending": "2026-10-25",
+  "active_members": 3,
+  "entries_imported": 120,
+  "reconciliations_completed": 2
+}
+```
+
+The three numbers are counts over the seven days to `week_ending`
+([business/metrics.md](../business/metrics.md)): no user id, email, name,
+description or amount. `--dry-run` prints the report without sending it.
+A minimal receiver is in [examples/usage-collector](../examples/usage-collector/).
 
 ## Digests
 

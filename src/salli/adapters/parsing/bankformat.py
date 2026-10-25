@@ -19,7 +19,8 @@ of its PDF and Excel statements, which share the same table reader:
 Columns are named by header (the header row is the first row holding every
 named column) or by 0-based position. Give `amount` (signed; `invert_sign`
 when money out is positive), or `debit` and `credit`, or `amount` with a
-`direction` column. Anything else in the document (`sources`, `verified`,
+`direction` column. An optional `balance` column (the running balance)
+gives the statement's opening and closing balances. Anything else in the document (`sources`, `verified`,
 `notes`) is for the people who keep it and is not read here.
 
 Several formats can be given at once: each is tried, and the one that reads
@@ -39,7 +40,7 @@ from salli.domain.parsing.models import FormatOutcome
 SCHEMA = "salli.bankformat/1"
 
 _COLUMNS = {"date", "description", "amount", "debit", "credit", "direction", "currency",
-            "reference"}  # fmt: skip
+            "reference", "balance"}  # fmt: skip
 _KEYS = {"schema", "name", "columns", "date_format", "date_order", "decimal_separator",
          "thousands_separator", "delimiter", "invert_sign", "bank", "sources", "verified",
          "notes", "sample"}  # fmt: skip
@@ -118,6 +119,7 @@ def load_bank_format(document: object) -> BankFormat:
             direction=column("direction"),
             currency=column("currency"),
             reference=column("reference"),
+            balance=column("balance"),
             date_format=date_format,
             date_order=order,
             decimal_separator=decimal,

@@ -597,7 +597,7 @@ export function registerScenarios(program: Command, app: App): void {
   program
     .command('whatif')
     .alias('what-if')
-    .description('What a change would do: every figure against your baseline (stores nothing)')
+    .description('Experimental: what a change would do: every figure against your baseline (stores nothing)')
     .option('--buy <amount[@date]>', 'Buy something: money out once (repeatable)', collect)
     .option('--loan <amount@ratexmonths[@date]>', 'Borrow, repaid monthly: 18000@6.9%x48 (repeatable)', collect)
     .option('--recurring <amount/period[@date]>', 'The same amount again and again: -450/month, +80/week (repeatable)', collect)
@@ -820,7 +820,7 @@ Fees are yours to give: none are counted without --fees.`,
   program
     .command('compare')
     .argument('<files...>', 'Two to five scenario documents ("-" reads one from stdin)')
-    .description('Options side by side: the trade between them, sensitivity and break-evens (never a ranking)')
+    .description('Experimental: Options side by side: the trade between them, sensitivity and break-evens (never a ranking)')
     .addHelpText(
       'after',
       `

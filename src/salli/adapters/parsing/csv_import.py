@@ -75,6 +75,9 @@ class CsvMapping:
     direction: Column | None = None
     currency: Column | None = None
     reference: Column | None = None
+    #: The running balance after each row: the file's opening and closing
+    #: balances are read from it (`Extraction.balances`).
+    balance: Column | None = None
     date_format: str | None = None  # strptime, e.g. "%d.%m.%Y"; wins over any date order
     date_order: DateOrder | None = None
     decimal_separator: str | None = None  # "." or ","
@@ -94,6 +97,7 @@ class _Layout:
     direction: int | None = None
     currency: int | None = None
     reference: int | None = None
+    balance: int | None = None
     header_row: int | None = None  # index into the table; None without a header
     header_currency: str | None = None  # "Amount (EUR)"
     #: The reference column holds cheque numbers, never ids.
@@ -401,9 +405,16 @@ def extract_from_tables(
         except ValueError as exc:
             result.errors.append(f"{label}: {exc}; skipped")
             continue
+        balance = _balance(row, layout, mark)
         if found_amount is None:
+            if balance is not None and not result.lines:
+                result.note_balance("", "opening", balance)  # "Balance brought forward"
             continue  # no amount, or zero: nothing moved
         amount, credit, code = found_amount
+        if balance is not None:
+            if not result.lines and "" not in result.balances:
+                result.note_balance("", "opening", balance - (amount if credit else -amount))
+            result.note_balance("", "closing", balance)
         reference = _cell(row, layout.reference)
         kind = references.get(id(layout), "text")
         description = join_description(*(_cell(row, i) for i in layout.text))
@@ -424,6 +435,17 @@ def extract_from_tables(
             )
         )
     return result
+
+
+def _balance(row: list[str], layout: _Layout, mark: str) -> Decimal | None:
+    """The running balance a row states, signed as the file writes it."""
+    cell = _cell(row, layout.balance).strip()
+    if layout.balance is None or not cell:
+        return None
+    try:
+        return _read(cell, mark)
+    except ValueError:
+        return None
 
 
 def _exponent(currency: str | None) -> int | None:
@@ -715,7 +737,7 @@ def _layout_from_mapping(table: list[list[str]], mapping: CsvMapping) -> _Layout
     named = [
         c
         for c in (mapping.date, *descriptions, mapping.amount, mapping.debit, mapping.credit,
-                  mapping.direction, mapping.currency, mapping.reference)
+                  mapping.direction, mapping.currency, mapping.reference, mapping.balance)
         if isinstance(c, str)
     ]  # fmt: skip
     header_row: int | None = None
@@ -748,6 +770,7 @@ def _layout_from_mapping(table: list[list[str]], mapping: CsvMapping) -> _Layout
         direction=optional(mapping.direction),
         currency=optional(mapping.currency),
         reference=optional(mapping.reference),
+        balance=optional(mapping.balance),
         header_row=header_row,
     )
 

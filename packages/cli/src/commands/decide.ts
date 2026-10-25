@@ -427,7 +427,7 @@ export function registerDecide(program: Command, app: App): void {
   program
     .command('decide')
     .argument('[template]', 'A template: afford-it, debt-or-invest, windfall, big-change, borrow, emergency-fund, rent-or-buy')
-    .description('Work through a common decision: Salli builds and compares the options (never ranks them)')
+    .description('Experimental: Work through a common decision: Salli builds and compares the options (never ranks them)')
     .option('--list', 'List the templates')
     .option('--questions', 'Show the template’s questions and your defaults, and stop')
     .option('--answers <file>', 'Answers as a JSON object by question id (for scripts)')

@@ -75,7 +75,8 @@ so the reconciled period still agrees with the bank.
   format in it; the `formats` form field of `POST /v1/statements/upload`).
   It states the columns (by header or 0-based position: `date`,
   `description`, and `amount`, or `debit` and `credit`, or `amount` with a
-  `direction` column; `currency`, `reference`), `date_format` (strptime) or
+  `direction` column; `currency`, `reference`, and `balance`, the running
+  balance, which gives the opening and closing balances), `date_format` (strptime) or
   `date_order`, `decimal_separator`, `thousands_separator`, `delimiter` and
   `invert_sign`; `sources`, `verified` and `notes` are for the people who keep
   it. It applies to CSV files and to the tables of PDF and Excel statements.
@@ -83,6 +84,12 @@ so the reconciled period still agrees with the bank.
   is used; the result's `formats` says, for each, how many rows it read and
   how many it could not, and which was used. Market packs keep their banks'
   formats in `markets/<country>/banks/`.
+- **Checking a format.** `salli import check --format <file or directory>
+  statement.csv` (`POST /v1/statements/check`) reads a statement and
+  imports nothing, runs no model: transactions read, money in and out, the
+  dates, the opening and closing balances, and whether opening plus the
+  movements makes the closing. Compare them with the bank's own statement
+  before trusting a format.
 - **The bank's base amount.** A row may carry its amount in your base
   currency as the bank gave it (`base_amount`, on a drafted transaction or a
   feed's row): the rate posted is derived from it (source `bank`) rather than

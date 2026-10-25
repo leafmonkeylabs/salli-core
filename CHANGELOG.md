@@ -8,7 +8,7 @@
   computation uses values its rules mark provisional is filed (or amended)
   only with `acknowledge_provisional` and a `provisional_note` (`salli tax
   returns record --acknowledge-provisional "<why>"`); the version keeps the
-  note (migration `core_0043_return_provisional`) and its reads show the
+  note (migration `core_0044_return_provisional`) and its reads show the
   provisional values. MCP and in-app tax reads with provisional values carry
   a `provisional_warning` sentence the agent quotes.
 - **Exports show where books and bank disagree.** A reconciled statement's
@@ -16,6 +16,28 @@
   assertion, so `bean-check` and hledger fail on it, with a `; WARNING:` at
   the file's head; the JSON export lists the same under `warnings`.
 
+- **Invitations, without sign-up.** `salli-server members invite <email>`
+  prints a link, good once for seven days, to a server-rendered page (no
+  script, the consent page's CSP) where the person chooses their password
+  and may turn on two-step sign-in. Only the token's hash is kept; no email
+  is sent; the invitation and the joining are in the audit log. Migration
+  `core_0043_invitations`.
+- **Usage reports for a pilot, opt in.** With `SALLI_USAGE_COUNTERS`,
+  `SALLI_USAGE_REPORT_URL` and `SALLI_USAGE_INSTALL_ID` set,
+  `salli-server stats --send` (or `jobs send-usage`) POSTs the week's three
+  totals, Salli's version and the install id, nothing else
+  (docs/self-host.md#usage-reports); `--dry-run` prints it. A minimal
+  receiver is in `examples/usage-collector/`.
+- **Experimental engines marked.** Insurance needs and targets, the
+  investment policy, the odds and the decision lab carry `x-experimental:
+  true` and the `experimental` tag in the API, "Experimental:" in `salli`'s
+  help, and `SALLI_EXPERIMENTAL=false` leaves their tools and prompts out of
+  the MCP list (docs/scope.md).
+- **Checking a bank format.** `salli import check --format <path>
+  <statement>` (`POST /v1/statements/check`) reads a statement and stores
+  nothing: transactions, money in and out, the opening and closing balances
+  and whether they agree. A bank format may name a `balance` column;
+  `markets/lk/banks/VERIFYING.md` says what sample to collect per bank.
 - **Plan consistency.** The odds take their mean and volatility from one
   source (your own return with your new `volatility` assumption, else your
   pack's mix, else the placeholder pack's), less your holdings' weighted
