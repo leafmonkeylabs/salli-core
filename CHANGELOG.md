@@ -9,6 +9,13 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Added
 
+- **A stricter benchmark scorer.** A refusal must decline in its first
+  sentence and quote no amount; a negative word must sit by the figure it
+  signs; an answer quoting more than five tool figures is a dump however it
+  is worded; text answers have a length cap; and an FI month that claims
+  placeholders it doesn't rest on is wrong. A hedged prose dump of the tools'
+  output, which scored 35 of 100, now scores 5.
+
 - **Two-step sign-in.** Turn it on with `salli totp enable` or in the
   console's Settings: add the secret to an authenticator app, enter a code,
   and keep the ten recovery codes, shown once. From then on every sign-in
