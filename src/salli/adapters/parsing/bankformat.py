@@ -77,9 +77,13 @@ def load_bank_format(document: object) -> BankFormat:
             return value
         raise ValueError(f"{name}: column {key!r} is a header name or a 0-based position")
 
-    raw_description = columns.get("description", [])
-    descriptions = raw_description if isinstance(raw_description, list) else [raw_description]
-    for value in cast("list[Any]", descriptions):
+    raw_description: Any = columns.get("description", [])
+    descriptions: list[Any] = (
+        cast("list[Any]", raw_description)
+        if isinstance(raw_description, list)
+        else [raw_description]
+    )
+    for value in descriptions:
         if not ((isinstance(value, str) and value) or type(value) is int):
             raise ValueError(f"{name}: a description column is a header name or a position")
     date = column("date")
