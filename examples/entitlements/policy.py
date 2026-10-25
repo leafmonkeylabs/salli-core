@@ -31,20 +31,23 @@ class Tier:
     briefing: bool = True
 
 
-#: The tiers, after business/thesis.md ("Who pays", "Pricing hypotheses",
-#: "The design-partner pilot"). A tier not named here sees what `trial` sees.
+#: The tiers, after business/thesis.md ("What is sold", "One company, one
+#: wedge", "Pricing hypotheses", "The design-partner pilot"). A tier not
+#: named here sees what `trial` sees.
 TIERS: dict[str, Tier] = {
     # The open core, and anyone the deployment hasn't placed: everything.
-    "self_hosted": Tier("What is sold: the self-hosted open core, free"),
+    "self_hosted": Tier("What is sold: self-hosted, free under AGPL-3.0"),
     # Design partners see everything, so the pilot measures activation, not limits.
     "pilot": Tier("The design-partner pilot: activation and retention"),
-    # Salaried professionals keeping their own books: time saved importing.
-    "hosted_person": Tier("Who pays: salaried professionals; hosted, one person"),
-    # Households in two currencies: one net worth across them, shared read access.
-    "hosted_household": Tier("Who pays: households in two currencies; hosted, a household"),
-    # Before a choice: the books in full, a look ahead to five years, the
-    # briefing's headline. Tests whether the deeper view is what is paid for.
-    "trial": Tier("Pricing hypotheses: which depth people pay for", 5, False),
+    # A paid person or household: everything, bank formats and AI included.
+    "hosted_person": Tier("Pricing hypotheses: hosted, household and more"),
+    "hosted_household": Tier("Pricing hypotheses: hosted, household and more"),
+    # Accountants and planners on seats, and agent builders by usage: everything.
+    "practice": Tier("One company, one wedge: accountants and planners on seats"),
+    "developer": Tier("What is sold: hosted, for developers, by usage"),
+    # The capped free hosted book: the books in full, a look ahead to five
+    # years, the briefing's headline. Tests where the cap should sit.
+    "trial": Tier("Pricing hypotheses: hosted, one person (capped)", 5, False),
 }
 
 
