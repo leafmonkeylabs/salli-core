@@ -1132,7 +1132,8 @@ def build_mcp_server(
     async def list_debts(
         include_closed: bool = False, limit: int = 100, cursor: str | None = None
     ) -> dict[str, Any]:
-        """The user's debts: balance, rate, minimum payment, linked account."""
+        """The user's debts: balance, rate, minimum payment, linked account;
+        ordered by rate, highest first (a fact, not advice)."""
         found = await debt_svc.list_debts(_current_user_id(), not include_closed)
         return _page(_jsonable(found), "debts", limit, cursor)
 

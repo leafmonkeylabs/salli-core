@@ -11,6 +11,8 @@
   own" when there is no cash or savings account; first run takes a debt's
   rate as a percent, with a % suffix.
 
+- The debts read (`GET /debts`, `list_debts`) lists debts by interest rate, highest first (ties by balance, then name; a debt without a rate last) and says so with `order: "rate_desc"`; the phone's Debts screen and `salli debts list` show that order with a footnote that it is a fact about each debt, not advice.
+
 - **MCP catches up with the API, round 8.** Budget and debt writes
   (`set_monthly_budget`, `add_debt`, `update_debt`, each with
   `confirmed_by_user`); `client_ref` on `import_statement` (which is also

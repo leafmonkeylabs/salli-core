@@ -348,13 +348,13 @@ export const strings = {
   debts: {
     title: 'Debts',
     total: (date: string) => `Total owed · ${date}`,
-    each: (currency: string) => `Each debt, ${currency}`,
+    each: (currency: string) => `Each debt, ${currency} · by rate, highest first`,
     minimums: 'Minimums a month',
     terms: (rate: string, minimum: string) => `${rate} · min ${minimum}/mo`,
     free: (month: string) => `Debt-free ${month}`,
     notPaidOff: 'Not paid off at the minimum',
     none: 'You have no debts recorded.',
-    note: 'Debt-free month at minimum payments.',
+    note: 'Sorted by interest rate: a fact about each debt, not advice. Debt-free month at minimum payments.',
   },
 
   attention: {
