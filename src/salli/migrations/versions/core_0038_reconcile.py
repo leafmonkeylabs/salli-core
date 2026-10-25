@@ -98,7 +98,10 @@ _LEDGER_TRIGGER = """
     END;
     $$
 """
-_CLEARED_ONLY = "to_jsonb(NEW) - 'cleared' = to_jsonb(OLD) - 'cleared'"
+_CLEARED_ONLY = (
+    "to_jsonb(NEW) -> 'cleared' IS DISTINCT FROM to_jsonb(OLD) -> 'cleared'"
+    " AND to_jsonb(NEW) - 'cleared' = to_jsonb(OLD) - 'cleared'"
+)
 
 
 def upgrade() -> None:
