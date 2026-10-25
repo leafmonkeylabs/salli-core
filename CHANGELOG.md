@@ -9,6 +9,15 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Added
 
+- **Market packs** (`markets/`): a country's tax rule sets, planning assumptions and pension schemes as cited data, outside the core, with the bar to add one. The first is `markets/lk`: rule sets for two years of assessment with the authority's worked examples, capital-market assumptions, and the provident funds. `tests/taxrules/test_market_packs.py` validates every pack's rule sets and runs their examples.
+
+- **A stricter benchmark scorer.** A refusal must decline in its first
+  sentence and quote no amount; a negative word must sit by the figure it
+  signs; an answer quoting more than five tool figures is a dump however it
+  is worded; text answers have a length cap; and an FI month that claims
+  placeholders it doesn't rest on is wrong. A hedged prose dump of the tools'
+  output, which scored 35 of 100, now scores 5.
+
 - **Two-step sign-in.** Turn it on with `salli totp enable` or in the
   console's Settings: add the secret to an authenticator app, enter a code,
   and keep the ten recovery codes, shown once. From then on every sign-in
@@ -112,6 +121,16 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
+- Prompt injection is fenced: statement and bank descriptions, payees,
+  documents and saved memories reach a model only inside an
+  `untrusted_text` field, and every prompt says never to follow
+  instructions there. The in-app agents' web search now asks the person
+  first, and never carries their figures or payees.
+- **Closed books keep their accounts' type and tax role in the database.**
+  A trigger (migration `core_0032_account_freeze`) refuses changing either on
+  an account with any posting on or before the lock date, even postings that
+  net to zero, by whatever path.
+
 - Every MCP tool call is in the audit log: a read as one row (the tool, the
   client and the outcome, no arguments), written before its answer is sent.
 - An AI client's connection ends 90 days after the person approved it
@@ -142,6 +161,19 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 ### Breaking
 
 #### Changed
+
+- MCP `search_entries` and `list_pending_transactions` return `description`,
+  `get_recurring_payments` `payee` and `examples`, the documents tools
+  `content` and `description`, and the memory tools `value` as
+  `{"untrusted_text": ...}` instead of a bare string.
+- **Closed years keep their tax figure.** Computing or preparing a return
+  for a tax year that ends on or before the lock date no longer stores a new
+  computation: it is refused with a 409 `/problems/books-locked`. A preview
+  (`persist=false`) still works and warns that the year is closed; the
+  recompute sweep leaves closed years as they are.
+- **An account holding a balance can't be closed.** `DELETE
+  /accounts/{id}` (`salli accounts deactivate`) refuses it with a 409
+  `/problems/account-not-empty`; move the balance first.
 
 - `compose.yaml` runs a named release (0.4.1), not `latest`, and believes
   `X-Forwarded-For` only from Caddy (`FORWARDED_ALLOW_IPS=10.248.53.2`); set

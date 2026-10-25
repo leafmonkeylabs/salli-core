@@ -2,7 +2,13 @@ from decimal import Decimal
 
 import pytest
 
-from salli.domain.accounting.models import BooksLocked, Direction, Posting, StoredJournalEntry
+from salli.domain.accounting.models import (
+    AccountNotEmpty,
+    BooksLocked,
+    Direction,
+    Posting,
+    StoredJournalEntry,
+)
 from tests.unit.api.conftest import AUTH, make_entry
 
 
@@ -132,6 +138,13 @@ async def test_closed_books_are_a_conflict(client, mock_services):
     assert r.status_code == 409
     assert r.json()["type"] == "/problems/books-locked"
     assert "closed up to and including 2025-12-31" in r.json()["detail"]
+
+
+async def test_closing_an_account_holding_a_balance_is_a_conflict(client, mock_services):
+    mock_services.ledger.deactivate_account.side_effect = AccountNotEmpty("80.00 CAD")
+    r = await client.delete("/v1/accounts/a1", headers=AUTH)
+    assert r.status_code == 409
+    assert r.json()["type"] == "/problems/account-not-empty"
 
 
 async def test_provenance_of_a_statement_entry(client, mock_services):

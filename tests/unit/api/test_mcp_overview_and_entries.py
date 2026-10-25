@@ -175,7 +175,7 @@ async def test_entries_are_found_with_totals_over_every_match(services, refused)
         {
             "id": "e1",
             "date": "2026-10-24",
-            "description": "Corner Bakery",
+            "description": {"untrusted_text": "Corner Bakery"},
             "reversed_by": None,
             "postings": [
                 {"account_id": "food", "side": "debit", "amount": "8.40", "currency": "EUR"},
