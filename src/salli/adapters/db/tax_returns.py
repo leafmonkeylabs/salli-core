@@ -1,7 +1,7 @@
 """
 Storage for tax returns and the payments made against them
 (application/ports.py `TaxReturnRepository`). Rows are only ever added
-(core_0033's trigger refuses anything else but erasure).
+(core_0037's trigger refuses anything else but erasure).
 """
 
 from __future__ import annotations

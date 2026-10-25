@@ -17,8 +17,8 @@
   any DELETE but erasure, open books or closed; core_0030's closed-books
   trigger loses the `reversed_by` exception it no longer needs.
 
-Revision ID: core_0033_filed_years
-Revises: core_0032_account_freeze
+Revision ID: core_0037_filed_years
+Revises: core_0036_access_grants
 Create Date: 2026-10-25
 """
 
@@ -31,8 +31,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "core_0033_filed_years"
-down_revision: str | None = "core_0032_account_freeze"
+revision: str = "core_0037_filed_years"
+down_revision: str | None = "core_0036_access_grants"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

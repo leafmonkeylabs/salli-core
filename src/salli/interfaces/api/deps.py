@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from salli.application.entry_author import set_author, via_for
@@ -238,22 +238,52 @@ async def _principal(token: str, settings: Settings, services: Services) -> Prin
 CurrentPrincipal = Annotated[Principal, Depends(get_principal)]
 
 
+#: The header naming another member's books to read, under their grant.
+BOOKS_HEADER = "Salli-Books"
+
+#: Where a grant reaches (paths after /v1): the books and what is worked out
+#: from them, never sign-in, keys, tokens, documents, imports or exports.
+BOOKS_READS = (
+    "/accounts", "/entries", "/tags", "/ledger", "/insights", "/baseline", "/budget",
+    "/debt", "/fi", "/portfolio", "/reports", "/subscriptions", "/insurance",
+    "/decisions", "/principles", "/reminders", "/tax",
+)  # fmt: skip
+
+
 async def get_current_user(
     principal: CurrentPrincipal,
     services: Annotated[Services, Depends(get_services)],
+    request: Request,
 ) -> str:
     """The verified caller, refused unless they have an account here.
 
     No request creates an account: the owner's comes from `salli-server
     setup`, and everyone else's from the owner. A token an identity provider
     vouches for, or a user id under the development fallback, is no
-    exception."""
+    exception.
+
+    A request naming another member's books (BOOKS_HEADER, their user id)
+    acts on theirs instead, if it only reads (GET) the books (BOOKS_READS)
+    and they have given the caller access (AccessGrantService); anything
+    else naming them is refused."""
     if not await services.profile.ensure_user(principal.user_id, principal.email, may_create=False):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account is not a member of this Salli instance.",
         )
-    return principal.user_id
+    books = request.headers.get(BOOKS_HEADER)
+    if not books or books == principal.user_id:
+        return principal.user_id
+    path = request.url.path.removeprefix("/v1")
+    reads = request.method == "GET" and any(
+        path == p or path.startswith(p + "/") for p in BOOKS_READS
+    )
+    if not reads or not await services.access.may_read(principal.user_id, books, path):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You may only read another member's books, where they have given you access.",
+        )
+    return books
 
 
 async def get_current_email(

@@ -49,6 +49,10 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/auth/totp"): "auth.totp.begin",
     ("POST", "/auth/totp/confirm"): "auth.totp.confirm",
     ("DELETE", "/auth/totp"): "auth.totp.disable",
+    # read-only access to another member's books
+    ("GET", "/access-grants"): "access.list",
+    ("POST", "/access-grants"): "access.grant",
+    ("DELETE", "/access-grants/{grant_id}"): "access.revoke",
     # accounts
     ("GET", "/accounts/"): "accounts.list",
     ("POST", "/accounts/"): "accounts.create",

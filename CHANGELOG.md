@@ -2,11 +2,6 @@
 
 ## Unreleased
 
-Every change under **Breaking** needs something written against the last
-release to change with it, so the next releases are minor bumps: the SDK and
-the CLI are 0.5.0, and the server's next release is 0.5.0
-([RELEASING.md](RELEASING.md#breaking-changes)).
-
 ### Added
 
 - **Filed years, a year-end close, and who posted what.** A return record
@@ -25,9 +20,76 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   `mcp:<client>`, import, automation), in its reads and the export, and is
   hash-chained to the one before; `salli ledger verify` (`GET
   /v1/ledger/verify`) names the first entry that changed. Migration
-  `core_0033_filed_years` chains the entries already stored, recorded as
+  `core_0037_filed_years` chains the entries already stored, recorded as
   posted by their owner via "unrecorded".
 
+- **Read-only access to another member's books.** A member lets another
+  member of the same server read their books (`salli access grant <email>`,
+  `POST /v1/access-grants`, behind the step-up; never from a token or
+  another application), both see it (`salli access list`), and either ends
+  it (`salli access revoke`). The grantee reads by naming the books
+  (`salli --books <member-id>`, `SALLI_BOOKS`, the `Salli-Books` header):
+  GET requests on the books' routes only; giving, receiving, ending and
+  every read are in the audit logs. Migration `core_0036_access_grants`.
+- **MCP catches up with the API.** `list_budgets`, `list_debts`,
+  `list_goals`, `list_reminders`, `get_entry`, and `reverse_entry` (a write,
+  with `confirmed_by_user`). A headless agent may send a personal access
+  token as its MCP bearer: it reads only, while MCP is on.
+- **The benchmark runs through Claude Code.** `uv run python -m
+  benchmark.run --via claude` asks `claude -p` with only Salli's MCP server
+  (`benchmark/serve.py`), so a run needs no API key of its own.
+- **Business notes** (`business/`): a commercial thesis for a first
+  launch, a commercial-licence offer for the AGPL parts and a metrics plan,
+  every figure in them a hypothesis.
+- **A benchmark scorer that can't be talked round.** An answer Salli can
+  answer that opens by declining or hedging, that adds a figure Salli didn't
+  give, or that advises (a ranking word, "you should buy", a product) is
+  wrong whatever its headline; and a placeholder caveat is wrong on any
+  answer whose figures are the person's own.
+- **Market packs** (`markets/`): a country's tax rule sets, planning assumptions and pension schemes as cited data, outside the core, with the bar to add one. The first is `markets/lk`: rule sets for two years of assessment with the authority's worked examples, capital-market assumptions, and the provident funds. `tests/taxrules/test_market_packs.py` validates every pack's rule sets and runs their examples.
+
+### Security
+
+- **Outside text is fenced everywhere a model reads it.** Every free-text
+  field any MCP read tool or in-app agent tool returns (descriptions,
+  payees, memos, account and holding names, principle labels, decisions'
+  text, signals, reminders, subscription reports, suggested rules, web
+  search results) comes inside `{"untrusted_text": ...}`, fenced once where
+  the answer is serialised, not field by field; a contract test walks every
+  MCP read tool on the golden households. The in-app agents' approvals fail
+  closed: an action whose approval the audit log can't record is not done.
+
+### Breaking
+
+#### Changed
+
+- **A stored entry never changes.** The database now refuses any update of
+  a journal entry or posting, and any deletion but erasure, in open books
+  as in closed ones; a reversal records the entry it reverses (`reverses`)
+  and the original's `reversed_by` is read from it. The column
+  `journal_entries.reversed_by` is gone. A refusal to store a closed year's
+  tax no longer suggests moving the lock date earlier.
+
+- MCP: every free-text string in a read tool's answer is now
+  `{"untrusted_text": ...}` (names, labels, notes, titles too, not only
+  descriptions and payees), and `get_budget_summary` takes a `budget_id`
+  (from `list_budgets`) instead of picking the first budget.
+
+## 0.5.0 — 2026-10-25
+
+Every change under **Breaking** needs something written against the last
+release to change with it, so this is a minor release of each part: the
+server (and the console with it), the SDK and the CLI are all 0.5.0
+([RELEASING.md](RELEASING.md#breaking-changes)).
+
+### Added
+
+- **Two more signals.** `emergency_fund_low`: cash and savings cover fewer
+  months of average spending than the FI method's emergency target, once a
+  full month is seen. `expensive_debt`: a declared debt charging at or above
+  8% a year, Salli's labelled line (the placeholder real return plus a 4%
+  margin, not any country's figure). A new action, `see_debts`, opens the
+  baseline's debts in the console and Decide on the phone.
 - **A stricter benchmark scorer.** A refusal must decline in its first
   sentence and quote no amount; a negative word must sit by the figure it
   signs; an answer quoting more than five tool figures is a dump however it
@@ -138,6 +200,10 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
+- The tax agent and the briefing and return workflows refuse to build on the
+  in-memory checkpointer in production (`ENVIRONMENT=production`), as the
+  server's start-up already did, so nothing awaiting review can live only in
+  memory there.
 - Prompt injection is fenced: statement and bank descriptions, payees,
   documents and saved memories reach a model only inside an
   `untrusted_text` field, and every prompt says never to follow
@@ -179,13 +245,12 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 #### Changed
 
-- **A stored entry never changes.** The database now refuses any update of
-  a journal entry or posting, and any deletion but erasure, in open books
-  as in closed ones; a reversal records the entry it reverses (`reverses`)
-  and the original's `reversed_by` is read from it. The column
-  `journal_entries.reversed_by` is gone. A refusal to store a closed year's
-  tax no longer suggests moving the lock date earlier.
-
+- **FI pack 3.0.0.** "FI-ready" needs 100% progress to FI and "Strong" 50%;
+  the debt component is scored by what the debts cost (their rates weighted by
+  balance, no marks at 20%) where rates are known, by liabilities over assets
+  otherwise; and under two full months of income and spending the engine's
+  grade is "Not enough data", so every caller agrees with `status`. A
+  household's score and grade can move.
 - MCP `search_entries` and `list_pending_transactions` return `description`,
   `get_recurring_payments` `payee` and `examples`, the documents tools
   `content` and `description`, and the memory tools `value` as

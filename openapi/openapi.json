@@ -3,7 +3,7 @@
   "info": {
     "title": "Salli API",
     "description": "Privacy-first personal finance, tax and financial independence",
-    "version": "0.4.1"
+    "version": "0.5.0"
   },
   "paths": {
     "/v1/auth/me": {
@@ -13762,6 +13762,168 @@
         }
       }
     },
+    "/v1/access-grants": {
+      "get": {
+        "tags": [
+          "access"
+        ],
+        "summary": "List Access Grants",
+        "operationId": "access.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGrants"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Grant Access",
+        "description": "Let another member read your books, until either of you ends it.",
+        "operationId": "access.grant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGrant"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not your own sign-in, or `/problems/step-up-required`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No member of this server signs in with that email",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/access-grants/{grant_id}": {
+      "delete": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Revoke Access Grant",
+        "description": "End access you gave, or access you were given.",
+        "operationId": "access.revoke",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grant Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -13796,6 +13958,66 @@
   },
   "components": {
     "schemas": {
+      "AccessGrant": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "member_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Email"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "member_id",
+          "member_email",
+          "created_at"
+        ],
+        "title": "AccessGrant"
+      },
+      "AccessGrants": {
+        "properties": {
+          "given": {
+            "items": {
+              "$ref": "#/components/schemas/AccessGrant"
+            },
+            "type": "array",
+            "title": "Given"
+          },
+          "received": {
+            "items": {
+              "$ref": "#/components/schemas/AccessGrant"
+            },
+            "type": "array",
+            "title": "Received"
+          }
+        },
+        "type": "object",
+        "required": [
+          "given",
+          "received"
+        ],
+        "title": "AccessGrants"
+      },
       "Account": {
         "properties": {
           "id": {
@@ -23126,7 +23348,9 @@
               "spending_spike",
               "savings_rate_drop",
               "review_waiting",
-              "decision_review_due"
+              "decision_review_due",
+              "emergency_fund_low",
+              "expensive_debt"
             ],
             "title": "Kind"
           },
@@ -23154,6 +23378,7 @@
               "see_recurring",
               "see_spending",
               "see_cash_flow",
+              "see_debts",
               "review",
               "review_decision"
             ],
@@ -23617,6 +23842,21 @@
           "goals"
         ],
         "title": "GoalsRequest"
+      },
+      "GrantAccessRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "GrantAccessRequest"
       },
       "Health": {
         "properties": {

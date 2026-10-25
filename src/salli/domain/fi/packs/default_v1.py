@@ -18,7 +18,11 @@ from salli.domain.fi.models import FiPack
 DEFAULT_V1 = FiPack(
     # 2.0.0: the assumptions moved out of the pack, and projections run in real
     # terms from the user's figures or labelled placeholders.
-    version="2.0.0",
+    # 3.0.0: the top grades need progress to FI ("FI-ready" at 100%, "Strong"
+    # at 50%); debt is scored by what it costs (rates weighted by balance)
+    # where rates are known, by its share of assets otherwise; and under two
+    # full months of income and spending the grade is "Not enough data".
+    version="3.0.0",
     emergency_fund_target_months=6,
     savings_rate_for_full_score=Decimal("0.50"),  # saving 50%+ of income scores full marks
     weights={
@@ -28,4 +32,7 @@ DEFAULT_V1 = FiPack(
         "debt": Decimal("0.10"),
         "goals": Decimal("0.15"),
     },
+    debt_rate_for_zero_score=Decimal("0.20"),  # a 20% average rate scores no marks
+    progress_for_fi_ready=Decimal(1),
+    progress_for_strong=Decimal("0.5"),
 )

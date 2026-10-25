@@ -1785,6 +1785,29 @@ class RuleRepository(ABC):
         ...
 
 
+class AccessGrantRepository(ABC):
+    """Read-only access one member gives another to their books."""
+
+    @abstractmethod
+    async def create(self, grantor_id: str, grantee_id: str) -> dict[str, Any]:
+        """A live grant: {id, grantor_id, grantee_id, created_at}; the live
+        one already there for the pair, if any."""
+        ...
+
+    @abstractmethod
+    async def list_for(self, user_id: str) -> list[dict[str, Any]]:
+        """The live grants the user gave or holds, newest first."""
+        ...
+
+    @abstractmethod
+    async def is_live(self, grantor_id: str, grantee_id: str) -> bool: ...
+
+    @abstractmethod
+    async def revoke(self, user_id: str, grant_id: str) -> dict[str, Any] | None:
+        """End a live grant the user gave or holds; it, or None."""
+        ...
+
+
 class PersonalAccessTokenRepository(ABC):
     """Long-lived tokens for scripts and CI, stored hashed."""
 

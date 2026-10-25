@@ -137,7 +137,7 @@ async def test_a_principle_the_person_confirmed_is_marked_as_the_agents(services
     )
     assert (added["author"], added["agent"]) == ("agent", "Claude")
     listed = await _call(services, "list_principles", {})
-    assert [p["label"] for p in listed["principles"]] == ["Six months"]
+    assert [p["label"] for p in listed["principles"]] == [{"untrusted_text": "Six months"}]
     assert "emergency_months" in {f["name"] for f in listed["figures"]}
     unknown = await refused(
         _call(
@@ -151,7 +151,7 @@ async def test_a_principle_the_person_confirmed_is_marked_as_the_agents(services
 
 async def test_checking_and_recording_a_decision(services):
     checked = await _call(services, "check_principles", {"options": [CASH, WAIT]})
-    assert [o["label"] for o in checked["options"]] == ["Pay cash", "Wait"]
+    assert [o["label"] for o in checked["options"]] == [{"untrusted_text": "Pay cash"}, "Wait"]
     recorded = await _call(
         services,
         "record_decision",
@@ -195,7 +195,9 @@ async def test_a_due_review_is_pulled_and_recorded_with_the_persons_reflection(s
     assert (await _call(services, "list_due_reviews", {}))["reviews"] == []
     Clock.today = dt.date(2027, 4, 12)
     [due] = (await _call(services, "list_due_reviews", {}))["reviews"]
-    assert due["id"] == recorded["id"] and due["comparison"]["option"] == "Pay cash"
+    assert due["id"] == recorded["id"] and due["comparison"]["option"] == {
+        "untrusted_text": "Pay cash"
+    }
     with pytest.raises(ToolError):
         await _call(
             services, "review_decision", {"decision_id": recorded["id"], "reflection": "Fine."}

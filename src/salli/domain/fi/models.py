@@ -43,6 +43,13 @@ class FiPack:
     # fi_progress, debt, goals. (When the user has no goals, the goals weight is
     # dropped and the rest are renormalised by the engine.)
     weights: dict[str, Decimal]
+    # The yearly rate, averaged over debts by balance, at which the debt
+    # component scores nothing (a rate of 0 scores full marks).
+    debt_rate_for_zero_score: Decimal = Decimal("0.20")
+    # The progress to FI below which the top grades are not given:
+    # "FI-ready" and "Strong" each.
+    progress_for_fi_ready: Decimal = Decimal(1)
+    progress_for_strong: Decimal = Decimal("0.5")
 
 
 @dataclass(frozen=True)
@@ -57,6 +64,10 @@ class FinancialSnapshot:
     total_liabilities: Decimal  # positive magnitude
     goal_progress: Decimal | None  # 0..1 weighted across active goals; None if none
     currency: str  # the owner's base currency, which every figure above is in
+    #: The debts with known terms: (yearly rate, balance owed) each.
+    debt_rates: tuple[tuple[Decimal, Decimal], ...] = ()
+    #: Full months of income and spending observed; None when not counted.
+    full_months: int | None = None
 
 
 @dataclass(frozen=True)

@@ -5,6 +5,42 @@ export type ClientOptions = {
 };
 
 /**
+ * AccessGrant
+ */
+export type AccessGrant = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Member Id
+     */
+    member_id: string;
+    /**
+     * Member Email
+     */
+    member_email: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * AccessGrants
+ */
+export type AccessGrants = {
+    /**
+     * Given
+     */
+    given: Array<AccessGrant>;
+    /**
+     * Received
+     */
+    received: Array<AccessGrant>;
+};
+
+/**
  * Account
  */
 export type Account = {
@@ -5296,7 +5332,7 @@ export type FinanceSignal = {
     /**
      * Kind
      */
-    kind: 'low_balance_ahead' | 'price_change' | 'new_recurring' | 'spending_spike' | 'savings_rate_drop' | 'review_waiting' | 'decision_review_due';
+    kind: 'low_balance_ahead' | 'price_change' | 'new_recurring' | 'spending_spike' | 'savings_rate_drop' | 'review_waiting' | 'decision_review_due' | 'emergency_fund_low' | 'expensive_debt';
     /**
      * Severity
      */
@@ -5312,7 +5348,7 @@ export type FinanceSignal = {
     /**
      * Action
      */
-    action: 'see_forecast' | 'see_recurring' | 'see_spending' | 'see_cash_flow' | 'review' | 'review_decision';
+    action: 'see_forecast' | 'see_recurring' | 'see_spending' | 'see_cash_flow' | 'see_debts' | 'review' | 'review_decision';
     /**
      * Amount
      */
@@ -5565,6 +5601,16 @@ export type GoalsRequest = {
      * Goals
      */
     goals: Array<OnboardingGoalItem>;
+};
+
+/**
+ * GrantAccessRequest
+ */
+export type GrantAccessRequest = {
+    /**
+     * Email
+     */
+    email: string;
 };
 
 /**
@@ -21094,6 +21140,102 @@ export type NotificationsCronSendDueResponses = {
 };
 
 export type NotificationsCronSendDueResponse = NotificationsCronSendDueResponses[keyof NotificationsCronSendDueResponses];
+
+export type AccessListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/access-grants';
+};
+
+export type AccessListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AccessListError = AccessListErrors[keyof AccessListErrors];
+
+export type AccessListResponses = {
+    /**
+     * Successful Response
+     */
+    200: AccessGrants;
+};
+
+export type AccessListResponse = AccessListResponses[keyof AccessListResponses];
+
+export type AccessGrantData = {
+    body: GrantAccessRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/access-grants';
+};
+
+export type AccessGrantErrors = {
+    /**
+     * Not your own sign-in, or `/problems/step-up-required`
+     */
+    403: Problem;
+    /**
+     * No member of this server signs in with that email
+     */
+    404: Problem;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AccessGrantError = AccessGrantErrors[keyof AccessGrantErrors];
+
+export type AccessGrantResponses = {
+    /**
+     * Successful Response
+     */
+    201: AccessGrant;
+};
+
+export type AccessGrantResponse = AccessGrantResponses[keyof AccessGrantResponses];
+
+export type AccessRevokeData = {
+    body?: never;
+    path: {
+        /**
+         * Grant Id
+         */
+        grant_id: string;
+    };
+    query?: never;
+    url: '/v1/access-grants/{grant_id}';
+};
+
+export type AccessRevokeErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AccessRevokeError = AccessRevokeErrors[keyof AccessRevokeErrors];
+
+export type AccessRevokeResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type AccessRevokeResponse = AccessRevokeResponses[keyof AccessRevokeResponses];
 
 export type MetaHealthData = {
     body?: never;

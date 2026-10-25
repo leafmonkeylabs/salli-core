@@ -9,7 +9,7 @@ says where. What is hashed is what the entry says about money and who said
 it (`content`); tags are not, as they stay editable outside closed books.
 
 The content is plain text and integers (amounts in minor units, rates as
-normalised decimal text), so core_0033's migration hashes the entries
+normalised decimal text), so core_0037's migration hashes the entries
 stored before it exactly as this does.
 """
 

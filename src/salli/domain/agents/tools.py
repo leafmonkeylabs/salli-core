@@ -20,7 +20,7 @@ from typing import Annotated, Any
 
 from langchain_core.tools import tool
 
-from salli.domain.agents.untrusted import fence_document, untrusted
+from salli.domain.agents.untrusted import fence, fence_document, fence_tools, untrusted
 
 # The authenticated user for the current agent run. Set per-request by AgentService
 # before the graph executes, so tools always act on the signed-in user's data —
@@ -33,6 +33,10 @@ _current_user: contextvars.ContextVar[str] = contextvars.ContextVar("salli_curre
 
 def set_current_user(user_id: str) -> None:
     _current_user.set(user_id)
+
+
+#: What a tool says when its approval couldn't be recorded: it did nothing.
+NOT_RECORDED = "The approval could not be recorded, so nothing was done. Try again."
 
 
 # ── Read-only tools (re-exported for worker agents) ───────────────────────────
@@ -177,7 +181,7 @@ def make_read_tools(ledger_svc: Any, tax_svc: Any) -> list[Any]:
         except (LookupError, ValueError) as exc:
             return {"error": str(exc)}
 
-    return [get_trial_balance, get_accounts, get_tax_computation, explain_tax_line]
+    return fence_tools([get_trial_balance, get_accounts, get_tax_computation, explain_tax_line])
 
 
 # ── Manager tools factory (web search + documents + write with approval) ───────
@@ -250,10 +254,12 @@ def make_manager_tools(
                 "params": params,
             }
         )
-        await _log_audit(user_id, "web_search", params, decision)
+        if not await _log_audit(user_id, "web_search", params, decision):
+            return NOT_RECORDED
         if decision != "approved":
             return "Search cancelled by user."
-        return await tavily.ainvoke({"query": query})
+        found = await tavily.ainvoke({"query": query})
+        return untrusted(found) if isinstance(found, str) else fence(found)
 
     # ── Document tools ────────────────────────────────────────────────────────
 
@@ -707,15 +713,17 @@ def make_manager_tools(
 
     # ── Write tools (require user approval via interrupt) ─────────────────────
 
-    async def _log_audit(user_id: str, action: str, params: dict[str, Any], decision: str) -> None:
+    async def _log_audit(user_id: str, action: str, params: dict[str, Any], decision: str) -> bool:
         """Record every agent-initiated write decision — approved or denied —
-        to the immutable audit log. Never blocks the tool's own outcome on
-        logging failure; a broken audit write must not break a legitimate action."""
+        to the immutable audit log. It fails closed: False when the row
+        can't be written, and the tool then does nothing, so no action runs
+        that the log doesn't hold."""
         try:
             async with ledger_svc._uow_factory() as uow:
                 await uow.audit_log.log(user_id, action, params, decision)
         except Exception:
-            pass
+            return False
+        return True
 
     @tool
     async def create_account(
@@ -743,7 +751,8 @@ def make_manager_tools(
                 "params": params,
             }
         )
-        await _log_audit(user_id, "create_account", params, decision)
+        if not await _log_audit(user_id, "create_account", params, decision):
+            return NOT_RECORDED
         if decision == "approved":
             try:
                 acct_id = await ledger_svc.add_account(
@@ -779,7 +788,8 @@ def make_manager_tools(
                 "params": params,
             }
         )
-        await _log_audit(user_id, "create_reminder", params, decision)
+        if not await _log_audit(user_id, "create_reminder", params, decision):
+            return NOT_RECORDED
         if decision == "approved":
             from salli.application.services.reminder_service import ReminderService
 
@@ -824,7 +834,8 @@ def make_manager_tools(
                 "params": params,
             }
         )
-        await _log_audit(user_id, "post_journal_entry", params, decision)
+        if not await _log_audit(user_id, "post_journal_entry", params, decision):
+            return NOT_RECORDED
         if decision == "approved":
             from decimal import Decimal as D
 
@@ -855,31 +866,34 @@ def make_manager_tools(
             return f"Journal entry posted: id={entry_id}"
         return "Action cancelled by user."
 
-    return [
-        web_search,
-        save_document,
-        read_document,
-        update_document,
-        list_documents,
-        delete_document,
-        save_memory,
-        get_memory,
-        list_memories,
-        get_financial_profile,
-        get_freedom_snapshot,
-        can_i_afford,
-        get_budget_summary,
-        get_payoff_plan,
-        get_portfolio_summary,
-        get_subscription_report,
-        get_coverage_report,
-        get_latest_briefing,
-        run_briefing,
-        get_accounts,
-        create_account,
-        create_reminder,
-        post_journal_entry,
-    ]
+    return fence_tools(
+        [
+            web_search,
+            save_document,
+            read_document,
+            update_document,
+            list_documents,
+            delete_document,
+            save_memory,
+            get_memory,
+            list_memories,
+            get_financial_profile,
+            get_freedom_snapshot,
+            can_i_afford,
+            get_budget_summary,
+            get_payoff_plan,
+            get_portfolio_summary,
+            get_subscription_report,
+            get_coverage_report,
+            get_latest_briefing,
+            run_briefing,
+            get_accounts,
+            create_account,
+            create_reminder,
+            post_journal_entry,
+        ],
+        writes=frozenset({"web_search", "create_account", "create_reminder", "post_journal_entry"}),
+    )
 
 
 # ── Backward-compat factory (original 5-tool signature) ───────────────────────

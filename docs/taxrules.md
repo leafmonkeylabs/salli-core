@@ -513,7 +513,7 @@ and its content hash, a snapshot of the computation as it stood and that
 snapshot's canonical-JSON hash (`domain/canonical.py`), and the payments
 made against it. Versions are numbered per jurisdiction and year; each
 supersedes the latest (`supersedes_id`), and after a filed one only an
-amendment may follow. Records and payments are append-only (core_0033's
+amendment may follow. Records and payments are append-only (core_0037's
 trigger, as the decision journal's; erasure excepted): nothing recorded
 changes.
 

@@ -101,7 +101,9 @@ async def test_the_overview_is_salli_s_figures_in_one_call(services):
             "low_point": "912.30",
             "low_point_date": "2026-10-30",
         },
-        "signals": [{"kind": "price_change", "title": "A subscription got dearer"}],
+        "signals": [
+            {"kind": "price_change", "title": {"untrusted_text": "A subscription got dearer"}}
+        ],
         "fi": {
             "status": "ok",
             "months_observed": 14,
@@ -109,7 +111,13 @@ async def test_the_overview_is_salli_s_figures_in_one_call(services):
             "progress": "0.18",
             "assumptions": "placeholder",
         },
-        "due": [{"kind": "File the return", "due_date": "2026-11-15", "source": "tax_rules"}],
+        "due": [
+            {
+                "kind": {"untrusted_text": "File the return"},
+                "due_date": "2026-11-15",
+                "source": "tax_rules",
+            }
+        ],
         "data_as_of": "2026-10-24",
         "is_stale": False,
     }

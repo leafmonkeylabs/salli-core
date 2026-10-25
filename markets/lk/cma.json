@@ -1,0 +1,51 @@
+{
+  "schema": "salli.cma/1",
+  "market": "LK",
+  "currency": "LKR",
+  "as_of": "2026-05-26",
+  "real_terms": true,
+  "sources": [
+    { "id": "mpr_2026_3", "url": "https://www.cbsl.gov.lk/sites/default/files/cbslweb_documents/mpr_no_3_2026_press_presentation_e.pdf", "title": "Central Bank: Monetary Policy Review No. 3 of 2026, press presentation, 26 May 2026 (OPR 8.75%, inflation target 5%, AWDR 6.86% and 1-year bill 8.49% as of April-May 2026)", "retrieved": "2026-10-25" },
+    { "id": "salli_assumption", "url": "https://github.com/leafmonkeylabs/salli-core/blob/main/markets/lk/README.md#capital-market-assumptions", "title": "Not from a primary source: an assumption for the pack's reviewer to replace (see README)", "retrieved": "2026-10-25" }
+  ],
+  "inflation": { "value": "0.05", "basis": "The Central Bank's inflation target (CCPI, y-o-y), used as the long-run rate", "source": "mpr_2026_3" },
+  "cash_yield": { "value": "0.0686", "nominal": true, "basis": "Average weighted deposit rate, April 2026", "source": "mpr_2026_3" },
+  "asset_classes": [
+    {
+      "key": "lkr_cash", "label": "Rupee cash and fixed deposits", "currency": "LKR",
+      "expected_real_return": "0.018", "volatility": "0.01",
+      "basis": "Return: the deposit rate (6.86%) less the 5% target. Volatility: an assumption.",
+      "source": "mpr_2026_3", "uncertain": ["volatility"]
+    },
+    {
+      "key": "lkr_govt", "label": "Government securities (treasury bills and bonds)", "currency": "LKR",
+      "expected_real_return": "0.033", "volatility": "0.05",
+      "basis": "Return: the 1-year treasury bill yield (8.49%) less the 5% target. Volatility: an assumption for a short-to-medium duration mix.",
+      "source": "mpr_2026_3", "uncertain": ["volatility"]
+    },
+    {
+      "key": "lk_equity", "label": "Local listed equities", "currency": "LKR",
+      "expected_real_return": "0.06", "volatility": "0.25",
+      "basis": "Assumption: no primary source publishes an expected return; the exchange's own index history was not obtained.",
+      "source": "salli_assumption", "uncertain": ["expected_real_return", "volatility"]
+    },
+    {
+      "key": "global_equity_usd", "label": "Global equities, held in US dollars", "currency": "USD",
+      "expected_real_return": "0.05", "volatility": "0.16",
+      "basis": "Assumption in US-dollar real terms; the rupee's move against the dollar is not modelled here.",
+      "source": "salli_assumption", "uncertain": ["expected_real_return", "volatility"]
+    }
+  ],
+  "correlations": {
+    "source": "salli_assumption",
+    "uncertain": true,
+    "matrix": [
+      { "a": "lkr_cash", "b": "lkr_govt", "value": "0.5" },
+      { "a": "lkr_cash", "b": "lk_equity", "value": "0" },
+      { "a": "lkr_cash", "b": "global_equity_usd", "value": "0" },
+      { "a": "lkr_govt", "b": "lk_equity", "value": "0.2" },
+      { "a": "lkr_govt", "b": "global_equity_usd", "value": "0" },
+      { "a": "lk_equity", "b": "global_equity_usd", "value": "0.3" }
+    ]
+  }
+}

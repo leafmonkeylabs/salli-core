@@ -185,10 +185,9 @@ def build_return_workflow(ledger_svc: Any, tax_svc: Any, checkpointer: Any = Non
     `ledger_svc` is unused (the computation reads the ledger) and kept for the
     builders' common signature.
     """
-    from langgraph.checkpoint.memory import MemorySaver
+    from salli.domain.agents.checkpointing import checkpointer_or_memory
 
-    if checkpointer is None:
-        checkpointer = MemorySaver()
+    checkpointer = checkpointer_or_memory(checkpointer)
 
     async def compute(state: ReturnState) -> dict[str, Any]:
         return await _compute(state, tax_svc)
