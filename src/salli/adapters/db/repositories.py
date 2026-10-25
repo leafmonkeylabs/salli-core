@@ -45,6 +45,7 @@ from salli.adapters.db.models import (
     InstanceSettingORM,
     InsuranceTargetORM,
     InvestmentPolicyORM,
+    InvitationORM,
     JournalEntryORM,
     LoginFailureORM,
     LoginORM,
@@ -4050,6 +4051,54 @@ class SQLLoginRepository(LoginRepository):
             .order_by(LoginFailureORM.at)
         )
         return list(rows.scalars())
+
+    async def create_invitation(
+        self,
+        token_hash: str,
+        email: str,
+        base_currency: str | None,
+        at: datetime,
+        expires_at: datetime,
+    ) -> None:
+        self._s.add(
+            InvitationORM(
+                token_hash=token_hash,
+                email=email,
+                base_currency=base_currency,
+                created_at=at,
+                expires_at=expires_at,
+            )
+        )
+        await self._s.flush()
+
+    @staticmethod
+    def _good(token_hash: str, now: datetime) -> Any:
+        return (
+            (InvitationORM.token_hash == token_hash)
+            & InvitationORM.used_at.is_(None)
+            & (InvitationORM.expires_at > now)
+        )
+
+    async def get_invitation(self, token_hash: str, now: datetime) -> dict[str, Any] | None:
+        row = (
+            await self._s.execute(
+                select(InvitationORM.email, InvitationORM.base_currency).where(
+                    self._good(token_hash, now)
+                )
+            )
+        ).one_or_none()
+        return {"email": row.email, "base_currency": row.base_currency} if row else None
+
+    async def use_invitation(self, token_hash: str, now: datetime) -> dict[str, Any] | None:
+        row = (
+            await self._s.execute(
+                update(InvitationORM)
+                .where(self._good(token_hash, now))
+                .values(used_at=now)
+                .returning(InvitationORM.email, InvitationORM.base_currency)
+            )
+        ).one_or_none()
+        return {"email": row.email, "base_currency": row.base_currency} if row else None
 
     async def clear_failures(self, key_hash: str) -> None:
         await self._s.execute(delete(LoginFailureORM).where(LoginFailureORM.key_hash == key_hash))

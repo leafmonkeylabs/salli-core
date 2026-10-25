@@ -133,9 +133,20 @@ class Settings(BaseSettings):
 
     # Usage counts for the owner (`salli-server stats`): members active,
     # statement entries imported and reconciliations completed in the last
-    # week, counted from the database when asked. Off by default; nothing is
-    # ever sent anywhere (business/metrics.md).
+    # week, counted from the database when asked. Off by default
+    # (business/metrics.md). Nothing is sent unless the owner also sets a
+    # report URL and an install id (any value of theirs; change it to rotate)
+    # and runs `salli-server stats --send` or `jobs send-usage`: then only the
+    # week's three totals (docs/self-host.md#usage-reports).
     salli_usage_counters: bool = False
+
+    # Whether AI agents see the experimental engines' MCP tools (the
+    # investment policy, FI odds, the decision lab; docs/scope.md). On by
+    # default; false leaves them out of the tool list. The API keeps them
+    # either way, marked `x-experimental`.
+    salli_experimental: bool = True
+    salli_usage_report_url: str = ""
+    salli_usage_install_id: str = ""
 
     # The base currency a new account is given when nothing else says which —
     # `salli-server setup` asks, and onboarding can change it while the ledger is

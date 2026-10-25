@@ -147,6 +147,11 @@ def test_setup_makes_the_owner_once_and_members_are_added_listed_and_reset(
         stdin="the partner's password\n",
     )
     assert code == 0, err
+    code, out, err = run(monkeypatch, capsys, "members", "invite", "kid@example.org", "--json")
+    assert code == 0, err
+    assert json.loads(out)["link"].split("/join?t=")[1].startswith("salli_inv_")
+    code, out, err = run(monkeypatch, capsys, "members", "invite", "partner@example.org")
+    assert code == 1 and "already has an account" in out + err
     code, out, _ = run(monkeypatch, capsys, "members", "list", "--json")
     assert [(m["email"], m["role"]) for m in json.loads(out)] == [
         ("owner@example.org", "owner"),

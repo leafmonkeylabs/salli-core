@@ -30,9 +30,9 @@ its export layout or a sample statement, so the columns, date format and
 debit/credit style come from the banks' online-banking pages and, for Bank
 of Ceylon, one unofficial printed statement; each file cites what was seen.
 Each has a synthetic sample in `banks/samples/` that the tests read. To
-verify one, import a real export with `--format` and, when every row reads,
-set `verified` to true and add the date; when it doesn't, correct the
-columns from the file's header row.
+verify one, follow [banks/VERIFYING.md](banks/VERIFYING.md): what anonymised
+sample to collect per bank, and `salli import check`, which reads it
+without importing and checks the balances add up.
 
 ### The tax rule sets
 

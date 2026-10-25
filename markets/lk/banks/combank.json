@@ -9,7 +9,8 @@
     ],
     "debit": "Debit",
     "credit": "Credit",
-    "reference": "Cheque No"
+    "reference": "Cheque No",
+    "balance": "Balance"
   },
   "date_format": "%d/%m/%Y",
   "decimal_separator": ".",

@@ -6,6 +6,7 @@ read their synthetic sample, and are the one picked from all of them.
 import csv
 import io
 import json
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -46,6 +47,11 @@ def test_each_format_reads_its_sample_and_is_picked_among_all(path: Path):
     mine = next(o for o in outcomes if o.name == own.name)
     assert mine.parsed == len(alone.lines)
     assert all(o.parsed == 0 for o in outcomes if o is not mine)
+    if "balance" in doc["columns"]:
+        # The running balance gives the statement's own opening and closing.
+        [(opening, closing)] = alone.balances.values()
+        moved = sum((ln.amount if ln.credit_flag else -ln.amount for ln in alone.lines), Decimal(0))
+        assert opening is not None and opening + moved == closing
 
 
 EXAMPLE = {
@@ -109,3 +115,29 @@ def test_the_importer_counts_each_format_it_tried():
         ("Otro", 0, False),
         ("Banco Ficticio", 1, True),
     ]
+
+
+async def test_checking_a_statement_reads_it_and_stores_nothing():
+    from unittest.mock import MagicMock
+
+    from salli.application.services.parsing_service import ParsingService
+
+    sample = b"""Fecha;Concepto;Importe;Saldo
+01.10.2026;Saldo anterior;;1.000,00
+02.10.2026;Nomina;2.500,00;3.500,00
+05.10.2026;Alquiler;-900,00;2.600,00
+"""
+    doc = {**EXAMPLE, "columns": {**EXAMPLE["columns"], "balance": "Saldo"}}
+    uow = MagicMock()
+    result = await ParsingService(uow).check(
+        "u1", "octubre.csv", sample, currency="EUR", bank_formats=[load_bank_format(doc)]
+    )
+    uow.assert_not_called()
+    assert result["transactions"] == 2
+    assert (result["money_in"], result["money_out"]) == (Decimal("2500"), Decimal("900"))
+    assert (result["opening_balance"], result["closing_balance"]) == (
+        Decimal("1000"),
+        Decimal("2600"),
+    )
+    assert result["balances_agree"] is True
+    assert (result["first_date"], result["last_date"]) == ("2026-10-02", "2026-10-05")

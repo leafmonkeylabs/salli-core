@@ -69,12 +69,14 @@ def test_the_server_has_only_operator_commands():
         "db upgrade",
         "db current",
         "members add",
+        "members invite",
         "members list",
         "members reset-password",
         "secrets init",
         "jobs run-advisor",
         "jobs sync-banks",
         "jobs send-digests",
+        "jobs send-usage",
         "jobs recompute-tax",
     }
 

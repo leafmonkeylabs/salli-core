@@ -75,6 +75,7 @@ from salli.application.services.tax_rule_service import (
 )
 from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.unit_of_work import AuditRecord, pending_audit
+from salli.config import get_settings
 from salli.domain.accounting.models import AccountNotEmpty, BooksLocked
 from salli.domain.agents.tools import computation_for_agent
 from salli.domain.agents.untrusted import UNTRUSTED_RULE, fence, fence_document, untrusted
@@ -85,6 +86,7 @@ from salli.domain.decisions.templates import TemplateError, UnknownTemplate
 from salli.domain.fi import montecarlo
 from salli.domain.scenarios import schema as scenario_schema
 from salli.domain.scenarios.engine import STALE_AFTER_DAYS, ScenarioError
+from salli.interfaces.api import experimental
 
 #: Scenario documents (salli.scenario/1), as the tools take them: objects,
 #: with their JSON Schema once, in get_scenario_schema, rather than written
@@ -2250,4 +2252,9 @@ def build_mcp_server(
         can_i_afford,
         think_through_decision,
     )
+    if not get_settings().salli_experimental:
+        for name in experimental.MCP_TOOLS:
+            mcp.remove_tool(name)
+        for name in experimental.MCP_PROMPTS:
+            mcp._prompt_manager._prompts.pop(name, None)  # noqa: SLF001
     return mcp

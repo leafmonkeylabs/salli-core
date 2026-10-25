@@ -12555,6 +12555,65 @@ export type StatementBalancesRequest = {
 };
 
 /**
+ * StatementCheck
+ *
+ * What a statement holds, read and not stored: to check a bank format
+ * against the bank's own figures.
+ */
+export type StatementCheck = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Transactions
+     */
+    transactions: number;
+    /**
+     * Money In
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    money_in: string;
+    /**
+     * Money Out
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    money_out: string;
+    /**
+     * First Date
+     */
+    first_date: string | null;
+    /**
+     * Last Date
+     */
+    last_date: string | null;
+    /**
+     * Opening Balance
+     */
+    opening_balance: string | null;
+    /**
+     * Closing Balance
+     */
+    closing_balance: string | null;
+    /**
+     * Balances Agree
+     */
+    balances_agree: boolean | null;
+    /**
+     * Errors
+     */
+    errors: Array<string>;
+    /**
+     * Formats
+     */
+    formats?: Array<FormatOutcomeView>;
+};
+
+/**
  * StatementFileUpload
  *
  * A statement file, and the bank formats to read it with.
@@ -18138,6 +18197,44 @@ export type StatementsUploadResponses = {
 };
 
 export type StatementsUploadResponse = StatementsUploadResponses[keyof StatementsUploadResponses];
+
+export type StatementsCheckData = {
+    body: StatementFileUpload;
+    path?: never;
+    query?: {
+        /**
+         * Currency
+         */
+        currency?: string | null;
+        /**
+         * Date Order
+         */
+        date_order?: 'DMY' | 'MDY' | 'YMD' | null;
+    };
+    url: '/v1/statements/check';
+};
+
+export type StatementsCheckErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type StatementsCheckError = StatementsCheckErrors[keyof StatementsCheckErrors];
+
+export type StatementsCheckResponses = {
+    /**
+     * Successful Response
+     */
+    200: StatementCheck;
+};
+
+export type StatementsCheckResponse = StatementsCheckResponses[keyof StatementsCheckResponses];
 
 export type StatementsDraftData = {
     body: DraftRequest;
