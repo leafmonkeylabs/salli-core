@@ -17,14 +17,14 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from pydantic import ValidationError
 
 from salli.application.fx import published_rate
 from salli.application.market_data import symbol_key
 from salli.application.ports import FxRatePort
-from salli.application.services.portfolio_service import history
+from salli.application.services.portfolio_service import history, rule_set_method
 from salli.application.services.tax_service import ADD_RULES
 from salli.domain.baseline import (
     Baseline,
@@ -50,6 +50,7 @@ from salli.domain.fi.assumptions import (
 )
 from salli.domain.jurisdiction import country_phrase
 from salli.domain.money import from_minor
+from salli.domain.portfolio.lots import CostMethod
 from salli.domain.portfolio.valuation import Close
 from salli.domain.reports.forecast import Flow
 from salli.domain.taxrules.inputs import dates_needing_rates, role_postings
@@ -130,11 +131,13 @@ def holding_inputs(
     prices: Iterable[dict[str, Any]],
     base: str,
     as_of: dt.date,
+    method: CostMethod | None = None,
 ) -> list[HoldingInputs]:
     """Each of the user's holdings (sold ones too) with its transactions and
     the closes recorded for its symbol in its currency, both dated on or
     before `as_of`: what the baseline values it from. Its symbol and name
-    are the person's own."""
+    are the person's own. Its sales are costed by its own `cost_method`,
+    else `method` (the active tax rules' `cost_basis`), else fifo."""
     rows: dict[str, list[dict[str, Any]]] = {}
     for row in transactions:
         rows.setdefault(row["holding_id"], []).append(row)
@@ -162,7 +165,7 @@ def holding_inputs(
                 closes=tuple(sorted(closes, key=lambda c: c.on)),
                 declared_value=from_minor(h.get("current_value_minor") or 0, base),
                 is_active=bool(h.get("is_active", True)),
-                cost_method="average" if h.get("cost_method") == "average" else "fifo",
+                cost_method=cast(CostMethod, h.get("cost_method") or method or "fifo"),
             )
         )
     return out
@@ -293,6 +296,7 @@ class BaselineService:
                     await uow.holding_prices.list(user_id, None, None, day),
                     base,
                     as_of,
+                    await rule_set_method(uow, user_id, as_of),
                 )
                 if held
                 else []

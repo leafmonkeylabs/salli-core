@@ -561,7 +561,10 @@ def cash_plan(
     planned: list[Decimal] = [Decimal(0)]
     for i in range(1, len(months)):
         scheduled = sum((s[i] for s in schedules), Decimal(0))
-        planned.append(_money((surplus + already) * levels[i] - scheduled, currency))
+        # Rounded before the schedule comes off, so a payment freed moves the
+        # month's part by exactly that payment (half a unit rounds away from
+        # zero, so rounding after would not).
+        planned.append(_money((surplus + already) * levels[i], currency) - scheduled)
 
     # The as-of month's rest: what an average month's surplus is beyond its
     # schedule (the schedule averaged over the daily timeline's twelve full

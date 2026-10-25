@@ -5,8 +5,9 @@ phases (docs/baseline.md#the-fi-plan). Pure domain: no I/O.
 - **Guaranteed income streams**: a pension, an annuity, a provident fund's
   payout. Each has a start month, a monthly amount in today's money (`real`)
   or in the start month's own money (`nominal`), whether it is indexed
-  (keeps its value against inflation from its start) and an optional lump
-  sum paid in its start month. A stream reduces the spending the FI number
+  (keeps its value against inflation from its start), an optional lump
+  sum paid in its start month and an optional income role of the tax rules
+  it is taxed under (`tax_role`), beside which withdrawals are taxed. A stream reduces the spending the FI number
   must fund from its start, and enters the monthly timeline as cash coming
   in. One that started on or before the as-of month is already in the
   ledger's income, so it only reduces the FI number.
@@ -45,6 +46,9 @@ class IncomeStream:
     #: Paid once in its start month, in the same terms.
     lump_sum: Decimal = Decimal(0)
     source: str | None = None
+    #: The income role of the active tax rules it is taxed under, if any:
+    #: withdrawals are taxed beside it (`fi.gross_up`).
+    tax_role: str | None = None
 
     def real_at(self, level: Decimal, level_at_start: Decimal) -> Decimal:
         """A month's payment in today's money, in a month whose price level
@@ -106,6 +110,7 @@ class FiPlan:
                     "indexed": s.indexed,
                     "lump_sum": f"{s.lump_sum:f}",
                     "source": s.source,
+                    "tax_role": s.tax_role,
                 }
                 for s in self.streams
             ],
@@ -181,6 +186,7 @@ def parse(raw: object, born: dt.date | None = None) -> FiPlan:
                 indexed=indexed,
                 lump_sum=_amount(item.get("lump_sum", "0"), f"{at}.lump_sum"),
                 source=_text(item.get("source"), f"{at}.source"),
+                tax_role=_text(item.get("tax_role"), f"{at}.tax_role"),
             )
         )
     phases: list[SpendingPhase] = []

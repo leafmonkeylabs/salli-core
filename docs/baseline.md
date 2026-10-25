@@ -225,8 +225,10 @@ invest, the later it comes.
 - **Gross of tax.** When your active tax rules (in your base currency)
   declare an income role keyed `withdrawal`, the year's spending is grossed
   up to what must be withdrawn so that, after the tax those rules take on
-  the withdrawal alone, the spending is left (the as-of year's rules, their
-  bands level in today's money). Without such a role it is not, and the
+  it, the spending is left (the as-of year's rules, their bands level in
+  today's money). The tax is marginal: what the rules take on the year's
+  guaranteed income that names an income role (`tax_role`) with the
+  withdrawal, less what they take on that income alone. Without such a role it is not, and the
   odds say so (`withdrawal_tax.status` `not_computed`). Add the role to
   your rule set to have it taxed.
 
@@ -240,7 +242,7 @@ plan.json`, `PUT /v1/fi/plan`); no model chooses them:
   "income_streams": [
     {"name": "Work pension", "start": "2049-04", "monthly": "1200.00",
      "terms": "real", "indexed": true, "lump_sum": "30000.00",
-     "source": "statement of 2026"}
+     "tax_role": "pension", "source": "statement of 2026"}
   ],
   "spending_phases": [
     {"from_age": 60, "monthly": "3000.00"},
@@ -255,7 +257,8 @@ plan.json`, `PUT /v1/fi/plan`); no model chooses them:
   from its start; otherwise it is fixed in money and inflation wears it
   down. `lump_sum` is paid once in its start month. A stream that started
   on or before the as-of month is already in your ledger's income, so it
-  only reduces the FI number.
+  only reduces the FI number. `tax_role`, optional, is the income role of
+  your tax rules it is taxed under: withdrawals are taxed beside it.
 - **A phase** is the monthly spending to live on, in today's money, from an
   age on, by the date of birth on your profile. Before the first, or
   without a date of birth, your average spending applies.
@@ -317,6 +320,7 @@ The format, as JSON Schema (draft 2020-12):
     },
     "cash_yield": {"$ref": "#/$defs/figure"},
     "inflation": {"$ref": "#/$defs/figure"},
+    "degrees_of_freedom": {"$ref": "#/$defs/figure"},
     "mix": {
       "type": "object", "minProperties": 1,
       "additionalProperties": {"type": "string", "pattern": "^(0(\\.\\d+)?|1(\\.0+)?)$"}
@@ -337,7 +341,9 @@ The format, as JSON Schema (draft 2020-12):
 
 Values are yearly fractions in decimal strings ("0.05" is 5%): a real return
 from -0.10 to 0.20, a volatility from 0 to 0.80, a cash yield from -0.10 to
-0.10, inflation from -0.05 to 1, a correlation from -1 to 1. A correlation
+0.10, inflation from -0.05 to 1, a correlation from -1 to 1; the optional
+`degrees_of_freedom` of the odds' Student-t draws, from 3 to 100 (the
+lower, the fatter the tails; without it, 5, a labelled placeholder). A correlation
 not listed is 0; the mix names classes of the pack and sums to 1. An example,
 for a fictional market XA:
 
@@ -368,8 +374,10 @@ for a fictional market XA:
 monthly timeline, in today's money. No model computes or chooses any of it.
 
 - **Returns.** Each of `paths` paths (1,000 by default) draws a month's real
-  return for the investments from a normal distribution: the real return
-  over twelve, the volatility over √12. Draws come from a seeded generator
+  return for the investments from a Student-t distribution, whose fat tails
+  bring crashes and booms more often than a normal's: the real return over
+  twelve, the volatility over √12 (the draws scaled to keep it), with the
+  pack's `degrees_of_freedom` (else 5, listed in `placeholders`). Draws come from a seeded generator
   (`seed`, 1 by default), each written to nine places as a Decimal, so the
   same seed gives the same figures.
 - **Building up**, to the retirement month (`retire_month`, by default the
@@ -414,10 +422,10 @@ date) are in it once you have any.
 
 ## What is not modelled yet
 
-- Fat tails, serial correlation and asset classes drawn apart: the odds
-  draw one normal return for the mix a month.
-- Tax on withdrawals beside other income in retirement: the gross-up taxes
-  the withdrawal alone.
+- Serial correlation and asset classes drawn apart: the odds draw one
+  return for the mix a month, each month independent.
+- Taxable income in retirement beyond guaranteed income streams (gains,
+  rent): the gross-up taxes the withdrawal beside those streams alone.
 
 - Extra payments and new loans are changes a [scenario](scenarios.md) makes;
   the baseline is where they start.

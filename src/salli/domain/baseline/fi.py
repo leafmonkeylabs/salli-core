@@ -16,8 +16,11 @@ agree: a scenario with no changes has the baseline's FI exactly.
 - **Gross of tax.** When the user's active tax rules declare an income
   role keyed `withdrawal`, the spending a year is grossed up to what must be
   withdrawn so that, after the tax those rules take on it, the spending is
-  left (`gross_up`; the as-of year's rules, level in today's money). Without
-  such a role it is not, and `withdrawal_tax` says so.
+  left (`gross_up`; the as-of year's rules, level in today's money). The
+  tax is marginal: what the rules take on the year's other taxable income
+  (guaranteed income streams naming an income role, `taxed_income`) with
+  the withdrawal, less what they take on that income alone. Without such a
+  role it is not, and `withdrawal_tax` says so.
 - **Guaranteed income and spending phases** (`domain/fi/plan.py`): the
   number at a month is built on that month's spending (its phase's, or the
   baseline's, plus a scenario's change) less the guaranteed income paying
@@ -34,7 +37,7 @@ agree: a scenario with no changes has the baseline's FI exactly.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -97,15 +100,21 @@ def withdrawal_tax(baseline: Baseline) -> dict[str, Any]:
     }
 
 
-def gross_up(baseline: Baseline, annual: Decimal) -> Decimal:
+def gross_up(
+    baseline: Baseline, annual: Decimal, other: Mapping[str, Decimal] | None = None
+) -> Decimal:
     """What must be withdrawn in a year so that `annual` is left after the
-    tax the withdrawal rules take on it; `annual` itself without such rules
-    (or if they fail). To the cent; memoised on the baseline's tax cache."""
+    tax the withdrawal rules take on it beside `other` (the year's other
+    taxable income by income role, `taxed_income`): the tax on both less the
+    tax on `other` alone. `annual` itself without such rules (or if they
+    fail). To the cent; memoised on the baseline's tax cache."""
     rules = _withdrawal_rules(baseline)
     if rules is None or annual <= 0:
         return annual
+    declared = {x.key for x in rules.document.roles if x.kind == "income"}
+    beside = {k: v for k, v in (other or {}).items() if k in declared and v > 0}
     memo = baseline.tax.memo
-    key = ("gross_up", rules.ref.content_hash, annual)
+    key = ("gross_up", rules.ref.content_hash, annual, tuple(sorted(beside.items())))
     if key in memo:
         return memo[key]
     compiled = memo.get(("compiled", rules.ref.content_hash))
@@ -114,11 +123,18 @@ def gross_up(baseline: Baseline, annual: Decimal) -> Decimal:
             compiled = compile_rule_set(rules.document)
             memo[("compiled", rules.ref.content_hash)] = compiled
 
+        def tax(withdrawn: Decimal) -> Decimal:
+            roles = {**beside, WITHDRAWAL_ROLE: beside.get(WITHDRAWAL_ROLE, 0) + withdrawn}
+            return max(evaluate(compiled, roles).net, Decimal(0))
+
+        alone = tax(Decimal(0))
+
         def left(gross: Decimal) -> Decimal:
-            tax = evaluate(compiled, {WITHDRAWAL_ROLE: gross}).net
-            return gross - max(tax, Decimal(0))
+            return gross - max(tax(gross) - alone, Decimal(0))
 
         low, high = annual, annual * 2
+        if left(low) >= annual:  # untaxed: nothing to gross up
+            high = low
         while left(high) < annual and high < annual * 100:
             high *= 2
         while high - low > _CENT:
@@ -142,13 +158,31 @@ def fi_number(baseline: Baseline, monthly_spending: Decimal | None = None) -> De
     withdrawals, over the safe withdrawal rate; zero without spending or a
     rate. The as-of month's figure of `fi_numbers`."""
     spend = spending(baseline) if monthly_spending is None else monthly_spending
-    return _number(baseline, need(baseline, baseline.as_of.isoformat()[:7], spend, {}))
+    month = baseline.as_of.isoformat()[:7]
+    return _number(baseline, need(baseline, month, spend, {}), taxed_income(baseline, month, {}))
 
 
-def _number(baseline: Baseline, monthly_need: Decimal) -> Decimal:
+def _number(
+    baseline: Baseline, monthly_need: Decimal, other: Mapping[str, Decimal] | None = None
+) -> Decimal:
     swr = baseline.assumptions.safe_withdrawal_rate.value
     annual = monthly_need * 12
-    return gross_up(baseline, annual) / swr if annual > 0 and swr > 0 else Decimal(0)
+    return gross_up(baseline, annual, other) / swr if annual > 0 and swr > 0 else Decimal(0)
+
+
+def taxed_income(
+    baseline: Baseline, month: str, levels: Mapping[str, Decimal]
+) -> dict[str, Decimal]:
+    """A year at `month`'s rate of the guaranteed income paying then that
+    names an income role (`tax_role`), by role, in today's money: what the
+    withdrawal is taxed beside. `levels` as for `need`."""
+    out: dict[str, Decimal] = {}
+    for stream in baseline.plan.streams:
+        if stream.tax_role and month >= stream.start:
+            level = levels.get(month, Decimal(1))
+            real = stream.real_at(level, levels.get(stream.start, Decimal(1)))
+            out[stream.tax_role] = out.get(stream.tax_role, Decimal(0)) + real * 12
+    return out
 
 
 def need(baseline: Baseline, month: str, spend: Decimal, levels: dict[str, Decimal]) -> Decimal:
@@ -177,7 +211,14 @@ def fi_numbers(
     if baseline.plan.empty:
         return [fi_number(baseline, spend)] * len(points)
     levels = {p.month: p.deflator for p in points[1:]}
-    return [_number(baseline, need(baseline, p.month, spend, levels)) for p in points]
+    return [
+        _number(
+            baseline,
+            need(baseline, p.month, spend, levels),
+            taxed_income(baseline, p.month, levels),
+        )
+        for p in points
+    ]
 
 
 def asset_base(point: timelines.MonthPoint) -> Decimal:
