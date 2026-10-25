@@ -250,17 +250,17 @@ async def test_an_unknown_key_id_fetches_the_keys_again_once(auth):
 
 
 async def test_an_unsigned_token_is_refused(auth):
-    from jose import jwt
+    import jwt
 
-    unsigned = jwt.encode({"sub": "x"}, "secret", algorithm="HS256")
+    unsigned = jwt.encode({"sub": "x"}, "s" * 32, algorithm="HS256")
     with pytest.raises(SignInError, match="not signed the way OpenAI signs"):
         await auth.oauth().verify_id_token(unsigned, client_id="oaiapp_test")
 
 
 async def test_the_id_token_is_bound_to_its_access_token_when_it_says_so(auth):
-    from jose.utils import calculate_at_hash
-
-    token = auth.signer.id_token(at_hash=calculate_at_hash("access-1", hashlib.sha256))
+    digest = hashlib.sha256(b"access-1").digest()
+    at_hash = base64.urlsafe_b64encode(digest[:16]).rstrip(b"=").decode()
+    token = auth.signer.id_token(at_hash=at_hash)
     oauth = auth.oauth()
     assert await oauth.verify_id_token(token, client_id="oaiapp_test", access_token="access-1")
     with pytest.raises(SignInError):

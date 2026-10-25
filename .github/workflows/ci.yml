@@ -206,23 +206,27 @@ jobs:
   security:
     # Known vulnerabilities in what ships: the Python dependencies as uv.lock
     # pins them (without the dev group), and the npm packages' runtime
-    # dependencies at high severity or above. Not yet a gate: it reports the
-    # findings already in the lock files until Dependabot's updates clear
-    # them, then continue-on-error goes.
+    # dependencies at high severity or above. A gate: each accepted advisory
+    # is named below, with why (docs/security.md, "Accepted advisories").
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           version: "0.12.18"
       - name: pip-audit
+        # PYSEC-2026-4146 (PyJWT, no fixed release): decode() changes an
+        # options dict it is given when verify_signature is off. Salli never
+        # turns it off and passes a new dict on every call.
         run: |
           uv export --frozen --no-dev --no-emit-project --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
-          uvx pip-audit==2.10.1 --strict --disable-pip --requirement "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit==2.10.1 --strict --disable-pip --requirement "$RUNNER_TEMP/requirements.txt" \
+            --ignore-vuln PYSEC-2026-4146
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
       - name: npm audit
+        # npm audit --omit=dev --audit-level=high, but for the advisories in
+        # .github/audit/npm-allowlist.json, each at the path it names.
         if: ${{ !cancelled() }}
-        run: npm audit --omit=dev --audit-level=high
+        run: node .github/audit/npm-audit.mjs

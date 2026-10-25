@@ -66,7 +66,7 @@ common criteria, C confidentiality, PI processing integrity, P privacy.
 | Data rights | Export everything (`GET /v1/onboarding/export`), conversations with the AI included, and erase the account (`DELETE /v1/onboarding/account`): every row in one transaction, then the uploaded files and the conversations in LangGraph's checkpoint tables, any part left over said in the response and the log | `interfaces/api/routers/onboarding.py`, `application/services/data_portability_service.py`, `adapters/db/repositories.py`, `adapters/db/conversations.py`, `adapters/storage/local.py` | P4, P5 |
 | Container | Non-root user, base images pinned by digest, healthcheck; published images carry an SBOM and a provenance attestation | `Dockerfile`, `.github/workflows/image.yml` | CC7.1, CC8.1 |
 | Releases | npm versions are staged and reach no one until a maintainer approves with 2FA; publishing through OIDC with provenance, no stored npm credential; image pushes wait for approval | `.github/workflows/release.yml`, `RELEASING.md` | CC8.1 |
-| Supply chain | Actions pinned to commit SHAs; Dependabot weekly; CodeQL for Python and TypeScript; pip-audit and npm audit; gitleaks over the history | `.github/workflows/`, `.github/dependabot.yml` | CC7.1 |
+| Supply chain | Actions pinned to commit SHAs; Dependabot weekly; CodeQL for Python and TypeScript; pip-audit and npm audit fail the build on a known vulnerability in what ships (npm at high or above), except the advisories accepted below; gitleaks over the history | `.github/workflows/`, `.github/dependabot.yml`, `.github/audit/` | CC7.1 |
 | Change management | Every pull request runs lint, type checks, the tests (including the API contract) and the console's browser tests | `.github/workflows/ci.yml` | CC8.1 |
 | Disclosure | Private reporting, response times, supported versions | `SECURITY.md` | CC2.3, CC7.3 |
 | Processors | Who else sees personal data, what and when | `docs/privacy.md` | CC9.2 |
@@ -75,9 +75,23 @@ common criteria, C confidentiality, PI processing integrity, P privacy.
 | **Not yet:** encryption at rest | Only the secrets above are sealed. The database and uploaded files are as encrypted as the operator's disk and backups | | CC6.1, C1.1 |
 | **Not yet:** database-enforced ledger and audit log | Entries and the audit log are kept unchanged by the code, not by a trigger as the decision journal is | | PI1, CC7.2 |
 | **Not yet:** complete audit trail | Changes a person makes through the API, and sign-ins, are not in the audit log | | CC7.2 |
-| **Not yet:** dependency audit as a gate | The audit job reports and does not fail the build until the current findings are fixed | `.github/workflows/ci.yml` | CC7.1 |
 | **Not yet:** signed artefacts | Images carry provenance but no signature; the macOS and Windows binaries are not code-signed | `RELEASING.md` | CC8.1 |
 | **Not yet:** penetration test | No external test or audit has been done | | CC4.1 |
+
+## Accepted advisories
+
+Known advisories the audit lets through, each with no fixed release that
+Salli can take. Every other one fails CI's `security` job.
+
+| Advisory | Where | Why it is accepted |
+|---|---|---|
+| PYSEC-2026-4146 (PyJWT) | The server | `decode()` writes into an `options` dict it is given when signature checks are off. Salli never turns them off and passes a new dict on every call. |
+| GHSA-86w9-cpqp-85rv (node-forge) | The app's build tools | Reached only through `@expo/cli`, Expo's command line, which builds the app and is not part of it. No node-forge release fixes it, and Expo SDK 58 has no `@expo/cli` without it. |
+| GHSA-mrhx-c7xc-m3w5 (zod 3) | The app's build tools | The copy `@expo/cli` requires; zod 3 has no fixed release. The app's own zod, which the AI SDK uses on the phone, is 4.6.7. |
+
+The npm entries are in `.github/audit/npm-allowlist.json`, each for the one
+installed path named, so the same advisory anywhere else still fails. Each
+goes when a release fixes it.
 
 ## What the operator owns
 

@@ -72,6 +72,19 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   first, with its messages in order (role, text, and the tools called, by
   name only).
 
+### Security
+
+- **No known vulnerability in what ships, and CI now fails on one.** Python:
+  aiohttp 3.14.5, anyio 4.15.1, certifi 2026.10.23, cryptography 50.0.2,
+  langgraph-checkpoint-postgres 3.1.3, langgraph-sdk 0.4.4, langsmith 0.8.18,
+  mcp 1.30.0, multidict 6.9.1, pillow 13.0.0, pydantic-settings 2.14.2,
+  PyJWT 2.15.1, pypdf 6.21.2 and urllib3 2.8.0. python-jose, which has an
+  unfixed key-confusion flaw and brought in ecdsa (also unfixed), is replaced
+  by PyJWT for the MCP sign-in link and ChatGPT's ID token. The app: zod 4.6.7
+  for the AI SDK, js-yaml 4.3.2, and `@bacons/apple-targets` on the same
+  `@expo/plist` as Expo. The three advisories that remain, with no fixed
+  release, are listed with why in [docs/security.md](docs/security.md#accepted-advisories).
+
 ### Breaking
 
 #### Changed
