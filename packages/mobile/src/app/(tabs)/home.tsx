@@ -2,12 +2,12 @@ import {
   accountsList,
   compareAmounts,
   decisionsReviewsDue,
-  entriesList,
   fiScoreGet,
   insightsForecast,
   insightsNetWorth,
   insightsSafeToSpend,
   insightsSignals,
+  isZeroAmount,
   ledgerIncomeStatement,
   remindersList,
   remindersMarkDone,
@@ -121,6 +121,19 @@ export default function Home() {
                   label={t.lowSpoken(`${forecast.data.lowest} ${forecast.data.currency}`, displayDate(forecast.data.lowest_date))}
                 />
               ) : null}
+              {/* What the figure is made of, the server's figures and notes as it sends them. */}
+              <View style={styles.parts}>
+                <Part label={t.cashToday} amount={safe.data.cash_today} currency={safe.data.currency} />
+                <Part label={t.everyday} amount={safe.data.everyday_spending} currency={safe.data.currency} />
+                <Part label={t.cushion} amount={safe.data.cushion} currency={safe.data.currency} />
+                {!isZeroAmount(safe.data.held_for_goals) ? <Part label={t.goals} amount={safe.data.held_for_goals} currency={safe.data.currency} /> : null}
+                <Part label={t.lowPoint(displayDay(safe.data.low_point_date))} amount={safe.data.low_point} currency={safe.data.currency} />
+              </View>
+              {safe.data.notes.map((note, i) => (
+                <Text key={i} style={[styles.tileSmall, { color: theme.tileMuted }]}>
+                  {note}
+                </Text>
+              ))}
             </>
           ) : (
             <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{reach.unreachable ? strings.reach.notKnown : t.loading('safe to spend')}</Text>
@@ -160,8 +173,22 @@ export default function Home() {
           </Tile>
         </View>
 
-        <Attention unreachable={reach.unreachable} />
+        {/* First run books opening balances, not flows: no month of income and spending yet, and importing a statement comes first. */}
+        <Attention unreachable={reach.unreachable} noFlows={fi.data?.months_observed === 0} />
       </ScrollView>
+    </View>
+  );
+}
+
+/** One part of free until payday, on the tile: what it is and the server's amount. */
+function Part({ label, amount, currency }: { label: string; amount: string; currency: string }) {
+  const theme = useTheme();
+  return (
+    <View accessible accessibilityLabel={`${label}: ${amountParts(amount, currency).spoken}`} style={styles.part}>
+      <Text style={[styles.tileSmall, { color: theme.tileMuted, flex: 1 }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <Money amount={amount} currency={currency} onTile style={styles.partFigure} />
     </View>
   );
 }
@@ -227,7 +254,7 @@ function Ring({ share, text }: { share: number; text: string }) {
 }
 
 /** What needs attention: Salli's signals, reminders due, decisions due for review. */
-function Attention({ unreachable }: { unreachable: boolean }) {
+function Attention({ unreachable, noFlows }: { unreachable: boolean; noFlows: boolean }) {
   const theme = useTheme();
   const api = useApi();
   const queryClient = useQueryClient();
@@ -297,8 +324,6 @@ function Attention({ unreachable }: { unreachable: boolean }) {
   const loading = signals.isPending || reminders.isPending || reviews.isPending;
   // Nothing can be said to need nothing when a read never came back.
   const unknown = !signals.data || !reminders.data || !reviews.data;
-  // Nothing needs attention: with empty books, the first thing to do is to fill them.
-  const entries = useRead('entries.list', entriesList, undefined, { enabled: !loading && !unknown && rows.length === 0 });
 
   return (
     <Card style={{ paddingVertical: 4 }}>
@@ -315,7 +340,7 @@ function Attention({ unreachable }: { unreachable: boolean }) {
         <Body muted style={{ paddingVertical: 12 }}>
           {strings.reach.notKnown}
         </Body>
-      ) : rows.length === 0 && entries.data?.length === 0 ? (
+      ) : rows.length === 0 && noFlows ? (
         <Line title={t.importStatement} {...open(() => router.push('/import'))} last />
       ) : rows.length === 0 ? (
         <Body muted style={{ paddingVertical: 12 }}>
@@ -364,6 +389,9 @@ const styles = StyleSheet.create({
   plus: { width: size.target, height: size.target, alignItems: 'center', justifyContent: 'center' },
   tileLine: { fontFamily: font.regular, fontSize: 15, lineHeight: 21 },
   tileSmall: { fontFamily: font.regular, fontSize: size.small },
+  parts: { gap: 2, marginTop: 4 },
+  part: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  partFigure: { fontSize: size.small },
   tiles: { flexDirection: 'row', gap: 8 },
   tile: { flex: 1, padding: 12 },
   tileLabel: { fontFamily: font.regular, fontSize: 13 },

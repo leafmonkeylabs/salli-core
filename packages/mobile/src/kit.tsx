@@ -316,6 +316,32 @@ export function LinesTable({ lines, currency, changeLabel, total = true }: { lin
   );
 }
 
+/** One of a few options, as a row of chips: a radio group under its label. */
+export function Choice<V extends string | number>({ label, options, chosen, onPick }: { label: string; options: readonly { id: V; text: string }[]; chosen: V | undefined; onPick: (v: V) => void }) {
+  const theme = useTheme();
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={[styles.choiceLabel, { color: theme.text }]}>{label}</Text>
+      <View accessibilityRole="radiogroup" style={styles.choices}>
+        {options.map((o) => {
+          const on = o.id === chosen;
+          return (
+            <Pressable
+              key={String(o.id)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+              onPress={() => onPick(o.id)}
+              style={[styles.choice, { borderColor: on ? theme.text : theme.rule, backgroundColor: on ? theme.text : theme.card, borderRadius: Math.min(theme.control, 999) }]}
+            >
+              <Text style={[styles.choiceText, { color: on ? theme.work : theme.text }]}>{o.text}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 /**
  * A switch as the design draws it: square, ledger green with a paper knob
  * when on (sand and night on night), outlined with a stone knob when off. The
@@ -427,6 +453,10 @@ export function Icon({ name, size: px = 24, colour, fill = 'none' }: { name: Ico
 }
 
 const styles = StyleSheet.create({
+  choiceLabel: { fontFamily: font.medium, fontSize: size.small },
+  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  choice: { borderWidth: 1, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
+  choiceText: { fontFamily: font.regular, fontSize: size.body },
   monoInline: { fontFamily: font.mono, fontSize: size.small },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8 },
   track: { width: 48, height: 28, padding: 3, flexDirection: 'row', alignItems: 'center' },

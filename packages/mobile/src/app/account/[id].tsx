@@ -1,9 +1,11 @@
-import { accountsOverview } from '@leafmonkeylabs/salli-sdk';
+import { accountsOverview, accountsUpdate, type UpdateAccountRequest } from '@leafmonkeylabs/salli-sdk';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
-import { useRead } from '../../api';
-import { AmountRow, Body, Card, CardHead, Money, Title, Waiting } from '../../kit';
+import { useApi, useRead } from '../../api';
+import { AmountRow, Body, Card, CardHead, Choice, Money, Title, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
+import { ROLES } from '../../lib/firstrun';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
 import { font, useTheme } from '../../theme';
@@ -19,6 +21,13 @@ export default function Account() {
   const data = overview.data;
   // Newest first, as a phone reads a list; the server sends them oldest first.
   const newest = data ? [...data.transactions].reverse().slice(0, SHOWN) : [];
+  const api = useApi();
+  const queryClient = useQueryClient();
+  // What an asset account is (as First run asks): savings are kept apart from cash to spend.
+  const role = useMutation({
+    mutationFn: (body: UpdateAccountRequest) => api.call(accountsUpdate, { path: { account_id: id }, body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.server] }),
+  });
 
   return (
     <Page back={{ label: t.back, onPress: () => router.back() }} onRefresh={() => overview.refetch()}>
@@ -34,6 +43,17 @@ export default function Account() {
             </Body>
             <Money amount={data.balance ?? data.current_balance} currency={data.account.currency} figure="key" />
           </Card>
+          {data.account.type === 'asset' ? (
+            <Card style={{ gap: 8 }}>
+              <Choice
+                label={strings.firstRun.kindOf(data.account.name)}
+                options={ROLES.map((r) => ({ id: r, text: strings.firstRun.roles[r] ?? r }))}
+                chosen={role.isPending ? (role.variables.asset_role ?? undefined) : (data.account.asset_role ?? undefined)}
+                onPick={(asset_role) => role.mutate({ code: data.account.code, name: data.account.name, type: data.account.type, asset_role })}
+              />
+              {role.error ? <Body alert>{role.error.message}</Body> : null}
+            </Card>
+          ) : null}
           <Card style={{ paddingVertical: 12 }}>
             <CardHead label={t.entries} help={t.runningBalance} end={data.account.currency} />
             {newest.length ? (

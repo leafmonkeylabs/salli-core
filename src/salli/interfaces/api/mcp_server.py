@@ -399,9 +399,11 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     @mcp.tool(annotations=READS)
     async def get_overview() -> dict[str, Any]:
         """Start here: where the user stands today, in one call. Net worth,
-        cash, free until payday (amount, until, its low point and day), what
-        needs attention (signals), the FI month and progress (a fraction; 1
-        is FI), reminders due within 30 days or overdue, and how fresh the
+        cash, savings (kept apart from cash; net worth counts both), free
+        until payday (amount, until, its low point and day), what needs
+        attention (signals), the FI month and progress (a fraction; 1 is
+        FI; both null while fi.status is not_enough_data, under two full
+        months observed), reminders due within 30 days or overdue, and how fresh the
         ledger is: when is_stale, say its newest entry is from data_as_of
         before deciding anything. Every figure is Salli's: quote it. The
         other tools have the detail."""
@@ -415,18 +417,22 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         )
         today, latest = baseline.as_of, baseline.latest_entry
         within = (today + datetime.timedelta(days=30)).isoformat()
+        scored = score["status"] == "ok"
         return {
             "as_of": today.isoformat(),
             "currency": baseline.currency,
             "net_worth": str(quantize(baseline.net_worth, baseline.currency, strict=False)),
             "cash": safe["cash_today"],
+            "savings": str(quantize(baseline.savings, baseline.currency, strict=False)),
             "free_until_payday": {
                 k: safe[k] for k in ("amount", "until", "low_point", "low_point_date")
             },
             "signals": [{"kind": s["kind"], "title": s["title"]} for s in signals["signals"]],
             "fi": {
-                "month": score["projected_fi_month"],
-                "progress": score["progress_to_fi"],
+                "status": score["status"],
+                "months_observed": score["months_observed"],
+                "month": score["projected_fi_month"] if scored else None,
+                "progress": score["progress_to_fi"] if scored else None,
                 "assumptions": score["assumptions"]["status"],
             },
             "due": [

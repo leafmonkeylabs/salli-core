@@ -61,6 +61,7 @@ async def test_the_overview_is_salli_s_figures_in_one_call(services):
         as_of=dt.date(2026, 10, 25),
         currency="EUR",
         net_worth=Decimal("48210.456"),
+        savings=Decimal("9000"),
         latest_entry="2026-10-24",
     )
     services.insights.safe_to_spend.return_value = {
@@ -77,6 +78,8 @@ async def test_the_overview_is_salli_s_figures_in_one_call(services):
     services.fi.compute_score.return_value = {
         "projected_fi_month": "2041-03",
         "progress_to_fi": "0.18",
+        "status": "ok",
+        "months_observed": 14,
         "assumptions": {"status": "placeholder"},
     }
     services.reminders.list_reminders.return_value = [
@@ -91,6 +94,7 @@ async def test_the_overview_is_salli_s_figures_in_one_call(services):
         "currency": "EUR",
         "net_worth": "48210.46",
         "cash": "2310.00",
+        "savings": "9000.00",
         "free_until_payday": {
             "amount": "412.30",
             "until": "2026-10-31",
@@ -98,7 +102,13 @@ async def test_the_overview_is_salli_s_figures_in_one_call(services):
             "low_point_date": "2026-10-30",
         },
         "signals": [{"kind": "price_change", "title": "A subscription got dearer"}],
-        "fi": {"month": "2041-03", "progress": "0.18", "assumptions": "placeholder"},
+        "fi": {
+            "status": "ok",
+            "months_observed": 14,
+            "month": "2041-03",
+            "progress": "0.18",
+            "assumptions": "placeholder",
+        },
         "due": [{"kind": "File the return", "due_date": "2026-11-15", "source": "tax_rules"}],
         "data_as_of": "2026-10-24",
         "is_stale": False,
@@ -108,6 +118,16 @@ async def test_the_overview_is_salli_s_figures_in_one_call(services):
 
     services.baseline.build.return_value.latest_entry = "2026-08-01"
     assert (await _call(services, "get_overview", {}))["is_stale"] is True
+
+    # Under two full months of flows, the score's month and progress say nothing.
+    services.fi.compute_score.return_value |= {"status": "not_enough_data", "months_observed": 1}
+    assert (await _call(services, "get_overview", {}))["fi"] == {
+        "status": "not_enough_data",
+        "months_observed": 1,
+        "month": None,
+        "progress": None,
+        "assumptions": "placeholder",
+    }
 
 
 async def test_entries_are_found_with_totals_over_every_match(services):

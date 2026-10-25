@@ -9,11 +9,11 @@ import {
 } from '@leafmonkeylabs/salli-sdk';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../api';
-import { Body, Button, Card, SectionLabel } from '../kit';
+import { Body, Button, Card, Choice, SectionLabel } from '../kit';
 import { balancesOf, DRAWDOWNS, EXPERIENCE, goalsOf, HORIZONS, incomesOf, ROLES, rolesGiven, STABILITY, type Line } from '../lib/firstrun';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
@@ -264,31 +264,6 @@ function Goals({ goals, onChange }: { goals: (Line & { date: string })[]; onChan
   );
 }
 
-function Choice<V extends string | number>({ label, options, chosen, onPick }: { label: string; options: readonly { id: V; text: string }[]; chosen: V | undefined; onPick: (v: V) => void }): ReactNode {
-  const theme = useTheme();
-  return (
-    <View style={{ gap: 8 }}>
-      <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-      <View accessibilityRole="radiogroup" style={styles.choices}>
-        {options.map((o) => {
-          const on = o.id === chosen;
-          return (
-            <Pressable
-              key={String(o.id)}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on }}
-              onPress={() => onPick(o.id)}
-              style={[styles.choice, { borderColor: on ? theme.text : theme.rule, backgroundColor: on ? theme.text : theme.card, borderRadius: Math.min(theme.control, 999) }]}
-            >
-              <Text style={[styles.choiceText, { color: on ? theme.work : theme.text }]}>{o.text}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   header: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: size.gutter, paddingBottom: 12, gap: 12 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', minHeight: 36 },
@@ -301,8 +276,5 @@ const styles = StyleSheet.create({
   input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
   amount: { width: 120, textAlign: 'right', fontVariant: ['tabular-nums'] },
   lineRow: { flexDirection: 'row', gap: 8 },
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  choice: { borderWidth: 1, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
-  choiceText: { fontFamily: font.regular, fontSize: size.body },
   footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: size.gutter, paddingTop: 10 },
 });
