@@ -230,3 +230,5 @@ pasted tool output, and the tools called. Read fidelity with the counts: an
 agent that quotes most headlines correctly but invents figures elsewhere in
 its answers is doing the maths itself, which is what Salli exists to stop. The refusal category
 shows whether it declines what Salli can't tell, and advice it shouldn't give.
+
+The benchmark is [Apache-2.0](../benchmark/LICENSE): anyone may run it, publish results and cite it.

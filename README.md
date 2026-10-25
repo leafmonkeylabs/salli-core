@@ -326,4 +326,14 @@ The TypeScript SDK and CLI in [`packages/sdk`](packages/sdk) and
 apps and integrations can embed the SDK, or build their own UI on it, without
 taking on the AGPL.
 
+The fidelity benchmark in [`benchmark/`](benchmark) (questions, key, scorer
+and judge prompt) is [Apache-2.0](benchmark/LICENSE), so model vendors and
+others can run and cite it. So is the MCP tool interface: the tool names,
+argument and result schemas and descriptions the server publishes. An agent
+or client written against them takes on none of the AGPL.
+
+Running Salli on our hosted service needs no other licence. A commercial
+licence is for organisations that embed or modify the AGPL parts without
+sharing their changes ([business/commercial-licence.md](business/commercial-licence.md)).
+
 <p align="center"><sub><i>salli</i> is the Sinhala word for money.</sub></p>
