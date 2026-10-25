@@ -37,6 +37,7 @@ from typing import Any
 import typer
 from rich.markup import escape
 
+from salli.application.acting import act_as, acting_as
 from salli.interfaces.cli.support import console, emit, services
 
 members_app = typer.Typer(help="Who may use this instance", no_args_is_help=True)
@@ -289,6 +290,8 @@ def setup(
     else:
         console.print("[green]✓[/green] This instance already has an owner")
     user_id = str(owner["user_id"])
+    # From here, setup acts for the owner (application/acting.py).
+    act_as(user_id)
     base_currency = asyncio.run(svc.profile.get_base_currency(user_id))
     console.print(
         f"[green]✓[/green] Owner account ready ({escape(str(owner['email']))}, in {base_currency})"
@@ -461,7 +464,8 @@ def members_reset_password(
         raise typer.Exit(1) from exc
     ended: dict[str, int] = {"sessions": int(login["sessions_ended"])}
     if sign_out_everywhere:
-        ended = asyncio.run(logins.sign_out_everywhere(str(login["user_id"])))
+        with acting_as(str(login["user_id"])):
+            ended = asyncio.run(logins.sign_out_everywhere(str(login["user_id"])))
         ended["sessions"] += int(login["sessions_ended"])
     if emit(
         {

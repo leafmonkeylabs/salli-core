@@ -13,6 +13,7 @@ from typing import Annotated, Any, Literal
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from salli.application.acting import act_as
 from salli.application.entry_author import set_author, via_for
 from salli.application.permissions import Actor, is_recent, needs_step_up, permissions_for
 from salli.application.ports import IdentityProvider
@@ -26,6 +27,7 @@ from salli.application.services.login_service import (
 )
 from salli.application.services.mcp_oauth_service import API, has_salli_prefix
 from salli.application.services.personal_access_token_service import is_personal_access_token
+from salli.application.services.support_access_service import is_support_token
 from salli.composition import Services, build_services
 from salli.config import Settings, get_settings, insecure_dev_auth
 from salli.interfaces.api import idempotency
@@ -66,6 +68,8 @@ class Principal:
     `grant_id` is its sign-in).
     `pat`: a personal access token (scripts, CI).
     `dev`: the local-development fallback where the token is the user id.
+    `support`: the operator's support session on the person's books
+    (`support_session_id`), which only reads them (`get_principal`).
 
     What the caller may do beyond reading and writing the user's data follows
     from how they signed in (application/permissions.py), and is derived
@@ -79,7 +83,7 @@ class Principal:
 
     user_id: str
     email: str | None
-    method: Literal["session", "oauth", "pat", "dev"]
+    method: Literal["session", "oauth", "pat", "dev", "support"]
     #: For `oauth`: whether the token's client is one of Salli's own.
     first_party_client: bool = False
     #: For `oauth`: the client's name; for `pat`, the token's. Recorded as the
@@ -99,6 +103,8 @@ class Principal:
     #: For `oauth`: how recent its client wants that check to be for
     #: powerful permissions (the console's 300 seconds); None: no limit.
     fresh_within: timedelta | None = None
+    #: For `support`: the session.
+    support_session_id: str | None = None
 
     @property
     def permissions(self) -> frozenset[str]:
@@ -178,6 +184,10 @@ async def get_principal(
     request posts (application/entry_author.py)."""
     principal = await _principal(creds.credentials, settings, services)
     set_author(principal.user_id, via_for(principal.method, principal.client_id))
+    # Every transaction from here acts for them (application/acting.py).
+    act_as(principal.user_id)
+    if principal.support_session_id is not None:
+        await _support_read(principal, principal.support_session_id, request, services)
     # A POST's Idempotency-Key, claimed for the caller before the route runs
     if request is not None:
         await idempotency.claim(request, principal.user_id, services)
@@ -205,6 +215,11 @@ async def _principal(token: str, settings: Settings, services: Services) -> Prin
             client_name=verified.name,
             granted=verified.permissions,
         )
+    if is_support_token(token):
+        grant = await services.support.verify(token)
+        if grant is None:
+            raise _refused("This support session has ended.")
+        return Principal(grant.user_id, None, "support", support_session_id=grant.session_id)
     if is_session_token(token):
         session = await services.logins.verify_session(token)
         if session is None:
@@ -247,6 +262,27 @@ async def _principal(token: str, settings: Settings, services: Services) -> Prin
 
 
 CurrentPrincipal = Annotated[Principal, Depends(get_principal)]
+
+
+async def _support_read(
+    principal: Principal, session_id: str, request: Request | None, services: Services
+) -> None:
+    """A support session only reads the person's own books (GET, BOOKS_READS):
+    anything else is refused; each read goes in the person's audit log
+    before it is answered."""
+    path = request.url.path.removeprefix("/v1") if request is not None else ""
+    reads = (
+        request is not None
+        and request.method == "GET"
+        and request.headers.get(BOOKS_HEADER) in (None, principal.user_id)
+        and any(path == p or path.startswith(p + "/") for p in BOOKS_READS)
+    )
+    if not reads:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A support session only reads the person's books.",
+        )
+    await services.support.record_read(principal.user_id, session_id, path)
 
 
 #: The header naming another member's books to read, under their grant.
@@ -294,6 +330,7 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You may only read another member's books, where they have given you access.",
         )
+    act_as(books)
     return books
 
 

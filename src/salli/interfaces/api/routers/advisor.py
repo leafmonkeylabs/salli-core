@@ -12,6 +12,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, BackgroundTasks, status
 from pydantic import BaseModel, ConfigDict
 
+from salli.application.acting import acting_as
 from salli.application.ports import Surface
 from salli.domain.usage import UsageLimitReached
 from salli.interfaces.api.deps import AppServices, CronSecret, CurrentEmail, CurrentUser
@@ -240,7 +241,8 @@ async def _run_due(svc, due: list[dict[str, Any]]) -> None:
     meter refuses."""
     for sub in due:
         try:
-            await svc.advisor.run_advisor(sub["user_id"], None, trigger="scheduled")
+            with acting_as(sub["user_id"]):
+                await svc.advisor.run_advisor(sub["user_id"], None, trigger="scheduled")
         except UsageLimitReached:
             continue
         except Exception:

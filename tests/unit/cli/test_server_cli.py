@@ -80,6 +80,9 @@ def test_the_server_has_only_operator_commands():
         "jobs send-push",
         "jobs send-usage",
         "jobs recompute-tax",
+        "support open",
+        "support list",
+        "support close",
     }
 
 

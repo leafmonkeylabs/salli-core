@@ -25,7 +25,8 @@ class AccessGrantService:
     async def grant(self, grantor_id: str, email: str) -> dict[str, Any]:
         """Let the member who signs in with `email` read the grantor's books."""
         async with self._uow_factory() as uow:
-            login = await uow.logins.get_by_email(normalize_email(email))
+            async with uow.across_people("member-lookup"):
+                login = await uow.logins.get_by_email(normalize_email(email))
             if login is None:
                 raise LookupError("No member of this server signs in with that email.")
             grantee_id = str(login["user_id"])
@@ -77,7 +78,8 @@ class AccessGrantService:
     async def _view(uow: Any, user_id: str, row: dict[str, Any]) -> dict[str, Any]:
         """A grant as one side sees it: the other member's id and email."""
         other = row["grantee_id"] if row["grantor_id"] == user_id else row["grantor_id"]
-        login = await uow.logins.get(other)
+        async with uow.across_people("member-lookup"):
+            login = await uow.logins.get(other)
         return {
             "id": row["id"],
             "member_id": other,

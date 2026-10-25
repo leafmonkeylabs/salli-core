@@ -79,6 +79,8 @@ SALLI_DOMAIN=$domain
 SALLI_PUBLIC_URL=https://$domain
 COMPOSE_PROFILES=tls
 ENV
+    # Starts the database-role service too: Salli connects as salli_app, a
+    # role row-level security holds (docs/self-host.md#the-database-role).
     compose up -d --wait
     if [ -t 0 ]; then
       compose exec salli salli-server setup --email "$email" --currency "$currency"

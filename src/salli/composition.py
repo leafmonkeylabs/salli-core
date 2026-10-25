@@ -53,6 +53,7 @@ from salli.application.services.report_service import ReportService
 from salli.application.services.rules_service import RulesService
 from salli.application.services.scenario_service import ScenarioService
 from salli.application.services.subscription_service import SubscriptionService
+from salli.application.services.support_access_service import SupportAccessService
 from salli.application.services.tax_rule_service import TaxRuleService
 from salli.application.services.tax_service import TaxService
 from salli.application.services.template_service import TemplateService
@@ -102,6 +103,8 @@ class Services:
     chatgpt: ChatGPTConnectionService
     tokens: PersonalAccessTokenService
     access: AccessGrantService
+    # The operator's time-boxed, read-only, audited look at one person's books.
+    support: SupportAccessService
     # Salli's own accounts: passwords, sign-in and sessions.
     logins: LoginService
     rules: RulesService
@@ -334,6 +337,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         chatgpt=chatgpt,
         tokens=PersonalAccessTokenService(uow_factory),
         access=AccessGrantService(uow_factory),
+        support=SupportAccessService(uow_factory),
         logins=_build_logins(settings, uow_factory),
         rules=rules,
         insights=insights,

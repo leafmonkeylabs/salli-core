@@ -770,7 +770,7 @@ export type AuthIdentity = {
     /**
      * Method
      */
-    method: 'session' | 'oauth' | 'pat' | 'dev';
+    method: 'session' | 'oauth' | 'pat' | 'dev' | 'support';
     /**
      * Permissions
      */
@@ -13529,6 +13529,62 @@ export type SubscriptionUpdateRequest = {
 };
 
 /**
+ * SupportRead
+ */
+export type SupportRead = {
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Path
+     */
+    path: string;
+};
+
+/**
+ * SupportSession
+ *
+ * A time the instance's operator could read your books: opened on the
+ * server (`salli-server support open`), for a reason, read-only, for at
+ * most four hours. Every read made under it is listed.
+ */
+export type SupportSession = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Opened At
+     */
+    opened_at: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Ended At
+     */
+    ended_at: string | null;
+    /**
+     * Ended By
+     */
+    ended_by: 'person' | 'operator' | 'expiry' | null;
+    /**
+     * Open
+     */
+    open: boolean;
+    /**
+     * Reads
+     */
+    reads: Array<SupportRead>;
+};
+
+/**
  * SurplusBreakdown
  *
  * Monthly averages over the full months observed (the baseline's: at
@@ -16111,6 +16167,67 @@ export type AuthSignInsRevokeResponses = {
 };
 
 export type AuthSignInsRevokeResponse = AuthSignInsRevokeResponses[keyof AuthSignInsRevokeResponses];
+
+export type AuthSupportAccessListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/auth/support-access';
+};
+
+export type AuthSupportAccessListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthSupportAccessListError = AuthSupportAccessListErrors[keyof AuthSupportAccessListErrors];
+
+export type AuthSupportAccessListResponses = {
+    /**
+     * Response Auth.Supportaccess.List
+     *
+     * Successful Response
+     */
+    200: Array<SupportSession>;
+};
+
+export type AuthSupportAccessListResponse = AuthSupportAccessListResponses[keyof AuthSupportAccessListResponses];
+
+export type AuthSupportAccessEndData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/v1/auth/support-access/{session_id}';
+};
+
+export type AuthSupportAccessEndErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthSupportAccessEndError = AuthSupportAccessEndErrors[keyof AuthSupportAccessEndErrors];
+
+export type AuthSupportAccessEndResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type AuthSupportAccessEndResponse = AuthSupportAccessEndResponses[keyof AuthSupportAccessEndResponses];
 
 export type AuthPasswordChangeData = {
     body: ChangePasswordRequest;

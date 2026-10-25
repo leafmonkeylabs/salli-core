@@ -45,6 +45,8 @@ OPERATION_IDS: dict[Route, str] = {
     ("DELETE", "/auth/sessions/current"): "auth.sessions.signOut",
     ("GET", "/auth/sign-ins"): "auth.signIns.list",
     ("DELETE", "/auth/sign-ins/{sign_in_id}"): "auth.signIns.revoke",
+    ("GET", "/auth/support-access"): "auth.supportAccess.list",
+    ("DELETE", "/auth/support-access/{session_id}"): "auth.supportAccess.end",
     ("POST", "/auth/password"): "auth.password.change",
     ("POST", "/auth/totp"): "auth.totp.begin",
     ("POST", "/auth/totp/confirm"): "auth.totp.confirm",

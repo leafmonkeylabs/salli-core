@@ -47,6 +47,26 @@ Anything else (an AI key for the instance, digests, extensions) goes in
 `/srv/salli/.env` as in [self-host.md](self-host.md#configuration), then
 `docker compose --project-directory /srv/salli up -d`.
 
+## One server, many members
+
+The same instance can also serve people who are not one household, with
+you as its operator: each a member with their own books. They are kept
+apart twice: Salli filters every query by person, and Postgres's row-level
+security refuses one member's rows to a transaction acting for another
+([security.md](security.md#row-level-security)). That holds only while Salli
+connects as a role that is no superuser: `compose.yaml`'s `database-role`
+service makes it (`salli_app`) and gives it the tables on every `up`, so
+`init` and `upgrade` set it up, and `salli-server doctor` says
+`Row-level security ... enforced`. Postgres's own `salli` superuser is kept
+for backups.
+
+You never read a member's books through Salli except in a support session
+they can see: `salli-server support open <email> --reason "<ticket>"` (60
+minutes, at most 240, read-only, every read in their audit log; they end it
+with `salli support-access end`, or in the console). Say so in your terms,
+and list the sessions you opened with `salli-server support list`
+([security.md](security.md#support-access), [privacy.md](privacy.md#who-else-sees-it)).
+
 ## Backups
 
 ```bash

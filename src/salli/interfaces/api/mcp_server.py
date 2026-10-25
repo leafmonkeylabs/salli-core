@@ -57,6 +57,7 @@ from mcp.types import CallToolResult, ContentBlock, TextContent, ToolAnnotations
 from mcp.types import Tool as MCPTool
 from pydantic import AnyHttpUrl, BaseModel, Field, ValidationError
 
+from salli.application.acting import act_as
 from salli.application.entry_author import set_author
 from salli.application.permissions import Actor
 from salli.application.ports import (
@@ -163,7 +164,10 @@ class SalliTokenVerifier(TokenVerifier):
     async def verify_token(self, token: str) -> AccessToken | None:
         if is_personal_access_token(token):
             verified = None if self._tokens is None else await self._tokens.verify(token)
-            if verified is None or not await self._mcp_oauth.is_mcp_enabled(verified.user_id):
+            if verified is None:
+                return None
+            act_as(verified.user_id)
+            if not await self._mcp_oauth.is_mcp_enabled(verified.user_id):
                 return None
             return AccessToken(
                 token=token,
@@ -175,6 +179,8 @@ class SalliTokenVerifier(TokenVerifier):
         record = await self._mcp_oauth.verify_access_token(token)
         if record is None:
             return None
+        # The request acts for them (application/acting.py); each tool call too.
+        act_as(str(record["user_id"]))
         scopes: list[str] = [s for s in (record["scope"] or "").split()]
         return AccessToken(
             token=token,
@@ -519,6 +525,7 @@ class _SalliMCP(FastMCP[Any]):
         tool = self._tool_manager.get_tool(name)
         if tool is None:
             _fail("not_found", f"There is no tool {name}")
+        act_as(_current_user_id())
         if tool.annotations is not None and tool.annotations.readOnlyHint:
             return await self._read(name, arguments)
         record = AuditRecord(_current_user_id(), _current_client_id(), name, _redacted(arguments))

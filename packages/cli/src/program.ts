@@ -25,7 +25,7 @@ import { registerReconcile } from './commands/reconcile';
 import { registerMore, registerYourData } from './commands/more';
 import { registerNotifications } from './commands/notifications';
 import { registerOnboarding } from './commands/onboarding';
-import { registerPassword, registerTotp } from './commands/password';
+import { registerPassword, registerSupportAccess, registerTotp } from './commands/password';
 import { registerPlanning } from './commands/plan';
 import { registerQuickAdd } from './commands/quickadd';
 import { registerRules } from './commands/rules';
@@ -110,6 +110,7 @@ Start with:  salli login   then   salli status`,
   registerAccess(program, app);
   registerPassword(program, app);
   registerTotp(program, app);
+  registerSupportAccess(program, app);
   registerContext(program, app);
   registerConfig(program, app);
   registerCompletion(program, app);
