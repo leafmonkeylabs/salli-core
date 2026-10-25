@@ -33,6 +33,8 @@ function actionPath(signal: FinanceSignal): string | undefined {
       return '/cash#spending';
     case 'see_cash_flow':
       return '/cash#cash-flow';
+    case 'see_debts':
+      return '/decide/baseline';
     case 'review':
       return '/books/imports';
     case 'review_decision':

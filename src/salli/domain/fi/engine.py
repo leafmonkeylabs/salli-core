@@ -8,9 +8,14 @@ Methodology (FIRE composite):
   • Progress to FI = FI asset base / FI number
   • Savings rate   = (income − expenses) / income
   • Emergency fund = liquid savings / monthly expenses  (target 3–6 months)
-  • Debt load      = liabilities / assets  (lower is better)
+  • Debt cost      = the debts' yearly rates, weighted by balance, where any
+                     debt's rate is known; else liabilities / assets
+                     (lower is better)
   • Goal progress  = weighted progress across the user's active goals
-The 0–100 score is a weighted blend of the five component scores.
+The 0–100 score is a weighted blend of the five component scores. Its grade
+needs progress to FI as well ("FI-ready" and "Strong" have a progress floor in
+the pack), and under two full months of income and spending it is
+"Not enough data", whatever the figures.
 
 Units: every ratio returned here is a FRACTION (0..1), never a percentage. Only
 `overall_score` and `FiComponent.score` are on a 0..100 scale. Clients must
@@ -50,6 +55,11 @@ __all__ = [
 
 _HUNDRED = Decimal(100)
 
+#: The full months of income and spending a grade needs; fewer, and it is
+#: `NOT_ENOUGH_DATA`.
+MONTHS_FOR_A_SCORE = 2
+NOT_ENOUGH_DATA = "Not enough data"
+
 
 def _clamp(value: Decimal, lo: Decimal = Decimal(0), hi: Decimal = _HUNDRED) -> Decimal:
     return max(lo, min(hi, value))
@@ -59,10 +69,10 @@ def _q2(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _grade(score: Decimal) -> str:
-    if score >= 80:
+def _grade(score: Decimal, progress: Decimal, pack: FiPack) -> str:
+    if score >= 80 and progress >= pack.progress_for_fi_ready:
         return "FI-ready"
-    if score >= 60:
+    if score >= 60 and progress >= pack.progress_for_strong:
         return "Strong"
     if score >= 40:
         return "On track"
@@ -146,7 +156,15 @@ def compute(
     ef_target = Decimal(pack.emergency_fund_target_months)
     ef_score = _clamp(ef_months / ef_target * _HUNDRED) if ef_target > 0 else Decimal(0)
     fi_score_c = _clamp(progress_clamped * _HUNDRED)
-    debt_score = _clamp((Decimal(1) - debt_ratio) * _HUNDRED)
+    rated = [(rate, owed) for rate, owed in snapshot.debt_rates if owed > 0]
+    owed_rated = sum((owed for _, owed in rated), Decimal(0))
+    if owed_rated > 0 and pack.debt_rate_for_zero_score > 0:
+        debt_rate = sum((rate * owed for rate, owed in rated), Decimal(0)) / owed_rated
+        debt_score = _clamp((Decimal(1) - debt_rate / pack.debt_rate_for_zero_score) * _HUNDRED)
+        debt_detail = f"Debts cost {_q2(debt_rate * 100)}% a year, averaged by balance"
+    else:
+        debt_score = _clamp((Decimal(1) - debt_ratio) * _HUNDRED)
+        debt_detail = f"Liabilities are {_q2(debt_ratio * 100)}% of assets"
 
     comp_defs = [
         ("savings_rate", "Savings rate", sr_score, f"Saving {_q2(savings_rate * 100)}% of income"),
@@ -160,7 +178,7 @@ def compute(
             ),
         ),
         ("fi_progress", "Progress to FI", fi_score_c, f"{_q2(progress * 100)}% of your FI number"),
-        ("debt", "Debt load", debt_score, f"Liabilities are {_q2(debt_ratio * 100)}% of assets"),
+        ("debt", "Debt load", debt_score, debt_detail),
     ]
     if snapshot.goal_progress is not None:
         goal_score = _clamp(snapshot.goal_progress * _HUNDRED)
@@ -190,7 +208,11 @@ def compute(
     return FiScore(
         pack_version=pack.version,
         overall_score=overall,
-        grade=_grade(overall),
+        grade=(
+            NOT_ENOUGH_DATA
+            if snapshot.full_months is not None and snapshot.full_months < MONTHS_FOR_A_SCORE
+            else _grade(overall, progress, pack)
+        ),
         monthly_income=income,
         monthly_expenses=expenses,
         monthly_surplus=surplus,

@@ -28,6 +28,7 @@ from salli.domain.baseline import flows as baseline_flows
 from salli.domain.baseline.models import MONTHS_OBSERVED
 from salli.domain.currency import quantize
 from salli.domain.fi.assumptions import rate_text
+from salli.domain.fi.packs.registry import get_pack
 from salli.domain.reports import forecast as forecasting
 from salli.domain.reports import insights
 from salli.domain.reports import signals as signal_rules
@@ -362,6 +363,21 @@ class InsightsService:
             ),
             *signal_rules.savings_rate_drop(flows),
             *signal_rules.review_waiting(len(pending), oldest, today),
+            *signal_rules.emergency_fund_low(
+                run.baseline.liquid,
+                run.baseline.flows.expenses,
+                get_pack().emergency_fund_target_months,
+                len(run.baseline.flows.months),
+                base,
+            ),
+            *signal_rules.expensive_debts(
+                [
+                    (d.debt_id, d.name, d.apr, d.balance)
+                    for d in run.baseline.debts
+                    if d.source != "scenario"
+                ],
+                base,
+            ),
             *signal_rules.decision_reviews_due(
                 [(str(d["id"]), str(d["question"]), _iso(d["review_on"])) for d in due]
             ),

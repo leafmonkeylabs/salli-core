@@ -21,6 +21,7 @@ projection are gone, and with them the tests that pinned them against each
 other.
 """
 
+from dataclasses import replace
 from decimal import Decimal
 
 from salli.domain.fi import engine
@@ -193,7 +194,8 @@ def test_reported_sixty_one_reconstructs_exactly():
     assert by_key["savings_rate"].score == Decimal("100.00")
     assert by_key["debt"].score == Decimal("100.00")
     assert score.overall_score == Decimal("61.01")
-    assert score.grade == "Strong"
+    # Was "Strong": 5% of the way to FI is under the pack's floor for it.
+    assert score.grade == "On track"
 
 
 # ── The FI month is the caller's ──────────────────────────────────────────────
@@ -241,3 +243,42 @@ def test_the_shipped_pack_holds_no_planning_assumption():
 
     names = {f.name for f in fields(FiPack)}
     assert not names & {"safe_withdrawal_rate", "expected_real_return", "expected_inflation"}
+
+
+# ── FI pack 3.0.0: grades need progress and data; debt scored by cost ────────
+
+
+def test_debt_is_scored_by_its_rates_weighted_by_balance_when_known():
+    base = dict(
+        monthly_income=Decimal(4000),
+        monthly_expenses=Decimal(2000),
+        liquid_savings=Decimal(10000),
+        investments=Decimal(0),
+        total_assets=Decimal(10000),
+        total_liabilities=Decimal(4000),
+    )
+    by_ratio = {c.key: c for c in _score(_snapshot(**base)).components}["debt"]
+    assert by_ratio.score == Decimal("60.00")  # 1 − 4,000 / 10,000
+    # 3,000 at 20% and 1,000 at 0%: 15% on average, against 20% for no marks.
+    rated = _snapshot(
+        **base, debt_rates=((Decimal("0.20"), Decimal(3000)), (Decimal(0), Decimal(1000)))
+    )
+    debt = {c.key: c for c in _score(rated).components}["debt"]
+    assert debt.score == Decimal("25.00")
+    assert debt.detail == "Debts cost 15.00% a year, averaged by balance"
+
+
+def test_the_grade_needs_progress_to_fi_and_two_full_months():
+    rich = _snapshot(
+        monthly_income=Decimal(10000),
+        monthly_expenses=Decimal(1000),
+        liquid_savings=Decimal(6000),
+        investments=Decimal(300000),
+        total_assets=Decimal(306000),
+        total_liabilities=Decimal(0),
+    )
+    assert _score(rich).grade == "FI-ready"
+    assert _score(replace(rich, full_months=1)).grade == "Not enough data"
+    halfway = replace(rich, investments=Decimal(150000), total_assets=Decimal(156000))
+    assert _score(halfway).overall_score >= 80
+    assert _score(halfway).grade == "Strong"
