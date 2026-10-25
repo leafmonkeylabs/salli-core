@@ -149,7 +149,8 @@ class JournalEntryORM(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "source IN ('manual','statement','sms','system','reversal','year_end_close')",
+            "source IN ('manual','statement','sms','system','reversal','year_end_close',"
+            "'recategorise')",
             name="ck_journal_entries_source",
         ),
         UniqueConstraint("user_id", "seq", name="uq_journal_entries_user_seq"),
@@ -840,6 +841,28 @@ class NotificationPreferencesORM(Base):
     )
 
 
+class PushDeviceORM(Base):
+    """A phone that takes push alerts: its Expo push token, sealed with the
+    BYOK key ring when one is set (`key_version`; plain text otherwise, as it
+    has to be read to send), and its SHA-256 hash, which is how it is found
+    and removed. The relay the deployment configures sends to it."""
+
+    __tablename__ = "push_devices"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    token: Mapped[str] = mapped_column(Text, nullable=False)
+    key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    platform: Mapped[str] = mapped_column(String(10), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint("platform in ('ios', 'android')", name="ck_push_devices_platform"),
+    )
+
+
 class NotificationDeliveryORM(Base):
     """The delivery log: one row per person and period, at most (the unique
     key is what keeps a rerun, or two servers, to one digest a period). It
@@ -1090,6 +1113,11 @@ class UserProfileORM(Base):
     # {"income_streams": [...], "spending_phases": [...]}.
     fi_plan: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    # The monthly budget (domain/budget/monthly.py): [{"account_id",
+    # "limit_minor", "rollover", "since": "YYYY-MM"}], in the base currency.
+    monthly_budget: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )
     # Where the person lives in time: an IANA name ("Europe/Lisbon"), or NULL
     # while they have not said. Their digest goes at their local hour, so

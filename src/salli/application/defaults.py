@@ -66,3 +66,20 @@ class NoNotifier(Notifier):
 
     async def send(self, notification: Notification) -> Delivery:
         return Delivery.NO_DESTINATION
+
+
+class CompositeNotifier(Notifier):
+    """Core allows one notifier, an extension's, for digests; push alerts go
+    through Salli's own relay notifier when the deployment configures one
+    (`SALLI_PUSH_RELAY_URL`). This routes each notification by its `kind`
+    ("digest", "push") to the notifier for it; a kind with none has no
+    destination."""
+
+    def __init__(self, by_kind: dict[str, Notifier]) -> None:
+        self._by_kind = by_kind
+
+    async def send(self, notification: Notification) -> Delivery:
+        notifier = self._by_kind.get(notification.kind)
+        if notifier is None:
+            return Delivery.NO_DESTINATION
+        return await notifier.send(notification)

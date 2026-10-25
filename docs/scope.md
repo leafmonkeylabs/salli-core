@@ -7,6 +7,12 @@ sets, capital-market assumptions, bank formats, all under `markets/`) and
 what a pilot shows is missing from a core flow are in; a new kind of
 calculation, model or page is not.
 
+**Exempt by the owner (household basics, for the phone app):** changing an
+entry's category after booking (`POST /v1/entries/{id}/recategorise`), debts
+with a rate from first run, a monthly budget (`/v1/budget/monthly`,
+`/current`, `/trend`; the `budget_over` and `budget_pace` signals) and push
+alerts (`/v1/devices`, `salli-server jobs send-push`).
+
 Nothing listed as experimental is being removed. It works and is tested; it
 may change shape, or be cut back, once pilots show whether people use it.
 

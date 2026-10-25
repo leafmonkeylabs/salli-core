@@ -13,6 +13,7 @@ person chose it:
 | `filing_deadline` | filing reminders (`source_domain` "tax_rules") within 14 days | yes |
 | `cash_below_zero_ahead` | the cash forecast below zero (the `low_balance_ahead` signal at `high`) | yes |
 | `transactions_to_review` | imported transactions waiting for review | no |
+| `budget_over` | monthly budget lines spent past what is available this month | no |
 
 **What a message may say** (decision 29): each item's kind in a sentence
 from the wording table below, how many, the earliest date (as the brand
@@ -48,6 +49,7 @@ ItemKind = Literal[
     "filing_deadline",
     "cash_below_zero_ahead",
     "transactions_to_review",
+    "budget_over",
 ]
 
 #: Every item kind, in the order a digest lists them (the wording table's,
@@ -92,7 +94,8 @@ class Notification:
     #: a period carries the same id, so a sender can drop a repeat.
     id: str
     user_id: str
-    kind: Literal["digest"]
+    #: A digest, or a push alert (domain/notifications/push.py).
+    kind: Literal["digest", "push"]
     #: "2026-W42" or "2026-10".
     period: str
     subject: str
@@ -126,6 +129,10 @@ class Waiting:
     #: Imported transactions waiting for review, and the oldest one's date.
     to_review: int = 0
     to_review_since: dt.date | None = None
+    #: Monthly budget lines over what is available this month, and that
+    #: month's first day.
+    budgets_over: int = 0
+    budget_month: dt.date | None = None
 
 
 def notification_id(user_id: str, kind: str, period: str) -> str:
@@ -177,6 +184,9 @@ def item_title(kind: ItemKind, count: int, date: dt.date | None) -> str:
             if on
             else "Your cash forecast goes below zero"
         )
+    if kind == "budget_over":
+        what = _plural(count, "budget over its limit", "budgets over their limit")
+        return f"{what} (since {on})" if on else what
     what = _plural(count, "transaction to review", "transactions to review")
     return f"{what} (waiting since {on})" if on else what
 
@@ -219,7 +229,16 @@ def waiting_items(
             [waiting.cash_below_zero_on] if waiting.cash_below_zero_on else [],
         ),
         "transactions_to_review": None,
+        "budget_over": None,
     }
+    if waiting.budgets_over > 0:
+        month = waiting.budget_month
+        found["budget_over"] = NotificationItem(
+            "budget_over",
+            item_title("budget_over", waiting.budgets_over, month),
+            waiting.budgets_over,
+            month.isoformat() if month else None,
+        )
     if waiting.to_review > 0:
         since = waiting.to_review_since
         found["transactions_to_review"] = NotificationItem(

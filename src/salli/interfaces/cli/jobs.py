@@ -100,6 +100,28 @@ def send_digests() -> None:
         raise typer.Exit(1)
 
 
+@jobs_app.command("send-push")
+def send_push() -> None:
+    """Refresh alerts and send each phone the push alert for what is waiting,
+    once per state, through SALLI_PUSH_RELAY_URL. Run it hourly."""
+    counts: dict[str, Any] = asyncio.run(services().notifications.send_pushes())
+    if not counts["enabled"]:
+        if not emit(counts):
+            console.print(
+                "[yellow]Push alerts are off:[/yellow] set SALLI_PUSH_RELAY_URL and "
+                "BYOK_ENCRYPTION_KEYS (docs/self-host.md#push-alerts)."
+            )
+        return
+    if not emit(counts):
+        console.print(
+            f"People {counts['people']} · sent {counts['sent']} · nothing waiting "
+            f"{counts['nothing_waiting']} · no destination {counts['no_destination']} · "
+            f"failed {counts['failed']} · already sent {counts['skipped']}"
+        )
+    if counts["failed"]:
+        raise typer.Exit(1)
+
+
 @jobs_app.command("send-usage")
 def send_usage(
     dry_run: bool = typer.Option(False, "--dry-run", help="Print the report, don't send it"),

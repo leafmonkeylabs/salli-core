@@ -445,13 +445,13 @@ function registerProfile(program: Command, app: App): void {
     .command('balance-sheet')
     .description('Record what you own and owe today, as opening-balance entries (net worth starts right)')
     .requiredOption(
-      '--balance <code:name:type:amount[:role]>',
-      'One account, e.g. 1100:Checking:asset:2500:cash, 1500:Funds:asset:9000:investment or 2100:Car loan:liability:8400; an asset’s role is cash, savings, investment or other (the default, never counted as cash) (repeatable)',
+      '--balance <code:name:type:amount[:role|:rate[:minimum]]>',
+      'One account, e.g. 1100:Checking:asset:2500:cash, 1500:Funds:asset:9000:investment or 2100:Car loan:liability:8400:0.07:250; an asset’s role is cash, savings, investment or other (the default, never counted as cash); something owed may take its yearly rate (a fraction) and minimum payment, declaring it as a debt too (repeatable)',
       collect,
     )
     .action(async (opts) => {
       const balances: OpeningBalanceItem[] = opts.balance.map((raw) => {
-        const [code, name, type, amount, role, ...rest] = raw.split(':');
+        const [code, name, type, amount, role, minimum, ...rest] = raw.split(':');
         if (!code?.trim() || !name?.trim() || !type || amount === undefined || rest.length) {
           throw new UsageError(`--balance takes CODE:NAME:TYPE:AMOUNT[:ROLE], e.g. 1100:Checking:asset:2500:cash (got "${raw}").`);
         }
@@ -459,7 +459,18 @@ function registerProfile(program: Command, app: App): void {
         if (kind !== 'asset' && kind !== 'liability') {
           throw new UsageError(`An opening balance is an asset or a liability (got "${type}" in "${raw}").`);
         }
+        if (kind === 'liability') {
+          return {
+            code: code.trim(),
+            name: name.trim(),
+            type: kind,
+            amount: amountArg(amount, '--balance'),
+            ...(role !== undefined ? { rate: amountArg(role, '--balance rate') } : {}),
+            ...(minimum !== undefined ? { minimum_payment: amountArg(minimum, '--balance minimum') } : {}),
+          };
+        }
         const assetRole = role?.trim().toLowerCase();
+        if (minimum !== undefined) throw new UsageError(`An asset takes CODE:NAME:asset:AMOUNT[:ROLE] (got "${raw}").`);
         if (assetRole !== undefined && (kind !== 'asset' || !['cash', 'savings', 'investment', 'other'].includes(assetRole))) {
           throw new UsageError(`A role is for an asset: cash, savings, investment or other (got "${role}" in "${raw}").`);
         }

@@ -724,51 +724,111 @@ class LedgerService:
         completed reconciliation of one of its accounts covers that day (the
         bank's statement agreed with it), it is dated today. Its description keeps
         the original's and says why (`reason`)."""
-        reason = reason.strip()
-        if not reason:
-            raise ValueError("Say why the entry is reversed: a reversal needs a reason.")
         async with self._uow_factory() as uow:
-            original = await uow.ledger.get_entry_by_id(user_id, entry_id)
-            if original is None:
-                raise ValueError(f"Entry {entry_id} not found.")
-            if original.reversed_by:
-                raise ValueError(
-                    "That entry is already reversed. An entry can be reversed only once."
-                )
-
-            reversed_postings = [
-                Posting(
-                    account_id=p.account_id,
-                    direction=Direction(-p.direction.value),
-                    amount=p.amount,
-                    currency=p.currency,
-                    fx_rate=p.fx_rate,
-                    fx_rate_source=p.fx_rate_source,
-                    # The reversal carries the original's tags. Without them a
-                    # spend-by-category report would count the original and miss
-                    # its reversal, overstating that category forever — the same
-                    # failure the tax view had before it netted reversals out.
-                    tags=dict(p.tags),
-                )
-                for p in original.postings
-            ]
-            locked = await self._lock_date(uow, user_id)
-            closed = (locked is not None and original.entry_date <= locked) or (
-                await _reconciled(uow, user_id, original)
-            )
-            on = self._today().isoformat() if closed else original.entry_date
-            reversing = JournalEntry(
-                entry_date=on,
-                description=f"Reversal of {original.description}: {reason}",
-                source="reversal",
-                reverses=original.id,
-                postings=reversed_postings,
-                base_currency=await uow.user_profiles.base_currency(user_id),
-            )
-            refuse_if_locked(on, locked)
+            original = await self._reversible(uow, user_id, entry_id)
+            reversing = await self._reversal_of(uow, user_id, original, reason)
             # The original is never written to: its `reversed_by` is read
             # from this entry's `reverses`.
             return await uow.ledger.save_entry(user_id, reversing)
+
+    async def recategorise_entry(
+        self, user_id: str, entry_id: str, posting_id: str, account_id: str, reason: str
+    ) -> dict[str, str]:
+        """Move one posting of an entry to another account of the same type:
+        in one transaction, the entry's reversal and a corrected copy, both
+        dated as the reversal is (`reverse_entry`). The copy has source
+        `recategorise`, the original's description, amounts, rates and tags,
+        and names the original in `external_ref` ("recategorise:<id>"); the
+        original's `reversed_by` is the reversal. ValueError for an entry or
+        posting that isn't there, an account that isn't the user's or is of
+        another type, or no reason; BooksLocked on a closed day."""
+        async with self._uow_factory() as uow:
+            original = await self._reversible(uow, user_id, entry_id)
+            moved = next((p for p in original.postings if p.id == posting_id), None)
+            if moved is None:
+                raise ValueError(f"Entry {entry_id} has no posting {posting_id}.")
+            target = await uow.ledger.get_account(user_id, account_id)
+            current = await uow.ledger.get_account(user_id, moved.account_id)
+            if target is None or current is None:
+                raise ValueError(f"Account {account_id} not found.")
+            if target.id == current.id:
+                raise ValueError("The posting is already on that account.")
+            if target.type != current.type:
+                raise ValueError(
+                    f"{current.name} is a {current.type} account and {target.name} a "
+                    f"{target.type} one: a category moves to an account of the same type."
+                )
+            reversing = await self._reversal_of(uow, user_id, original, reason)
+            corrected = JournalEntry(
+                entry_date=reversing.entry_date,
+                description=original.description,
+                source="recategorise",
+                external_ref=f"recategorise:{original.id}",
+                postings=[
+                    Posting(
+                        account_id=account_id if p.id == posting_id else p.account_id,
+                        direction=p.direction,
+                        amount=p.amount,
+                        currency=p.currency,
+                        fx_rate=p.fx_rate,
+                        fx_rate_source=p.fx_rate_source,
+                        tags=dict(p.tags),
+                    )
+                    for p in original.postings
+                ],
+                base_currency=reversing.base_currency,
+            )
+            reversal_id = await uow.ledger.save_entry(user_id, reversing)
+            corrected_id = await uow.ledger.save_entry(user_id, corrected)
+        return {"reversal_id": reversal_id, "corrected_id": corrected_id}
+
+    @staticmethod
+    async def _reversible(uow: Any, user_id: str, entry_id: str) -> StoredJournalEntry:
+        original = await uow.ledger.get_entry_by_id(user_id, entry_id)
+        if original is None:
+            raise ValueError(f"Entry {entry_id} not found.")
+        if original.reversed_by:
+            raise ValueError("That entry is already reversed. An entry can be reversed only once.")
+        return original
+
+    async def _reversal_of(
+        self, uow: Any, user_id: str, original: StoredJournalEntry, reason: str
+    ) -> JournalEntry:
+        """The entry that reverses `original`, dated as `reverse_entry` says;
+        BooksLocked when that day is closed."""
+        reason = reason.strip()
+        if not reason:
+            raise ValueError("Say why the entry is reversed: a reversal needs a reason.")
+        reversed_postings = [
+            Posting(
+                account_id=p.account_id,
+                direction=Direction(-p.direction.value),
+                amount=p.amount,
+                currency=p.currency,
+                fx_rate=p.fx_rate,
+                fx_rate_source=p.fx_rate_source,
+                # The reversal carries the original's tags. Without them a
+                # spend-by-category report would count the original and miss
+                # its reversal, overstating that category forever — the same
+                # failure the tax view had before it netted reversals out.
+                tags=dict(p.tags),
+            )
+            for p in original.postings
+        ]
+        locked = await self._lock_date(uow, user_id)
+        closed = (locked is not None and original.entry_date <= locked) or (
+            await _reconciled(uow, user_id, original)
+        )
+        on = self._today().isoformat() if closed else original.entry_date
+        refuse_if_locked(on, locked)
+        return JournalEntry(
+            entry_date=on,
+            description=f"Reversal of {original.description}: {reason}",
+            source="reversal",
+            reverses=original.id,
+            postings=reversed_postings,
+            base_currency=await uow.user_profiles.base_currency(user_id),
+        )
 
     async def verify_chain(self, user_id: str) -> dict[str, Any]:
         """Whether the user's entries are as they were posted: their hash

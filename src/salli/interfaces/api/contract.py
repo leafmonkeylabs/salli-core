@@ -69,6 +69,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/entries/{entry_id}"): "entries.get",
     ("GET", "/entries/{entry_id}/provenance"): "entries.provenance",
     ("POST", "/entries/{entry_id}/reverse"): "entries.reverse",
+    ("POST", "/entries/{entry_id}/recategorise"): "entries.recategorise",
     ("PUT", "/entries/postings/{posting_id}/tags"): "entries.postings.setTags",
     ("GET", "/tags/"): "tags.list",
     ("GET", "/ledger/trial-balance"): "ledger.trialBalance",
@@ -197,6 +198,9 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/notifications/preferences"): "notifications.preferences.get",
     ("PATCH", "/notifications/preferences"): "notifications.preferences.update",
     ("GET", "/notifications/preview"): "notifications.preview",
+    ("GET", "/devices/"): "devices.list",
+    ("POST", "/devices/"): "devices.add",
+    ("DELETE", "/devices/{device_id}"): "devices.remove",
     ("GET", "/notifications/deliveries"): "notifications.deliveries.list",
     ("POST", "/notifications/cron/send-due"): "notifications.cron.sendDue",
     # budgets
@@ -206,6 +210,10 @@ OPERATION_IDS: dict[Route, str] = {
     ("PATCH", "/budget/{budget_id}"): "budgets.update",
     ("DELETE", "/budget/{budget_id}"): "budgets.delete",
     ("GET", "/budget/{budget_id}/summary"): "budgets.summary",
+    ("GET", "/budget/monthly"): "budgets.monthly.get",
+    ("PUT", "/budget/monthly"): "budgets.monthly.set",
+    ("GET", "/budget/current"): "budgets.current",
+    ("GET", "/budget/trend"): "budgets.trend",
     # debts
     ("GET", "/debt/"): "debts.list",
     ("POST", "/debt/"): "debts.create",

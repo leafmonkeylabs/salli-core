@@ -17,6 +17,7 @@ from salli.application.ports import (
     ConversationStore,
     EntitlementPolicy,
     FxRatePort,
+    Notifier,
     StoragePort,
     UsageMeter,
 )
@@ -218,7 +219,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         fx_service=fx,
         default_currency=settings.salli_default_currency,
     )
-    insights = InsightsService(uow_factory, baselines=baseline)
+    insights = InsightsService(uow_factory, baselines=baseline, budget=budget)
     advisor = AdvisorService(
         uow_factory,
         fi,
@@ -258,13 +259,8 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     entry_parse = EntryParseService(ledger, credentials=llm_credentials, rules=rules)
 
     reminders = ReminderService(uow_factory, budget, subscription, insurance)
-    notifications = NotificationService(
-        uow_factory,
-        reminders,
-        insights,
-        extensions.notifier,
-        notifier_name=extensions.notifier_from,
-        public_url=settings.salli_public_url,
+    notifications = _build_notifications(
+        settings, uow_factory, reminders, insights, budget, extensions
     )
     reports = ReportService(ledger, fi, baseline)
     public_url = settings.salli_public_url.rstrip("/")
@@ -353,6 +349,34 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         entitlements=extensions.entitlements,
         extensions=extensions,
     )
+
+
+def _build_notifications(
+    settings: Settings, uow_factory, reminders, insights, budget, extensions
+) -> NotificationService:
+    """Digests through the extension's notifier, and push alerts through
+    Salli's relay notifier when `SALLI_PUSH_RELAY_URL` is set: core allows
+    one notifier, so a composite routes each notification by its kind."""
+    from salli.adapters.crypto.keyring import KeyRing
+    from salli.adapters.net.push import RelayPushNotifier
+    from salli.application.defaults import CompositeNotifier
+
+    relay = settings.salli_push_relay_url
+    routes: dict[str, Notifier] = {"digest": extensions.notifier}
+    service = NotificationService(
+        uow_factory,
+        reminders,
+        insights,
+        CompositeNotifier(routes),
+        notifier_name=extensions.notifier_from,
+        public_url=settings.salli_public_url,
+        push_enabled=bool(relay),
+        keyring=KeyRing(settings.byok_encryption_keys),
+        budget=budget,
+    )
+    if relay:
+        routes["push"] = RelayPushNotifier(relay, uow_factory, service.open_token)
+    return service
 
 
 def _build_logins(settings: Settings, uow_factory) -> LoginService:

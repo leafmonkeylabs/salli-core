@@ -71,6 +71,7 @@ from salli.interfaces.api.routers import (
     budget,
     debt,
     decisions,
+    devices,
     documents,
     entries,
     exports,
@@ -341,6 +342,7 @@ def create_app() -> FastAPI:
     app.include_router(principles.router, prefix=API_PREFIX)
     app.include_router(decisions.router, prefix=API_PREFIX)
     app.include_router(notifications.router, prefix=API_PREFIX)
+    app.include_router(devices.router, prefix=API_PREFIX)
     app.include_router(access.router, prefix=API_PREFIX)
     # The console's static files, at /console: here, so before the MCP app's
     # catch-all mount at "/", which the lifespan adds last. None when it is

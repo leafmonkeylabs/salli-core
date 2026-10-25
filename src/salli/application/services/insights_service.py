@@ -26,6 +26,7 @@ from salli.application.services.baseline_service import BaselineService
 from salli.domain.baseline import Baseline, timelines
 from salli.domain.baseline import flows as baseline_flows
 from salli.domain.baseline.models import MONTHS_OBSERVED
+from salli.domain.budget.monthly import CurrentLine
 from salli.domain.currency import quantize
 from salli.domain.fi.assumptions import rate_text
 from salli.domain.fi.packs.registry import get_pack
@@ -66,8 +67,11 @@ class InsightsService:
         uow_factory: Callable[[], Any],
         today: Callable[[], dt.date] = dt.date.today,
         baselines: BaselineService | None = None,
+        budget: Any = None,
     ):
         self._uow_factory = uow_factory
+        #: The BudgetService, for the monthly budget's signals.
+        self._budget = budget
         self._today = today
         self._baselines = baselines or BaselineService(uow_factory, today=today)
 
@@ -352,7 +356,11 @@ class InsightsService:
         oldest = min((t.raw.date for t in pending), default=None)
         async with self._uow_factory() as uow:
             due = await uow.decisions.due(user_id, today)
+        budget_lines: list[CurrentLine] = []
+        if self._budget is not None:
+            budget_lines, _ = await self._budget.current_lines(user_id)
         detected = [
+            *signal_rules.budget_lines(budget_lines, base),
             *signal_rules.low_balance_ahead(
                 run.result.lowest, run.result.lowest_date, run.result.today, usual_spending, base
             ),

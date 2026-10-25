@@ -77,6 +77,7 @@ def test_the_server_has_only_operator_commands():
         "jobs run-advisor",
         "jobs sync-banks",
         "jobs send-digests",
+        "jobs send-push",
         "jobs send-usage",
         "jobs recompute-tax",
     }

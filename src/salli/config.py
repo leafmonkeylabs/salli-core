@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # the issuer and resources, and where the consent and device pages are.
     # Behind a proxy on a domain, `https://money.example.org`.
     salli_public_url: str = "http://localhost:8000"
+    # Where push alerts to the phone app go (docs/self-host.md#push-alerts):
+    # a relay that forwards Expo push messages. Core never holds Apple's or
+    # Google's keys. Unset: no push is sent.
+    salli_push_relay_url: str | None = None
 
     # MCP server — lets external AI clients (Claude, ChatGPT, etc.) connect to a
     # user's Salli account via OAuth 2.1 + Dynamic Client Registration.

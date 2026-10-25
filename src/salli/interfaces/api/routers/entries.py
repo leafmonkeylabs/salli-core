@@ -337,6 +337,42 @@ async def reverse_entry(
     return Ref(id=reversing_id)
 
 
+class RecategoriseRequest(BaseModel):
+    #: The posting to move, one of the entry's.
+    posting_id: str
+    #: The account it moves to: one of yours, of the same type.
+    account_id: str
+    #: Why, in a few words; the reversal's description keeps it.
+    reason: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class Recategorised(BaseModel):
+    #: The entry that reverses the original.
+    reversal_id: str
+    #: The corrected copy (source "recategorise", `external_ref`
+    #: "recategorise:<original id>").
+    corrected_id: str
+
+
+@router.post("/{entry_id}/recategorise", status_code=201)
+async def recategorise_entry(
+    entry_id: str, body: RecategoriseRequest, user_id: CurrentUser, svc: AppServices
+) -> Recategorised:
+    """Move one posting to another account (a category change), in one
+    transaction: the entry's reversal and a corrected copy, both dated as a
+    reversal is (its own day, or today when that day is closed or
+    reconciled). Entries are never edited; refused in closed books (409)."""
+    try:
+        made = await svc.ledger.recategorise_entry(
+            user_id, entry_id, body.posting_id, body.account_id, body.reason
+        )
+    except BooksLocked:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return Recategorised.model_validate(made)
+
+
 # ── tags ──────────────────────────────────────────────────────────────────────
 #
 # A second classification axis, orthogonal to the chart of accounts. Tags are

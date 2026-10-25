@@ -175,6 +175,8 @@ class DebtService:
             first_month=first_month,
         )
 
+        # The month each debt's last payment falls in, within the horizon.
+        paid_off = {e.debt_id: e.period for e in plan.schedule if e.remaining_balance <= 0}
         return {
             "strategy": plan.strategy,
             "currency": currency,
@@ -187,6 +189,9 @@ class DebtService:
                     "balance": str(quantize(d.balance, currency)),
                     "source": d.source,
                     "account_id": d.account_id,
+                    "apr": str(d.apr),
+                    "minimum_payment": str(quantize(d.minimum_payment, currency)),
+                    "payoff_month": paid_off.get(d.debt_id),
                 }
                 for d in owing
             ],
