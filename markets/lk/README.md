@@ -71,11 +71,12 @@ end of the month of the sale.
 
 ### Capital-market assumptions
 
-`cma.json` is written to the field names the planning engine's `salli.cma/1`
-schema will use (that schema is being defined on another branch; until it
-lands on main, this file is the shape: per asset class `expected_real_return`,
-`volatility`, `currency`, `basis`, `source`, `uncertain`; plus `inflation`,
-`cash_yield` and a `correlations` matrix).
+`cma.json` is a `salli.cma/1` pack (docs/baseline.md, "Capital-market
+assumptions"): import it with `salli fi cma import markets/lk/cma.json` and
+activate it with `salli fi cma activate <id>`. Each figure names its source;
+the ones marked as an assumption are for the reviewer to replace. Its `mix`
+(20% cash, 40% government securities, 25% local and 15% global equities) is
+an assumption too: the real return a plan uses is the mix's.
 
 | Asset class | Real return | Volatility | Basis |
 |---|---|---|---|
@@ -122,9 +123,9 @@ salli accounts update 4100 --tax-role employment_income
 
 salli tax compute
 
-# Planning assumptions, from cma.json, until the planning engine loads it whole:
-salli fi assumptions set inflation 5% --source "Central Bank of Sri Lanka, inflation target (MPR No. 3 of 2026)"
-salli fi assumptions set real-return 3.3% --source "markets/lk/cma.json, government securities"
+# Planning assumptions: the capital-market pack.
+salli fi cma import markets/lk/cma.json
+salli fi cma activate <id>
 ```
 
 ## Sources
