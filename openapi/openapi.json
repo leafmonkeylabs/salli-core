@@ -29051,6 +29051,46 @@
               "1234.50"
             ]
           },
+          "low_point": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Low Point",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "low_point_date": {
+            "type": "string",
+            "title": "Low Point Date"
+          },
+          "everyday_spending": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Everyday Spending",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "cushion": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cushion",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "held_for_goals": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Held For Goals",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
           "until": {
             "type": "string",
             "title": "Until"
@@ -29092,13 +29132,18 @@
           "currency",
           "amount",
           "cash_today",
+          "low_point",
+          "low_point_date",
+          "everyday_spending",
+          "cushion",
+          "held_for_goals",
           "until",
           "next_income",
           "committed",
           "notes"
         ],
         "title": "SafeToSpend",
-        "description": "What could go out today without the cash forecast going below zero\nbefore money next comes in."
+        "description": "Free to spend until payday: the lowest the cash gets before money next\ncomes in, after what is scheduled (`committed`) and the everyday\nspending a usual month has beyond it, less a cushion and the cash set\naside for goals. Never below zero."
       },
       "SaveKeyRequest": {
         "properties": {

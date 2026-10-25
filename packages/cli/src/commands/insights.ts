@@ -34,7 +34,7 @@ export function signalLines(out: Output, signal: FinanceSignal, indent = ''): st
   return [`${indent}${colour(SEVERITY_MARK[signal.severity])} ${c.bold(singleLine(signal.title))}`, `${indent}  ${singleLine(signal.detail)}`];
 }
 
-/** The headline of safe-to-spend: the amount, and until when. */
+/** The headline of free until payday: the amount, and until when. */
 export function safeToSpendLine(out: Output, s: SafeToSpend): string {
   const until = s.next_income
     ? `until ${displayDate(s.next_income.date, out.locale)}, when ${singleLine(s.next_income.description)} comes in`
@@ -218,7 +218,7 @@ export function registerInsights(program: Command, app: App): void {
 
   insights
     .command('safe-to-spend')
-    .description('What could go out today without your cash running out before payday')
+    .description('Free until payday: after bills, usual everyday spending, a cushion and goals’ cash')
     .action(async () => {
       const api = await app.api();
       const data = await api.call(insightsSafeToSpend);
@@ -226,8 +226,13 @@ export function registerInsights(program: Command, app: App): void {
         records: (d) => d.committed,
         human: (d) => {
           const out = app.out;
-          out.line(`${out.heading('Safe to spend')} ${safeToSpendLine(out, d)}`);
+          out.line(`${out.heading('Free until payday')} ${safeToSpendLine(out, d)}`);
           out.line(out.colors.dim(`Cash today ${out.money(d.cash_today, d.currency)}; ${plural(d.committed.length, 'payment')} expected before then.`));
+          out.line(
+            out.colors.dim(
+              `Less everyday spending ${out.money(d.everyday_spending, d.currency)}, a cushion of ${out.money(d.cushion, d.currency)} and ${out.money(d.held_for_goals, d.currency)} set aside for goals.`,
+            ),
+          );
           if (d.committed.length) {
             out.line(
               out.table(d.committed, [

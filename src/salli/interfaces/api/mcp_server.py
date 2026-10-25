@@ -820,9 +820,14 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
 
     @mcp.tool()
     async def get_safe_to_spend() -> dict[str, Any]:
-        """How much could go out today without the user's cash forecast dropping
-        below zero before money next comes in, with what is committed until
-        then. The first thing to check for "can I afford it right now?"."""
+        """Free to spend until payday: the lowest the user's cash gets before
+        money next comes in, after scheduled bills (`committed`) and their usual
+        everyday spending, less a cushion and the cash set aside for goals.
+        `amount` is `low_point` (the lowest the cash gets, on `low_point_date`)
+        less `cushion` and `held_for_goals`; `everyday_spending` runs to
+        `until`, so it does not subtract from today's cash to give `amount`.
+        Quote figures as given. It is an estimate from past spending, not a
+        guarantee: say so when it decides an answer."""
         return await insights_svc.safe_to_spend(_current_user_id())
 
     @mcp.tool()

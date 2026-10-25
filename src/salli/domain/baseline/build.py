@@ -177,6 +177,9 @@ def fingerprint(inputs: BaselineInputs) -> str:
             ),
             "statement_accounts": inputs.statement_accounts,
             "own_assumptions": inputs.own_assumptions,
+            # Only when goals claim cash, so a baseline without any
+            # fingerprints as it did before.
+            **({"goal_claims": dict(inputs.goal_claims)} if inputs.goal_claims else {}),
             "rule_sets": sorted(inputs.rule_sets, key=lambda r: (r.rule_set_id, r.version)),
             # Only when there are rules to compute tax with, so a baseline
             # without any fingerprints as it did before scenarios computed tax.
@@ -328,4 +331,12 @@ def build(inputs: BaselineInputs) -> Baseline:
         tax=_tax(inputs, entries, accounts, flows),
         fingerprint=fingerprint(inputs),
         holdings=held,
+        held_for_goals=sum(
+            (
+                min(inputs.goal_claims[b.account_id], max(b.value, Decimal(0)))
+                for b in balances
+                if b.in_cash and b.value is not None and b.account_id in inputs.goal_claims
+            ),
+            Decimal(0),
+        ),
     )

@@ -241,12 +241,26 @@ class NextIncome(BaseModel):
 
 
 class SafeToSpend(BaseModel):
-    """What could go out today without the cash forecast going below zero
-    before money next comes in."""
+    """Free to spend until payday: the lowest the cash gets before money next
+    comes in, after what is scheduled (`committed`) and the everyday
+    spending a usual month has beyond it, less a cushion and the cash set
+    aside for goals. Never below zero."""
 
     currency: CurrencyCode
     amount: Amount
     cash_today: Amount
+    #: The lowest the cash gets before `until`, after what is committed and
+    #: the everyday spending so far, and its day. `amount` is this less
+    #: `cushion` and `held_for_goals`.
+    low_point: Amount
+    low_point_date: str
+    #: The everyday spending expected until `until`: a usual month's spending
+    #: beyond what is scheduled, day by day.
+    everyday_spending: Amount
+    #: Kept back: a tenth of a usual month's spending.
+    cushion: Amount
+    #: Cash earmarked for goals, up to what each account holds.
+    held_for_goals: Amount
     #: The day money next comes in, or 30 days ahead when none is expected.
     until: str
     next_income: NextIncome | None

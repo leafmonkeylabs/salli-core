@@ -136,10 +136,10 @@ async def test_the_emergency_fund_and_safe_to_spend_count_cash_alone(baseline, c
     end."""
     nothing = scenario(changes=[])
     invested, kept = engine.run(baseline, nothing), engine.run(cash_only, nothing)
-    # Safe-to-spend reads only what is scheduled before the next income: the
-    # same whatever the share.
+    # Safe-to-spend reads what is scheduled before the next income and the
+    # everyday spending: the same whatever the share.
     assert invested.cash.safe_to_spend.baseline == kept.cash.safe_to_spend.baseline
-    assert invested.cash.safe_to_spend.baseline == Decimal("15727.02")
+    assert invested.cash.safe_to_spend.baseline == Decimal("15316.35")
     # Emergency-fund months are cash over essential spending (1,898.32 a
     # month). A year on, with the surplus invested, cash is still 15,801.47:
     # 8.32 months; kept in cash, it is 39,200.21: 20.65 months.

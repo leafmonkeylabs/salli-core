@@ -254,7 +254,7 @@ export const whereStrings = {
   // Cash
   cash: {
     title: 'Cash',
-    description: 'Where your cash is heading, what is safe to spend until money next comes in, and where it went.',
+    description: 'Where your cash is heading, what is free to spend until money next comes in, and where it went.',
     forecast: (days: number) => `The next ${days} days`,
     forecastCaption: (start: string, end: string, today: string, low: string, on: string, last: string) =>
       `Cash in all your cash accounts each day from ${start} to ${end}, in your base currency, from what keeps happening: ${today} today, lowest ${low} on ${on}, ${last} at the end.`,
@@ -263,10 +263,13 @@ export const whereStrings = {
     cashColumn: (code: string) => `Cash (${code})`,
     rate: (currency: string, rate: string, source: string, date: string) => `${currency} at ${rate}, ${source}, ${date}`,
     noRate: (currency: string) => `${currency}: no published rate, so it is left out of the total`,
-    safe: 'Safe to spend',
+    safe: 'Free until payday',
     safeUntilIncome: (date: string, what: string) => `until ${date}, when ${what} comes in`,
     safeFor30: (date: string) => `for the next 30 days, to ${date}`,
-    safeHelp: 'What could go out today without your cash going below zero before money next comes in.',
+    safeHelp: 'Your lowest cash before money next comes in, after bills and your usual everyday spending, less a cushion and what you set aside for goals. An estimate from your past spending.',
+    lessEveryday: 'Everyday spending until then',
+    lessCushion: 'A cushion: a tenth of a usual month',
+    lessGoals: 'Set aside for goals',
     cashToday: 'Cash today',
     nextIncome: (date: string, what: string) => `Next income, ${date}: ${what}`,
     committed: 'Committed before then',

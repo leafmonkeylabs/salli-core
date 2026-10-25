@@ -346,6 +346,9 @@ class BaselineInputs:
     rule_sets: Sequence[RuleSetRef] = ()
     #: What a scenario's tax is computed from.
     tax: TaxInputs = field(default_factory=TaxInputs)
+    #: What active goals claim of each account (account id → amount in the
+    #: base currency): cash set aside, never free to spend.
+    goal_claims: Mapping[str, Decimal] = field(default_factory=dict[str, Decimal])
     #: The user's holdings (`HoldingInputs`); `rates` holds the as-of rate
     #: of each currency they are in other than the base.
     holdings: Sequence[HoldingInputs] = ()
@@ -386,6 +389,9 @@ class Baseline:
     #: A content hash of everything the baseline was built from
     #: (`fingerprint.of`): the same inputs, the same baseline.
     fingerprint: str = ""
+    #: The cash set aside for active goals: each cash account's claims, up
+    #: to what it holds, in the base currency (`BaselineInputs.goal_claims`).
+    held_for_goals: Decimal = Decimal(0)
     #: The user's holdings as of the as-of date: never counted (the ledger's
     #: investment accounts are), only what a scenario's holding changes read.
     holdings: tuple[BaselineHolding, ...] = ()

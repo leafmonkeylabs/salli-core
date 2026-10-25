@@ -316,7 +316,7 @@ describe('the widgets\' snapshot', () => {
 
   it('hides the amount unless amounts outside the app are allowed', () => {
     const hidden = glanceOf(reads(), options);
-    expect(hidden.safe).toEqual({ label: 'Safe to spend', figure: 'Amount hidden', currency: '', spoken: 'Amount hidden', until: 'until Oct 25, 2026' });
+    expect(hidden.safe).toEqual({ label: 'Free until payday', figure: 'Amount hidden', currency: '', spoken: 'Amount hidden', until: 'until Oct 25, 2026' });
     expect(JSON.stringify(hidden)).not.toMatch(/1,?234/);
     const shown = glanceOf(reads(), { ...options, showAmounts: true });
     expect(shown.safe.figure).toBe('(1,234.50)');
