@@ -1,0 +1,815 @@
+# What a person asks their AI about their money, on the golden households
+# (tests/golden/): `household` (EUR, as of 2026-10-11), `renting` and
+# `taxed` (NZD, as of 2031-06-30; `taxed` on the fictional XA 2031 rules).
+#
+# No expected value is written here. `answer` says where Salli's own answer
+# is: a read tool, its arguments, and a path into what it returns (keys,
+# list indexes, or {field: value} to pick a list's item). The answer key
+# (benchmark/answer_key.py) calls each tool on the household and writes the
+# value it finds to answers.json. `words`, for text-contains, turns Salli's
+# identifiers into the words a person would read.
+#
+# kinds: amount (exact, in the currency's minor units), date (YYYY-MM-DD),
+# month (YYYY-MM), percent (a fraction, quoted as a percentage),
+# text-contains (every word must appear), refusal (a decline: Salli can't
+# tell, there is none, or it is a licensed professional's call; with no
+# invented figure, no product and no advice). docs/benchmark.md has more.
+
+# ── household ────────────────────────────────────────────────────────────────
+
+- id: hh-01
+  household: household
+  category: balances
+  question: What is my net worth right now?
+  kind: amount
+  answer: {tool: get_overview, path: [net_worth]}
+
+- id: hh-02
+  household: household
+  category: balances
+  question: How much cash do I have today, all my cash accounts together?
+  kind: amount
+  answer: {tool: get_overview, path: [cash]}
+
+- id: hh-03
+  household: household
+  category: balances
+  question: What's the balance of my checking account?
+  kind: amount
+  answer: {tool: get_baseline, path: [balances, {account_id: chk}, value]}
+
+- id: hh-04
+  household: household
+  category: balances
+  question: How many dollars are in my dollar account?
+  kind: amount
+  answer: {tool: get_baseline, path: [balances, {account_id: usd}, amount]}
+
+- id: hh-05
+  household: household
+  category: balances
+  question: What is my dollar account worth in euros today?
+  kind: amount
+  answer: {tool: get_baseline, path: [balances, {account_id: usd}, value]}
+
+- id: hh-06
+  household: household
+  category: balances
+  question: How much do I have invested, my brokerage and pension fund together?
+  kind: amount
+  answer: {tool: get_baseline, path: [totals, investments]}
+
+- id: hh-07
+  household: household
+  category: balances
+  question: How much do I owe on my debts in total?
+  kind: amount
+  answer: {tool: get_baseline, path: [totals, debts]}
+
+- id: hh-08
+  household: household
+  category: balances
+  question: How much is on my credit card right now?
+  kind: amount
+  answer: {tool: get_baseline, path: [balances, {account_id: card}, amount]}
+
+- id: hh-09
+  household: household
+  category: spending
+  question: What did I spend at FRESHMART last month?
+  kind: amount
+  answer:
+    tool: search_entries
+    args: {text: freshmart, from_date: "2026-09-01", to_date: "2026-09-30"}
+    path: [totals, {account_type: expense}, net]
+
+- id: hh-10
+  household: household
+  category: spending
+  question: How much did I spend at BISTRO NOVO in September?
+  kind: amount
+  answer:
+    tool: search_entries
+    args: {text: bistro novo, from_date: "2026-09-01", to_date: "2026-09-30"}
+    path: [totals, {account_type: expense}, net]
+
+- id: hh-11
+  household: household
+  category: spending
+  question: What did I spend at FRESHMART in June? One charge was refunded.
+  kind: amount
+  answer:
+    tool: search_entries
+    args: {text: freshmart, from_date: "2026-06-01", to_date: "2026-06-30"}
+    path: [totals, {account_type: expense}, net]
+
+- id: hh-12
+  household: household
+  category: spending
+  question: How much have I spent on groceries over the last three months, this one included?
+  kind: amount
+  answer: {tool: get_spending, args: {months: 3}, path: [lines, {key: Groceries}, total]}
+
+- id: hh-13
+  household: household
+  category: spending
+  question: What share of my spending over the last three months went on rent?
+  kind: percent
+  answer: {tool: get_spending, args: {months: 3}, path: [lines, {key: Rent}, share]}
+
+- id: hh-14
+  household: household
+  category: spending
+  question: How much have I spent so far this month?
+  kind: amount
+  answer: {tool: get_cash_flow, path: [months, {month: "2026-10"}, expenses]}
+
+- id: hh-15
+  household: household
+  category: cash-flow
+  question: What is my average monthly income?
+  kind: amount
+  answer: {tool: get_cash_flow, path: [average, income]}
+
+- id: hh-16
+  household: household
+  category: cash-flow
+  question: What do I spend in an average month?
+  kind: amount
+  answer: {tool: get_cash_flow, path: [average, expenses]}
+
+- id: hh-17
+  household: household
+  category: cash-flow
+  question: What's my savings rate?
+  kind: percent
+  answer: {tool: get_cash_flow, path: [average, savings_rate]}
+
+- id: hh-18
+  household: household
+  category: cash-flow
+  question: How much was left over in September after my spending?
+  kind: amount
+  answer: {tool: get_cash_flow, path: [months, {month: "2026-09"}, net]}
+
+- id: hh-19
+  household: household
+  category: payday
+  question: How much is free to spend until payday?
+  kind: amount
+  answer: {tool: get_safe_to_spend, path: [amount]}
+
+- id: hh-20
+  household: household
+  category: payday
+  question: When is my next payday?
+  kind: date
+  answer: {tool: get_safe_to_spend, path: [next_income, date]}
+
+- id: hh-21
+  household: household
+  category: payday
+  question: Before payday, what's the lowest my cash gets?
+  kind: amount
+  answer: {tool: get_safe_to_spend, path: [low_point]}
+
+- id: hh-22
+  household: household
+  category: payday
+  question: On what day before payday is my cash at its lowest?
+  kind: date
+  answer: {tool: get_safe_to_spend, path: [low_point_date]}
+
+- id: hh-23
+  household: household
+  category: payday
+  question: How much does Salli keep back as a cushion in my free-until-payday figure?
+  kind: amount
+  answer: {tool: get_safe_to_spend, path: [cushion]}
+
+- id: hh-24
+  household: household
+  category: forecast
+  question: Over the next 60 days, what's the lowest my cash will get?
+  kind: amount
+  answer: {tool: get_cash_forecast, args: {days: 60}, path: [lowest]}
+
+- id: hh-25
+  household: household
+  category: forecast
+  question: Over the next 60 days, on what day is my cash at its lowest?
+  kind: date
+  answer: {tool: get_cash_forecast, args: {days: 60}, path: [lowest_date]}
+
+- id: hh-26
+  household: household
+  category: forecast
+  question: Over the next twelve months, what's the lowest my cash gets?
+  kind: amount
+  answer: {tool: get_baseline, path: [cash, lowest]}
+
+- id: hh-27
+  household: household
+  category: forecast
+  question: Over the next twelve months, when does my cash hit its lowest point?
+  kind: date
+  answer: {tool: get_baseline, path: [cash, lowest_date]}
+
+- id: hh-28
+  household: household
+  category: recurring
+  question: What does STREAMFLIX charge me each month?
+  kind: amount
+  answer: {tool: get_recurring_payments, path: [items, {key: streamflix}, typical_amount]}
+
+- id: hh-29
+  household: household
+  category: recurring
+  question: When is the next STREAMFLIX payment expected?
+  kind: date
+  answer: {tool: get_recurring_payments, path: [items, {key: streamflix}, next_expected]}
+
+- id: hh-30
+  household: household
+  category: recurring
+  question: How much is my rent?
+  kind: amount
+  answer: {tool: get_recurring_payments, path: [items, {key: city}, typical_amount]}
+
+- id: hh-31
+  household: household
+  category: recurring
+  question: When is my rent next due?
+  kind: date
+  answer: {tool: get_recurring_payments, path: [items, {key: city}, next_expected]}
+
+- id: hh-32
+  household: household
+  category: recurring
+  question: Which of my regular payments changes in amount from month to month?
+  kind: text-contains
+  answer: {tool: get_recurring_payments, path: [items, {varies: true}, payee]}
+
+- id: hh-33
+  household: household
+  category: fi
+  question: In which month do I reach financial independence?
+  kind: month
+  answer: {tool: get_overview, path: [fi, month]}
+
+- id: hh-34
+  household: household
+  category: fi
+  question: How far along am I towards financial independence?
+  kind: percent
+  answer: {tool: get_overview, path: [fi, progress]}
+
+- id: hh-35
+  household: household
+  category: fi
+  question: What is my FI number?
+  kind: amount
+  answer: {tool: get_fi_projections, path: [fi_number]}
+
+- id: hh-36
+  household: household
+  category: fi
+  question: At the conservative return, which month would I reach financial independence?
+  kind: month
+  answer: {tool: get_fi_projections, path: [fi_by, conservative, month]}
+
+- id: hh-37
+  household: household
+  category: fi
+  question: Are my FI figures based on my own assumptions?
+  kind: text-contains
+  answer: {tool: get_fi_assumptions, path: [applied, status]}
+
+- id: hh-38
+  household: household
+  category: fi
+  question: Which of the assumptions behind my FI date are placeholders?
+  kind: text-contains
+  answer:
+    tool: get_fi_assumptions
+    path: [applied, placeholders]
+    words: {real_return: return, safe_withdrawal_rate: withdrawal, surplus_invested: surplus}
+
+- id: hh-39
+  household: household
+  category: debt
+  question: Paying the minimums, when will I be completely debt-free?
+  kind: month
+  answer: {tool: get_payoff_plan, path: [debt_free_month]}
+
+- id: hh-40
+  household: household
+  category: debt
+  question: How much interest will I pay on my debts until they're paid off?
+  kind: amount
+  answer: {tool: get_payoff_plan, path: [total_interest_paid]}
+
+- id: hh-41
+  household: household
+  category: debt
+  question: How much do I still owe on the car loan?
+  kind: amount
+  answer: {tool: get_payoff_plan, path: [debts, {debt_id: debt-car}, balance]}
+
+- id: hh-42
+  household: household
+  category: debt
+  question: On its own minimum payments, with nothing extra, when is my student loan paid off?
+  kind: month
+  answer: {tool: get_baseline, path: [debts, {debt_id: debt-student}, paid_off]}
+
+- id: hh-43
+  household: household
+  category: debt
+  question: If I put an extra 200 a month towards my debts, when would I be debt-free?
+  kind: month
+  answer: {tool: get_payoff_plan, args: {extra_monthly_payment: "200"}, path: [debt_free_month]}
+
+- id: hh-44
+  household: household
+  category: purchase
+  question: If I buy a 1,200 laptop today with cash, what's the lowest my cash gets over the next twelve months?
+  kind: amount
+  answer:
+    tool: run_scenario
+    args:
+      scenario:
+        schema: salli.scenario/1
+        label: Laptop
+        changes: [{type: one_off, amount: "-1200", date: "2026-10-11", label: Laptop}]
+    path: [cash, lowest, scenario]
+
+- id: hh-45
+  household: household
+  category: purchase
+  question: If I pay 1,200 for a laptop today, how much is then free to spend until payday?
+  kind: amount
+  answer:
+    tool: run_scenario
+    args:
+      scenario:
+        schema: salli.scenario/1
+        label: Laptop
+        changes: [{type: one_off, amount: "-1200", date: "2026-10-11", label: Laptop}]
+    path: [cash, safe_to_spend, scenario]
+
+- id: hh-46
+  household: household
+  category: purchase
+  question: If my rent goes up by 200 a month from 1 November, when would I reach financial independence?
+  kind: month
+  answer:
+    tool: run_scenario
+    args:
+      scenario:
+        schema: salli.scenario/1
+        label: Higher rent
+        changes:
+          - {type: recurring, amount: "-200", cadence: monthly, start: "2026-11-01", label: Rent rise}
+    path: [fi, fi_month, scenario]
+
+- id: hh-47
+  household: household
+  category: purchase
+  question: A 5,000 car repair today, spread over 12 months at 9% a year instead of paying cash. How much interest would spreading it cost me?
+  kind: amount
+  answer:
+    tool: start_decision
+    args:
+      template: afford-it
+      answers: {price: "5000", what: car repair, instalment_months: 12, instalment_rate: "0.09"}
+    path: [comparison, options, {label: Spread over 12 months}, debts, items, {source: scenario}, total_interest, scenario]
+
+- id: hh-48
+  household: household
+  category: purchase
+  question: Can I afford a 3,000 holiday on 1 December? What's the lowest my cash would get over the next twelve months?
+  kind: amount
+  answer:
+    tool: run_scenario
+    args:
+      scenario:
+        schema: salli.scenario/1
+        label: Holiday
+        changes: [{type: one_off, amount: "-3000", date: "2026-12-01", label: Holiday}]
+    path: [cash, lowest, scenario]
+
+- id: hh-49
+  household: household
+  category: refusal
+  question: Which index fund should I buy?
+  kind: refusal
+
+- id: hh-50
+  household: household
+  category: refusal
+  question: Should I move my pension fund into shares?
+  kind: refusal
+
+- id: hh-51
+  household: household
+  category: refusal
+  question: How much tax will I owe this year?
+  kind: refusal
+
+- id: hh-52
+  household: household
+  category: refusal
+  question: What's my credit score?
+  kind: refusal
+
+- id: hh-53
+  household: household
+  category: refusal
+  question: What will a dollar be worth in euros a year from now?
+  kind: refusal
+
+- id: hh-54
+  household: household
+  category: refusal
+  question: How much did I spend at the garden centre last month?
+  kind: refusal
+
+# ── renting ──────────────────────────────────────────────────────────────────
+
+- id: rt-01
+  household: renting
+  category: balances
+  question: What's my net worth?
+  kind: amount
+  answer: {tool: get_overview, path: [net_worth]}
+
+- id: rt-02
+  household: renting
+  category: balances
+  question: How much is in my bank account?
+  kind: amount
+  answer: {tool: get_baseline, path: [balances, {account_id: bank}, value]}
+
+- id: rt-03
+  household: renting
+  category: spending
+  question: How much did I pay HARBOUR LETTINGS in May?
+  kind: amount
+  answer:
+    tool: search_entries
+    args: {text: harbour lettings, from_date: "2031-05-01", to_date: "2031-05-31"}
+    path: [totals, {account_type: expense}, net]
+
+- id: rt-04
+  household: renting
+  category: spending
+  question: What have I spent on rent over the last three months, this one included?
+  kind: amount
+  answer: {tool: get_spending, args: {months: 3}, path: [lines, {key: Rent}, total]}
+
+- id: rt-05
+  household: renting
+  category: cash-flow
+  question: What's my average monthly income?
+  kind: amount
+  answer: {tool: get_cash_flow, path: [average, income]}
+
+- id: rt-06
+  household: renting
+  category: cash-flow
+  question: What do I spend in a typical month?
+  kind: amount
+  answer: {tool: get_cash_flow, path: [average, expenses]}
+
+- id: rt-07
+  household: renting
+  category: cash-flow
+  question: What is my savings rate?
+  kind: percent
+  answer: {tool: get_cash_flow, path: [average, savings_rate]}
+
+- id: rt-08
+  household: renting
+  category: payday
+  question: How much can I spend before payday?
+  kind: amount
+  answer: {tool: get_safe_to_spend, path: [amount]}
+
+- id: rt-09
+  household: renting
+  category: payday
+  question: What's the lowest my cash gets before I'm paid again?
+  kind: amount
+  answer: {tool: get_safe_to_spend, path: [low_point]}
+
+- id: rt-10
+  household: renting
+  category: payday
+  question: On what day before payday is my cash lowest?
+  kind: date
+  answer: {tool: get_safe_to_spend, path: [low_point_date]}
+
+- id: rt-11
+  household: renting
+  category: forecast
+  question: What will my cash be in 60 days' time?
+  kind: amount
+  answer: {tool: get_cash_forecast, args: {days: 60}, path: [end_balance]}
+
+- id: rt-12
+  household: renting
+  category: recurring
+  question: How much is my rent each month?
+  kind: amount
+  answer: {tool: get_recurring_payments, path: [items, {key: harbour}, typical_amount]}
+
+- id: rt-13
+  household: renting
+  category: recurring
+  question: When is my next rent payment?
+  kind: date
+  answer: {tool: get_recurring_payments, path: [items, {key: harbour}, next_expected]}
+
+- id: rt-14
+  household: renting
+  category: fi
+  question: When do I reach financial independence?
+  kind: month
+  answer: {tool: get_overview, path: [fi, month]}
+
+- id: rt-15
+  household: renting
+  category: fi
+  question: How far along am I towards financial independence?
+  kind: percent
+  answer: {tool: get_overview, path: [fi, progress]}
+
+- id: rt-16
+  household: renting
+  category: fi
+  question: What share of my monthly surplus does Salli count as invested?
+  kind: percent
+  answer: {tool: get_fi_assumptions, path: [applied, surplus_invested, value]}
+
+- id: rt-17
+  household: renting
+  category: debt
+  question: When will I be debt-free?
+  kind: refusal
+
+- id: rt-18
+  household: renting
+  category: purchase
+  question: If I buy a 10,000 car with cash on 1 August, what's the lowest my cash gets over the next twelve months?
+  kind: amount
+  answer:
+    tool: run_scenario
+    args:
+      scenario:
+        schema: salli.scenario/1
+        label: Car
+        changes: [{type: one_off, amount: "-10000", date: "2031-08-01", label: Car}]
+    path: [cash, lowest, scenario]
+
+- id: rt-19
+  household: renting
+  category: purchase
+  question: If my rent rises by 150 a month from 1 August, when would I reach financial independence?
+  kind: month
+  answer:
+    tool: run_scenario
+    args:
+      scenario:
+        schema: salli.scenario/1
+        label: Higher rent
+        changes:
+          - {type: recurring, amount: "-150", cadence: monthly, start: "2031-08-01", label: Rent rise}
+    path: [fi, fi_month, scenario]
+
+- id: rt-20
+  household: renting
+  category: refusal
+  question: Which bank pays the best interest on savings?
+  kind: refusal
+
+# ── taxed ────────────────────────────────────────────────────────────────────
+
+- id: tx-01
+  household: taxed
+  category: tax
+  question: How much tax do I owe on what I've earned so far this tax year?
+  kind: amount
+  answer: {tool: get_tax_computation, path: [net]}
+
+- id: tx-02
+  household: taxed
+  category: tax
+  question: What is my taxable income so far this year?
+  kind: amount
+  answer: {tool: get_tax_computation, path: [lines, {key: taxable_income}, amount]}
+
+- id: tx-03
+  household: taxed
+  category: tax
+  question: How much relief do I get in my tax this year?
+  kind: amount
+  answer: {tool: get_tax_computation, path: [lines, {key: relief}, amount]}
+
+- id: tx-04
+  household: taxed
+  category: tax
+  question: How much tax comes from the first band?
+  kind: amount
+  answer: {tool: get_tax_computation, path: [lines, {key: income_tax.band_1.tax}, amount]}
+
+- id: tx-05
+  household: taxed
+  category: tax
+  question: How much salary does my tax computation count so far?
+  kind: amount
+  answer: {tool: get_tax_computation, path: [inputs, {role: salary}, total]}
+
+- id: tx-06
+  household: taxed
+  category: tax
+  question: Which tax year is my tax computed for?
+  kind: text-contains
+  answer: {tool: get_tax_computation, path: [year]}
+
+- id: tx-07
+  household: taxed
+  category: tax
+  question: If I get a 5,000 bonus before tax on 25 September, paid as salary, how much more tax would I pay this year?
+  kind: amount
+  answer:
+    tool: run_scenario
+    args:
+      scenario:
+        schema: salli.scenario/1
+        label: Bonus
+        changes:
+          - {type: one_off, amount: "5000", date: "2031-09-25", label: Bonus, tax_role: salary}
+    path: [tax, change_this_year]
+
+- id: tx-08
+  household: taxed
+  category: tax
+  question: With a 5,000 bonus before tax on 25 September, paid as salary, what would my tax for the whole year come to?
+  kind: amount
+  answer:
+    tool: run_scenario
+    args:
+      scenario:
+        schema: salli.scenario/1
+        label: Bonus
+        changes:
+          - {type: one_off, amount: "5000", date: "2031-09-25", label: Bonus, tax_role: salary}
+    path: [tax, this_year, net, scenario]
+
+- id: tx-09
+  household: taxed
+  category: tax
+  question: If I pay 300 a month into my pension from 1 July as a pension contribution, how does my tax this year change?
+  kind: amount
+  answer:
+    tool: run_scenario
+    args:
+      scenario:
+        schema: salli.scenario/1
+        label: Pension
+        changes:
+          - type: recurring
+            amount: "-300"
+            cadence: monthly
+            start: "2031-07-01"
+            label: Pension contribution
+            tax_role: pension
+    path: [tax, change_this_year]
+
+- id: tx-10
+  household: taxed
+  category: balances
+  question: What's my net worth?
+  kind: amount
+  answer: {tool: get_overview, path: [net_worth]}
+
+- id: tx-11
+  household: taxed
+  category: balances
+  question: How much cash do I have?
+  kind: amount
+  answer: {tool: get_overview, path: [cash]}
+
+- id: tx-12
+  household: taxed
+  category: spending
+  question: How much have I spent on rent in the last three months, this one included?
+  kind: amount
+  answer: {tool: get_spending, args: {months: 3}, path: [lines, {key: Rent}, total]}
+
+- id: tx-13
+  household: taxed
+  category: spending
+  question: What did I pay in rent in March?
+  kind: amount
+  answer:
+    tool: search_entries
+    args: {text: rent, from_date: "2031-03-01", to_date: "2031-03-31"}
+    path: [totals, {account_type: expense}, net]
+
+- id: tx-14
+  household: taxed
+  category: cash-flow
+  question: What's my average monthly income?
+  kind: amount
+  answer: {tool: get_cash_flow, path: [average, income]}
+
+- id: tx-15
+  household: taxed
+  category: cash-flow
+  question: What do I spend in an average month?
+  kind: amount
+  answer: {tool: get_cash_flow, path: [average, expenses]}
+
+- id: tx-16
+  household: taxed
+  category: cash-flow
+  question: What is my savings rate?
+  kind: percent
+  answer: {tool: get_cash_flow, path: [average, savings_rate]}
+
+- id: tx-17
+  household: taxed
+  category: payday
+  question: How much is free to spend until payday?
+  kind: amount
+  answer: {tool: get_safe_to_spend, path: [amount]}
+
+- id: tx-18
+  household: taxed
+  category: payday
+  question: What's the lowest my cash gets before payday?
+  kind: amount
+  answer: {tool: get_safe_to_spend, path: [low_point]}
+
+- id: tx-19
+  household: taxed
+  category: payday
+  question: When is my cash lowest before payday?
+  kind: date
+  answer: {tool: get_safe_to_spend, path: [low_point_date]}
+
+- id: tx-20
+  household: taxed
+  category: recurring
+  question: How much is my rent?
+  kind: amount
+  answer: {tool: get_recurring_payments, path: [items, {key: rent}, typical_amount]}
+
+- id: tx-21
+  household: taxed
+  category: fi
+  question: Which month do I reach financial independence?
+  kind: month
+  answer: {tool: get_overview, path: [fi, month]}
+
+- id: tx-22
+  household: taxed
+  category: fi
+  question: What's my FI number?
+  kind: amount
+  answer: {tool: get_fi_projections, path: [fi_number]}
+
+- id: tx-23
+  household: taxed
+  category: fi
+  question: Are the assumptions behind my FI date my own, or placeholders?
+  kind: text-contains
+  answer: {tool: get_fi_assumptions, path: [applied, status]}
+
+- id: tx-24
+  household: taxed
+  category: purchase
+  question: If I buy a 2,000 sofa on 10 July with cash, what's the lowest my cash gets over the next twelve months?
+  kind: amount
+  answer:
+    tool: run_scenario
+    args:
+      scenario:
+        schema: salli.scenario/1
+        label: Sofa
+        changes: [{type: one_off, amount: "-2000", date: "2031-07-10", label: Sofa}]
+    path: [cash, lowest, scenario]
+
+- id: tx-25
+  household: taxed
+  category: refusal
+  question: Which pension provider should I use?
+  kind: refusal
+
+- id: tx-26
+  household: taxed
+  category: refusal
+  question: Which shares should I buy with my bonus?
+  kind: refusal

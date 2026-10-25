@@ -1,0 +1,1433 @@
+{
+  "about": "What Salli's own tools answer each question in benchmark/questions.yaml, on its golden household. Written by `uv run python -m benchmark.answer_key`; never edit it by hand.",
+  "questions": 100,
+  "answers": {
+    "hh-01": {
+      "household": "household",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "335901.47",
+      "from": {
+        "tool": "get_overview",
+        "args": {},
+        "path": "net_worth"
+      },
+      "tolerance": "0"
+    },
+    "hh-02": {
+      "household": "household",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "15801.47",
+      "from": {
+        "tool": "get_overview",
+        "args": {},
+        "path": "cash"
+      },
+      "tolerance": "0"
+    },
+    "hh-03": {
+      "household": "household",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "6543.15",
+      "from": {
+        "tool": "get_baseline",
+        "args": {},
+        "path": "balances[chk].value"
+      },
+      "tolerance": "0"
+    },
+    "hh-04": {
+      "household": "household",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "2500.00",
+      "from": {
+        "tool": "get_baseline",
+        "args": {},
+        "path": "balances[usd].amount"
+      },
+      "tolerance": "0"
+    },
+    "hh-05": {
+      "household": "household",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "2150.00",
+      "from": {
+        "tool": "get_baseline",
+        "args": {},
+        "path": "balances[usd].value"
+      },
+      "tolerance": "0"
+    },
+    "hh-06": {
+      "household": "household",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "38000.00",
+      "from": {
+        "tool": "get_baseline",
+        "args": {},
+        "path": "totals.investments"
+      },
+      "tolerance": "0"
+    },
+    "hh-07": {
+      "household": "household",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "17900.00",
+      "from": {
+        "tool": "get_baseline",
+        "args": {},
+        "path": "totals.debts"
+      },
+      "tolerance": "0"
+    },
+    "hh-08": {
+      "household": "household",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "-691.68",
+      "from": {
+        "tool": "get_baseline",
+        "args": {},
+        "path": "balances[card].amount"
+      },
+      "tolerance": "0"
+    },
+    "hh-09": {
+      "household": "household",
+      "category": "spending",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "400.00",
+      "from": {
+        "tool": "search_entries",
+        "args": {
+          "text": "freshmart",
+          "from_date": "2026-09-01",
+          "to_date": "2026-09-30"
+        },
+        "path": "totals[expense].net"
+      },
+      "tolerance": "0"
+    },
+    "hh-10": {
+      "household": "household",
+      "category": "spending",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "77.70",
+      "from": {
+        "tool": "search_entries",
+        "args": {
+          "text": "bistro novo",
+          "from_date": "2026-09-01",
+          "to_date": "2026-09-30"
+        },
+        "path": "totals[expense].net"
+      },
+      "tolerance": "0"
+    },
+    "hh-11": {
+      "household": "household",
+      "category": "spending",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "395.50",
+      "from": {
+        "tool": "search_entries",
+        "args": {
+          "text": "freshmart",
+          "from_date": "2026-06-01",
+          "to_date": "2026-06-30"
+        },
+        "path": "totals[expense].net"
+      },
+      "tolerance": "0"
+    },
+    "hh-12": {
+      "household": "household",
+      "category": "spending",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "988.00",
+      "from": {
+        "tool": "get_spending",
+        "args": {
+          "months": 3
+        },
+        "path": "lines[Groceries].total"
+      },
+      "tolerance": "0"
+    },
+    "hh-13": {
+      "household": "household",
+      "category": "spending",
+      "kind": "percent",
+      "currency": "EUR",
+      "expected": "0.7741",
+      "from": {
+        "tool": "get_spending",
+        "args": {
+          "months": 3
+        },
+        "path": "lines[Rent].share"
+      },
+      "tolerance": "0.05"
+    },
+    "hh-14": {
+      "household": "household",
+      "category": "spending",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "1750.99",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "months[2026-10].expenses"
+      },
+      "tolerance": "0"
+    },
+    "hh-15": {
+      "household": "household",
+      "category": "cash-flow",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "4000.00",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "average.income"
+      },
+      "tolerance": "0"
+    },
+    "hh-16": {
+      "household": "household",
+      "category": "cash-flow",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "2037.09",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "average.expenses"
+      },
+      "tolerance": "0"
+    },
+    "hh-17": {
+      "household": "household",
+      "category": "cash-flow",
+      "kind": "percent",
+      "currency": "EUR",
+      "expected": "0.4907",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "average.savings_rate"
+      },
+      "tolerance": "0.05"
+    },
+    "hh-18": {
+      "household": "household",
+      "category": "cash-flow",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "1959.31",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "months[2026-09].net"
+      },
+      "tolerance": "0"
+    },
+    "hh-19": {
+      "household": "household",
+      "category": "payday",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "15316.35",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "amount"
+      },
+      "tolerance": "0"
+    },
+    "hh-20": {
+      "household": "household",
+      "category": "payday",
+      "kind": "date",
+      "currency": "EUR",
+      "expected": "2026-10-25",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "next_income.date"
+      },
+      "tolerance": "0"
+    },
+    "hh-21": {
+      "household": "household",
+      "category": "payday",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "15520.06",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "low_point"
+      },
+      "tolerance": "0"
+    },
+    "hh-22": {
+      "household": "household",
+      "category": "payday",
+      "kind": "date",
+      "currency": "EUR",
+      "expected": "2026-10-24",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "low_point_date"
+      },
+      "tolerance": "0"
+    },
+    "hh-23": {
+      "household": "household",
+      "category": "payday",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "203.71",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "cushion"
+      },
+      "tolerance": "0"
+    },
+    "hh-24": {
+      "household": "household",
+      "category": "forecast",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "15727.02",
+      "from": {
+        "tool": "get_cash_forecast",
+        "args": {
+          "days": 60
+        },
+        "path": "lowest"
+      },
+      "tolerance": "0"
+    },
+    "hh-25": {
+      "household": "household",
+      "category": "forecast",
+      "kind": "date",
+      "currency": "EUR",
+      "expected": "2026-10-18",
+      "from": {
+        "tool": "get_cash_forecast",
+        "args": {
+          "days": 60
+        },
+        "path": "lowest_date"
+      },
+      "tolerance": "0"
+    },
+    "hh-26": {
+      "household": "household",
+      "category": "forecast",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "13998.91",
+      "from": {
+        "tool": "get_baseline",
+        "args": {},
+        "path": "cash.lowest"
+      },
+      "tolerance": "0"
+    },
+    "hh-27": {
+      "household": "household",
+      "category": "forecast",
+      "kind": "date",
+      "currency": "EUR",
+      "expected": "2027-02-24",
+      "from": {
+        "tool": "get_baseline",
+        "args": {},
+        "path": "cash.lowest_date"
+      },
+      "tolerance": "0"
+    },
+    "hh-28": {
+      "household": "household",
+      "category": "recurring",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "12.99",
+      "from": {
+        "tool": "get_recurring_payments",
+        "args": {},
+        "path": "items[streamflix].typical_amount"
+      },
+      "tolerance": "0"
+    },
+    "hh-29": {
+      "household": "household",
+      "category": "recurring",
+      "kind": "date",
+      "currency": "EUR",
+      "expected": "2026-11-08",
+      "from": {
+        "tool": "get_recurring_payments",
+        "args": {},
+        "path": "items[streamflix].next_expected"
+      },
+      "tolerance": "0"
+    },
+    "hh-30": {
+      "household": "household",
+      "category": "recurring",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "1500.00",
+      "from": {
+        "tool": "get_recurring_payments",
+        "args": {},
+        "path": "items[city].typical_amount"
+      },
+      "tolerance": "0"
+    },
+    "hh-31": {
+      "household": "household",
+      "category": "recurring",
+      "kind": "date",
+      "currency": "EUR",
+      "expected": "2026-11-01",
+      "from": {
+        "tool": "get_recurring_payments",
+        "args": {},
+        "path": "items[city].next_expected"
+      },
+      "tolerance": "0"
+    },
+    "hh-32": {
+      "household": "household",
+      "category": "recurring",
+      "kind": "text-contains",
+      "currency": "EUR",
+      "expected": [
+        "Bistro Novo"
+      ],
+      "from": {
+        "tool": "get_recurring_payments",
+        "args": {},
+        "path": "items[True].payee"
+      }
+    },
+    "hh-33": {
+      "household": "household",
+      "category": "fi",
+      "kind": "month",
+      "currency": "EUR",
+      "expected": "2042-05",
+      "from": {
+        "tool": "get_overview",
+        "args": {},
+        "path": "fi.month"
+      },
+      "tolerance": "0"
+    },
+    "hh-34": {
+      "household": "household",
+      "category": "fi",
+      "kind": "percent",
+      "currency": "EUR",
+      "expected": "0.05874633259535252083445830408",
+      "from": {
+        "tool": "get_overview",
+        "args": {},
+        "path": "fi.progress"
+      },
+      "tolerance": "0.05"
+    },
+    "hh-35": {
+      "household": "household",
+      "category": "fi",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "611127",
+      "from": {
+        "tool": "get_fi_projections",
+        "args": {},
+        "path": "fi_number"
+      },
+      "tolerance": "0"
+    },
+    "hh-36": {
+      "household": "household",
+      "category": "fi",
+      "kind": "month",
+      "currency": "EUR",
+      "expected": "2045-02",
+      "from": {
+        "tool": "get_fi_projections",
+        "args": {},
+        "path": "fi_by.conservative.month"
+      },
+      "tolerance": "0"
+    },
+    "hh-37": {
+      "household": "household",
+      "category": "fi",
+      "kind": "text-contains",
+      "currency": "EUR",
+      "expected": [
+        "placeholder"
+      ],
+      "from": {
+        "tool": "get_fi_assumptions",
+        "args": {},
+        "path": "applied.status"
+      }
+    },
+    "hh-38": {
+      "household": "household",
+      "category": "fi",
+      "kind": "text-contains",
+      "currency": "EUR",
+      "expected": [
+        "return",
+        "withdrawal",
+        "surplus"
+      ],
+      "from": {
+        "tool": "get_fi_assumptions",
+        "args": {},
+        "path": "applied.placeholders"
+      }
+    },
+    "hh-39": {
+      "household": "household",
+      "category": "debt",
+      "kind": "month",
+      "currency": "EUR",
+      "expected": "2030-04",
+      "from": {
+        "tool": "get_payoff_plan",
+        "args": {},
+        "path": "debt_free_month"
+      },
+      "tolerance": "0"
+    },
+    "hh-40": {
+      "household": "household",
+      "category": "debt",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "1667.47",
+      "from": {
+        "tool": "get_payoff_plan",
+        "args": {},
+        "path": "total_interest_paid"
+      },
+      "tolerance": "0"
+    },
+    "hh-41": {
+      "household": "household",
+      "category": "debt",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "9900.00",
+      "from": {
+        "tool": "get_payoff_plan",
+        "args": {},
+        "path": "debts[debt-car].balance"
+      },
+      "tolerance": "0"
+    },
+    "hh-42": {
+      "household": "household",
+      "category": "debt",
+      "kind": "month",
+      "currency": "EUR",
+      "expected": "2033-03",
+      "from": {
+        "tool": "get_baseline",
+        "args": {},
+        "path": "debts[debt-student].paid_off"
+      },
+      "tolerance": "0"
+    },
+    "hh-43": {
+      "household": "household",
+      "category": "debt",
+      "kind": "month",
+      "currency": "EUR",
+      "expected": "2029-03",
+      "from": {
+        "tool": "get_payoff_plan",
+        "args": {
+          "extra_monthly_payment": "200"
+        },
+        "path": "debt_free_month"
+      },
+      "tolerance": "0"
+    },
+    "hh-44": {
+      "household": "household",
+      "category": "purchase",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "12798.91",
+      "from": {
+        "tool": "run_scenario",
+        "args": {
+          "scenario": {
+            "schema": "salli.scenario/1",
+            "label": "Laptop",
+            "changes": [
+              {
+                "type": "one_off",
+                "amount": "-1200",
+                "date": "2026-10-11",
+                "label": "Laptop"
+              }
+            ]
+          }
+        },
+        "path": "cash.lowest.scenario"
+      },
+      "tolerance": "0"
+    },
+    "hh-45": {
+      "household": "household",
+      "category": "purchase",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "14116.35",
+      "from": {
+        "tool": "run_scenario",
+        "args": {
+          "scenario": {
+            "schema": "salli.scenario/1",
+            "label": "Laptop",
+            "changes": [
+              {
+                "type": "one_off",
+                "amount": "-1200",
+                "date": "2026-10-11",
+                "label": "Laptop"
+              }
+            ]
+          }
+        },
+        "path": "cash.safe_to_spend.scenario"
+      },
+      "tolerance": "0"
+    },
+    "hh-46": {
+      "household": "household",
+      "category": "purchase",
+      "kind": "month",
+      "currency": "EUR",
+      "expected": "2044-10",
+      "from": {
+        "tool": "run_scenario",
+        "args": {
+          "scenario": {
+            "schema": "salli.scenario/1",
+            "label": "Higher rent",
+            "changes": [
+              {
+                "type": "recurring",
+                "amount": "-200",
+                "cadence": "monthly",
+                "start": "2026-11-01",
+                "label": "Rent rise"
+              }
+            ]
+          }
+        },
+        "path": "fi.fi_month.scenario"
+      },
+      "tolerance": "0"
+    },
+    "hh-47": {
+      "household": "household",
+      "category": "purchase",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "247.08",
+      "from": {
+        "tool": "start_decision",
+        "args": {
+          "template": "afford-it",
+          "answers": {
+            "price": "5000",
+            "what": "car repair",
+            "instalment_months": 12,
+            "instalment_rate": "0.09"
+          }
+        },
+        "path": "comparison.options[Spread over 12 months].debts.items[scenario].total_interest.scenario"
+      },
+      "tolerance": "0"
+    },
+    "hh-48": {
+      "household": "household",
+      "category": "purchase",
+      "kind": "amount",
+      "currency": "EUR",
+      "expected": "10998.91",
+      "from": {
+        "tool": "run_scenario",
+        "args": {
+          "scenario": {
+            "schema": "salli.scenario/1",
+            "label": "Holiday",
+            "changes": [
+              {
+                "type": "one_off",
+                "amount": "-3000",
+                "date": "2026-12-01",
+                "label": "Holiday"
+              }
+            ]
+          }
+        },
+        "path": "cash.lowest.scenario"
+      },
+      "tolerance": "0"
+    },
+    "hh-49": {
+      "household": "household",
+      "category": "refusal",
+      "kind": "refusal",
+      "currency": "EUR",
+      "expected": null
+    },
+    "hh-50": {
+      "household": "household",
+      "category": "refusal",
+      "kind": "refusal",
+      "currency": "EUR",
+      "expected": null
+    },
+    "hh-51": {
+      "household": "household",
+      "category": "refusal",
+      "kind": "refusal",
+      "currency": "EUR",
+      "expected": null
+    },
+    "hh-52": {
+      "household": "household",
+      "category": "refusal",
+      "kind": "refusal",
+      "currency": "EUR",
+      "expected": null
+    },
+    "hh-53": {
+      "household": "household",
+      "category": "refusal",
+      "kind": "refusal",
+      "currency": "EUR",
+      "expected": null
+    },
+    "hh-54": {
+      "household": "household",
+      "category": "refusal",
+      "kind": "refusal",
+      "currency": "EUR",
+      "expected": null
+    },
+    "rt-01": {
+      "household": "renting",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "72000.00",
+      "from": {
+        "tool": "get_overview",
+        "args": {},
+        "path": "net_worth"
+      },
+      "tolerance": "0"
+    },
+    "rt-02": {
+      "household": "renting",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "72000.00",
+      "from": {
+        "tool": "get_baseline",
+        "args": {},
+        "path": "balances[bank].value"
+      },
+      "tolerance": "0"
+    },
+    "rt-03": {
+      "household": "renting",
+      "category": "spending",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "1000.00",
+      "from": {
+        "tool": "search_entries",
+        "args": {
+          "text": "harbour lettings",
+          "from_date": "2031-05-01",
+          "to_date": "2031-05-31"
+        },
+        "path": "totals[expense].net"
+      },
+      "tolerance": "0"
+    },
+    "rt-04": {
+      "household": "renting",
+      "category": "spending",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "3000.00",
+      "from": {
+        "tool": "get_spending",
+        "args": {
+          "months": 3
+        },
+        "path": "lines[Rent].total"
+      },
+      "tolerance": "0"
+    },
+    "rt-05": {
+      "household": "renting",
+      "category": "cash-flow",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "3000.00",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "average.income"
+      },
+      "tolerance": "0"
+    },
+    "rt-06": {
+      "household": "renting",
+      "category": "cash-flow",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "1000.00",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "average.expenses"
+      },
+      "tolerance": "0"
+    },
+    "rt-07": {
+      "household": "renting",
+      "category": "cash-flow",
+      "kind": "percent",
+      "currency": "NZD",
+      "expected": "0.6667",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "average.savings_rate"
+      },
+      "tolerance": "0.05"
+    },
+    "rt-08": {
+      "household": "renting",
+      "category": "payday",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "70900.00",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "amount"
+      },
+      "tolerance": "0"
+    },
+    "rt-09": {
+      "household": "renting",
+      "category": "payday",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "71000.00",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "low_point"
+      },
+      "tolerance": "0"
+    },
+    "rt-10": {
+      "household": "renting",
+      "category": "payday",
+      "kind": "date",
+      "currency": "NZD",
+      "expected": "2031-07-01",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "low_point_date"
+      },
+      "tolerance": "0"
+    },
+    "rt-11": {
+      "household": "renting",
+      "category": "forecast",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "76000.00",
+      "from": {
+        "tool": "get_cash_forecast",
+        "args": {
+          "days": 60
+        },
+        "path": "end_balance"
+      },
+      "tolerance": "0"
+    },
+    "rt-12": {
+      "household": "renting",
+      "category": "recurring",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "1000.00",
+      "from": {
+        "tool": "get_recurring_payments",
+        "args": {},
+        "path": "items[harbour].typical_amount"
+      },
+      "tolerance": "0"
+    },
+    "rt-13": {
+      "household": "renting",
+      "category": "recurring",
+      "kind": "date",
+      "currency": "NZD",
+      "expected": "2031-07-01",
+      "from": {
+        "tool": "get_recurring_payments",
+        "args": {},
+        "path": "items[harbour].next_expected"
+      },
+      "tolerance": "0"
+    },
+    "rt-14": {
+      "household": "renting",
+      "category": "fi",
+      "kind": "month",
+      "currency": "NZD",
+      "expected": "2040-12",
+      "from": {
+        "tool": "get_overview",
+        "args": {},
+        "path": "fi.month"
+      },
+      "tolerance": "0"
+    },
+    "rt-15": {
+      "household": "renting",
+      "category": "fi",
+      "kind": "percent",
+      "currency": "NZD",
+      "expected": "0.24",
+      "from": {
+        "tool": "get_overview",
+        "args": {},
+        "path": "fi.progress"
+      },
+      "tolerance": "0.05"
+    },
+    "rt-16": {
+      "household": "renting",
+      "category": "fi",
+      "kind": "percent",
+      "currency": "NZD",
+      "expected": "0",
+      "from": {
+        "tool": "get_fi_assumptions",
+        "args": {},
+        "path": "applied.surplus_invested.value"
+      },
+      "tolerance": "0.05"
+    },
+    "rt-17": {
+      "household": "renting",
+      "category": "debt",
+      "kind": "refusal",
+      "currency": "NZD",
+      "expected": null
+    },
+    "rt-18": {
+      "household": "renting",
+      "category": "purchase",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "63000.00",
+      "from": {
+        "tool": "run_scenario",
+        "args": {
+          "scenario": {
+            "schema": "salli.scenario/1",
+            "label": "Car",
+            "changes": [
+              {
+                "type": "one_off",
+                "amount": "-10000",
+                "date": "2031-08-01",
+                "label": "Car"
+              }
+            ]
+          }
+        },
+        "path": "cash.lowest.scenario"
+      },
+      "tolerance": "0"
+    },
+    "rt-19": {
+      "household": "renting",
+      "category": "purchase",
+      "kind": "month",
+      "currency": "NZD",
+      "expected": "2043-10",
+      "from": {
+        "tool": "run_scenario",
+        "args": {
+          "scenario": {
+            "schema": "salli.scenario/1",
+            "label": "Higher rent",
+            "changes": [
+              {
+                "type": "recurring",
+                "amount": "-150",
+                "cadence": "monthly",
+                "start": "2031-08-01",
+                "label": "Rent rise"
+              }
+            ]
+          }
+        },
+        "path": "fi.fi_month.scenario"
+      },
+      "tolerance": "0"
+    },
+    "rt-20": {
+      "household": "renting",
+      "category": "refusal",
+      "kind": "refusal",
+      "currency": "NZD",
+      "expected": null
+    },
+    "tx-01": {
+      "household": "taxed",
+      "category": "tax",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "2400.00",
+      "from": {
+        "tool": "get_tax_computation",
+        "args": {},
+        "path": "net"
+      },
+      "tolerance": "0"
+    },
+    "tx-02": {
+      "household": "taxed",
+      "category": "tax",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "24000",
+      "from": {
+        "tool": "get_tax_computation",
+        "args": {},
+        "path": "lines[taxable_income].amount"
+      },
+      "tolerance": "0"
+    },
+    "tx-03": {
+      "household": "taxed",
+      "category": "tax",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "12000",
+      "from": {
+        "tool": "get_tax_computation",
+        "args": {},
+        "path": "lines[relief].amount"
+      },
+      "tolerance": "0"
+    },
+    "tx-04": {
+      "household": "taxed",
+      "category": "tax",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "2400",
+      "from": {
+        "tool": "get_tax_computation",
+        "args": {},
+        "path": "lines[income_tax.band_1.tax].amount"
+      },
+      "tolerance": "0"
+    },
+    "tx-05": {
+      "household": "taxed",
+      "category": "tax",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "24000",
+      "from": {
+        "tool": "get_tax_computation",
+        "args": {},
+        "path": "inputs[salary].total"
+      },
+      "tolerance": "0"
+    },
+    "tx-06": {
+      "household": "taxed",
+      "category": "tax",
+      "kind": "text-contains",
+      "currency": "NZD",
+      "expected": [
+        "2031"
+      ],
+      "from": {
+        "tool": "get_tax_computation",
+        "args": {},
+        "path": "year"
+      }
+    },
+    "tx-07": {
+      "household": "taxed",
+      "category": "tax",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "1200.00",
+      "from": {
+        "tool": "run_scenario",
+        "args": {
+          "scenario": {
+            "schema": "salli.scenario/1",
+            "label": "Bonus",
+            "changes": [
+              {
+                "type": "one_off",
+                "amount": "5000",
+                "date": "2031-09-25",
+                "label": "Bonus",
+                "tax_role": "salary"
+              }
+            ]
+          }
+        },
+        "path": "tax.change_this_year"
+      },
+      "tolerance": "0"
+    },
+    "tx-08": {
+      "household": "taxed",
+      "category": "tax",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "8400.00",
+      "from": {
+        "tool": "run_scenario",
+        "args": {
+          "scenario": {
+            "schema": "salli.scenario/1",
+            "label": "Bonus",
+            "changes": [
+              {
+                "type": "one_off",
+                "amount": "5000",
+                "date": "2031-09-25",
+                "label": "Bonus",
+                "tax_role": "salary"
+              }
+            ]
+          }
+        },
+        "path": "tax.this_year.net.scenario"
+      },
+      "tolerance": "0"
+    },
+    "tx-09": {
+      "household": "taxed",
+      "category": "tax",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "-360.00",
+      "from": {
+        "tool": "run_scenario",
+        "args": {
+          "scenario": {
+            "schema": "salli.scenario/1",
+            "label": "Pension",
+            "changes": [
+              {
+                "type": "recurring",
+                "amount": "-300",
+                "cadence": "monthly",
+                "start": "2031-07-01",
+                "label": "Pension contribution",
+                "tax_role": "pension"
+              }
+            ]
+          }
+        },
+        "path": "tax.change_this_year"
+      },
+      "tolerance": "0"
+    },
+    "tx-10": {
+      "household": "taxed",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "25000.00",
+      "from": {
+        "tool": "get_overview",
+        "args": {},
+        "path": "net_worth"
+      },
+      "tolerance": "0"
+    },
+    "tx-11": {
+      "household": "taxed",
+      "category": "balances",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "25000.00",
+      "from": {
+        "tool": "get_overview",
+        "args": {},
+        "path": "cash"
+      },
+      "tolerance": "0"
+    },
+    "tx-12": {
+      "household": "taxed",
+      "category": "spending",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "4500.00",
+      "from": {
+        "tool": "get_spending",
+        "args": {
+          "months": 3
+        },
+        "path": "lines[Rent].total"
+      },
+      "tolerance": "0"
+    },
+    "tx-13": {
+      "household": "taxed",
+      "category": "spending",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "1500.00",
+      "from": {
+        "tool": "search_entries",
+        "args": {
+          "text": "rent",
+          "from_date": "2031-03-01",
+          "to_date": "2031-03-31"
+        },
+        "path": "totals[expense].net"
+      },
+      "tolerance": "0"
+    },
+    "tx-14": {
+      "household": "taxed",
+      "category": "cash-flow",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "4000.00",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "average.income"
+      },
+      "tolerance": "0"
+    },
+    "tx-15": {
+      "household": "taxed",
+      "category": "cash-flow",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "1500.00",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "average.expenses"
+      },
+      "tolerance": "0"
+    },
+    "tx-16": {
+      "household": "taxed",
+      "category": "cash-flow",
+      "kind": "percent",
+      "currency": "NZD",
+      "expected": "0.6250",
+      "from": {
+        "tool": "get_cash_flow",
+        "args": {},
+        "path": "average.savings_rate"
+      },
+      "tolerance": "0.05"
+    },
+    "tx-17": {
+      "household": "taxed",
+      "category": "payday",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "23350.00",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "amount"
+      },
+      "tolerance": "0"
+    },
+    "tx-18": {
+      "household": "taxed",
+      "category": "payday",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "23500.00",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "low_point"
+      },
+      "tolerance": "0"
+    },
+    "tx-19": {
+      "household": "taxed",
+      "category": "payday",
+      "kind": "date",
+      "currency": "NZD",
+      "expected": "2031-07-01",
+      "from": {
+        "tool": "get_safe_to_spend",
+        "args": {},
+        "path": "low_point_date"
+      },
+      "tolerance": "0"
+    },
+    "tx-20": {
+      "household": "taxed",
+      "category": "recurring",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "1500.00",
+      "from": {
+        "tool": "get_recurring_payments",
+        "args": {},
+        "path": "items[rent].typical_amount"
+      },
+      "tolerance": "0"
+    },
+    "tx-21": {
+      "household": "taxed",
+      "category": "fi",
+      "kind": "month",
+      "currency": "NZD",
+      "expected": "2042-09",
+      "from": {
+        "tool": "get_overview",
+        "args": {},
+        "path": "fi.month"
+      },
+      "tolerance": "0"
+    },
+    "tx-22": {
+      "household": "taxed",
+      "category": "fi",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "450000",
+      "from": {
+        "tool": "get_fi_projections",
+        "args": {},
+        "path": "fi_number"
+      },
+      "tolerance": "0"
+    },
+    "tx-23": {
+      "household": "taxed",
+      "category": "fi",
+      "kind": "text-contains",
+      "currency": "NZD",
+      "expected": [
+        "placeholder"
+      ],
+      "from": {
+        "tool": "get_fi_assumptions",
+        "args": {},
+        "path": "applied.status"
+      }
+    },
+    "tx-24": {
+      "household": "taxed",
+      "category": "purchase",
+      "kind": "amount",
+      "currency": "NZD",
+      "expected": "21500.00",
+      "from": {
+        "tool": "run_scenario",
+        "args": {
+          "scenario": {
+            "schema": "salli.scenario/1",
+            "label": "Sofa",
+            "changes": [
+              {
+                "type": "one_off",
+                "amount": "-2000",
+                "date": "2031-07-10",
+                "label": "Sofa"
+              }
+            ]
+          }
+        },
+        "path": "cash.lowest.scenario"
+      },
+      "tolerance": "0"
+    },
+    "tx-25": {
+      "household": "taxed",
+      "category": "refusal",
+      "kind": "refusal",
+      "currency": "NZD",
+      "expected": null
+    },
+    "tx-26": {
+      "household": "taxed",
+      "category": "refusal",
+      "kind": "refusal",
+      "currency": "NZD",
+      "expected": null
+    }
+  }
+}

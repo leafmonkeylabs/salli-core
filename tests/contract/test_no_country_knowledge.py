@@ -28,6 +28,8 @@ CODE = [
     ROOT / "packages" / "cli" / "src",
     ROOT / "packages" / "sdk" / "src",
     ROOT / "openapi",
+    # The accuracy benchmark's questions, key and runner.
+    ROOT / "benchmark",
 ]
 #: Words people and agents read: the skills and the docs.
 PROSE = [
@@ -39,7 +41,7 @@ PROSE = [
     ROOT / "CLAUDE.md",
     ROOT / ".env.example",
 ]
-SUFFIXES = {".py", ".ts", ".mjs", ".json", ".md", ".mako", ".toml", ".example"}
+SUFFIXES = {".py", ".ts", ".mjs", ".json", ".md", ".mako", ".toml", ".yaml", ".example"}
 
 #: Matched case-sensitively, as whole words: acronyms that are ordinary
 #: letters in lower case ("ait", "cse").
