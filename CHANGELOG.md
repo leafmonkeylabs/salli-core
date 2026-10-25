@@ -15,6 +15,13 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   8% a year, Salli's labelled line (the placeholder real return plus a 4%
   margin, not any country's figure). A new action, `see_debts`, opens the
   baseline's debts in the console and Decide on the phone.
+- **A stricter benchmark scorer.** A refusal must decline in its first
+  sentence and quote no amount; a negative word must sit by the figure it
+  signs; an answer quoting more than five tool figures is a dump however it
+  is worded; text answers have a length cap; and an FI month that claims
+  placeholders it doesn't rest on is wrong. A hedged prose dump of the tools'
+  output, which scored 35 of 100, now scores 5.
+
 - **Two-step sign-in.** Turn it on with `salli totp enable` or in the
   console's Settings: add the secret to an authenticator app, enter a code,
   and keep the ten recovery codes, shown once. From then on every sign-in
@@ -118,6 +125,11 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
+- **Closed books keep their accounts' type and tax role in the database.**
+  A trigger (migration `core_0032_account_freeze`) refuses changing either on
+  an account with any posting on or before the lock date, even postings that
+  net to zero, by whatever path.
+
 - Every MCP tool call is in the audit log: a read as one row (the tool, the
   client and the outcome, no arguments), written before its answer is sent.
 - An AI client's connection ends 90 days after the person approved it
@@ -155,6 +167,15 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   otherwise; and under two full months of income and spending the engine's
   grade is "Not enough data", so every caller agrees with `status`. A
   household's score and grade can move.
+- **Closed years keep their tax figure.** Computing or preparing a return
+  for a tax year that ends on or before the lock date no longer stores a new
+  computation: it is refused with a 409 `/problems/books-locked`. A preview
+  (`persist=false`) still works and warns that the year is closed; the
+  recompute sweep leaves closed years as they are.
+- **An account holding a balance can't be closed.** `DELETE
+  /accounts/{id}` (`salli accounts deactivate`) refuses it with a 409
+  `/problems/account-not-empty`; move the balance first.
+
 - `compose.yaml` runs a named release (0.4.1), not `latest`, and believes
   `X-Forwarded-For` only from Caddy (`FORWARDED_ALLOW_IPS=10.248.53.2`); set
   it to your own proxy's address if you use one. `/mcp` answers only requests

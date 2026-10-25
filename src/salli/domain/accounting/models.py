@@ -35,6 +35,17 @@ class BooksLocked(ValueError):
         )
 
 
+class AccountNotEmpty(ValueError):
+    """Closing an account that still holds a balance, which would drop it
+    from the balance sheet while the books still count it."""
+
+    def __init__(self, balances: str) -> None:
+        super().__init__(
+            f"This account still holds {balances}, so it can't be closed. Move the "
+            "balance to another account first, then close it."
+        )
+
+
 def refuse_if_locked(entry_date: str, lock_date: str | None) -> None:
     """Raise BooksLocked when `entry_date` (YYYY-MM-DD) is on or before
     `lock_date`; None locks nothing."""

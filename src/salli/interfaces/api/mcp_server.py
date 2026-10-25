@@ -73,7 +73,7 @@ from salli.application.services.tax_rule_service import (
 )
 from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.unit_of_work import AuditRecord, pending_audit
-from salli.domain.accounting.models import BooksLocked
+from salli.domain.accounting.models import AccountNotEmpty, BooksLocked
 from salli.domain.agents.tools import computation_for_agent
 from salli.domain.currency import quantize
 from salli.domain.decisions.journal import JournalError
@@ -252,7 +252,9 @@ def _refused(exc: Exception) -> NoReturn:
         code = "not_enough_data"
     elif isinstance(exc, LookupError):
         code = "not_found"
-    elif isinstance(exc, PermissionError | RuleSetStateError | RuleSetConflict | BooksLocked):
+    elif isinstance(
+        exc, PermissionError | RuleSetStateError | RuleSetConflict | BooksLocked | AccountNotEmpty
+    ):
         code = "refused"
     else:
         code = "invalid_input"
