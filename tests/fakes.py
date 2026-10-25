@@ -485,14 +485,6 @@ class FakeLedger:
                     sums[key] = sums.get(key, Decimal(0)) + Decimal(p.direction.value) * p.amount
         return page, len(matched), [(t, c, net) for (t, c), net in sorted(sums.items())]
 
-    async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
-        balances: dict[str, Decimal] = {}
-        for e in await self.get_entries(user_id):
-            if e.entry_date < before:
-                for p in e.postings:
-                    balances[p.account_id] = balances.get(p.account_id, Decimal(0)) + p.base_signed
-        return balances
-
     async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
         """The date of the user's first entry touching an income or an expense
         account (on or before `to_date`, if given), leaving out a reversed

@@ -1,4 +1,4 @@
-"""Insights from the ledger: cash flow, spending, net worth, recurring payments."""
+"""Insights from the ledger: cash flow, spending, recurring payments."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from salli.domain.reports.insights import (
     cash_flow,
     detect_recurring,
     last_months,
-    net_worth_series,
     spending,
 )
 from salli.domain.rules.history import booked_transactions
@@ -162,40 +161,6 @@ def test_a_refund_lowers_spending_and_a_fully_refunded_line_disappears():
 
 def test_no_spending_is_no_lines():
     assert spending([], ACCOUNTS, ["2026-10"]) == []
-
-
-# ── net worth ─────────────────────────────────────────────────────────────────
-
-
-def test_net_worth_carries_balances_from_before_the_window_into_each_month_end():
-    entries = [
-        _entry("2025-01-01", "bank", "open", "5000"),  # long before the window
-        _entry("2026-09-10", "fun", "card", "700"),
-        _entry("2026-10-01", "bank", "salary", "1000"),
-        _entry("2026-10-05", "card", "bank", "700"),
-    ]
-    sep, oct_ = net_worth_series(entries, ACCOUNTS, ["2026-09", "2026-10"])
-    assert (sep.assets, sep.liabilities, sep.net_worth) == (
-        Decimal(5000),
-        Decimal(700),
-        Decimal(4300),
-    )
-    assert (oct_.assets, oct_.liabilities, oct_.net_worth) == (Decimal(5300), 0, Decimal(5300))
-
-
-def test_an_overdrawn_account_counts_as_owed():
-    entries = [
-        _entry("2026-10-01", "bank", "open", "100"),
-        _entry("2026-10-02", "fun", "bank", "250"),
-    ]
-    [oct_] = net_worth_series(entries, ACCOUNTS, ["2026-10"])
-    assert (oct_.assets, oct_.liabilities, oct_.net_worth) == (0, Decimal(150), Decimal(-150))
-
-
-def test_foreign_holdings_are_valued_at_their_booked_rate():
-    entries = [_entry("2026-10-01", "eur", "open", "100", currency="EUR", fx_rate="1.10")]
-    [oct_] = net_worth_series(entries, ACCOUNTS, ["2026-10"])
-    assert oct_.net_worth == Decimal("110.00")
 
 
 # ── recurring payments ────────────────────────────────────────────────────────
@@ -391,29 +356,6 @@ def test_a_refund_only_line_has_no_share_and_the_others_stay_within_one():
     lines = {line.key: line for line in spending(entries, ACCOUNTS, ["2026-10"], "account")}
     assert lines["Food"].share == Decimal(1)
     assert lines["Fun"].share is None and lines["Fun"].total == Decimal(-30)
-
-
-def test_a_closed_account_is_still_owned_or_owed():
-    closed = Account(
-        id="old", user_id="u", code="1900", name="Old", type="asset", currency="USD",
-        is_active=False,
-    )  # fmt: skip
-    entries = [_entry("2026-09-01", "old", "open", "500")]
-    [point] = net_worth_series(entries, [*ACCOUNTS, closed], ["2026-10"])
-    assert point.assets == Decimal(500)
-
-
-def test_net_worth_from_opening_balances_and_the_windows_entries_alone():
-    before = [
-        _entry("2025-01-01", "bank", "open", "1000"),
-        _entry("2025-02-01", "card", "bank", "0.5"),
-    ]
-    during = [_entry("2026-10-02", "food", "bank", "100")]
-    from salli.domain.accounting.ledger import trial_balance
-
-    whole = net_worth_series([*before, *during], ACCOUNTS, ["2026-09", "2026-10"])
-    windowed = net_worth_series(during, ACCOUNTS, ["2026-09", "2026-10"], trial_balance(before))
-    assert whole == windowed
 
 
 def test_two_subscriptions_from_one_merchant_are_two():

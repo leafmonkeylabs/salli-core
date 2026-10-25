@@ -10,7 +10,7 @@ plan all read their figures from it, so they never disagree about what a
 user earns, spends, owns or owes. docs/baseline.md explains the definitions.
 """
 
-from salli.domain.baseline.build import build
+from salli.domain.baseline.build import build, worth, worth_by_day
 from salli.domain.baseline.models import (
     Balance,
     Baseline,
@@ -26,6 +26,7 @@ from salli.domain.baseline.models import (
     Role,
     TaxInputs,
     TaxRules,
+    Worth,
 )
 
 __all__ = [
@@ -43,5 +44,8 @@ __all__ = [
     "Role",
     "TaxInputs",
     "TaxRules",
+    "Worth",
     "build",
+    "worth",
+    "worth_by_day",
 ]

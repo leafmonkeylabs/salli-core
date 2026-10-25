@@ -421,26 +421,6 @@ class SQLLedgerRepository(LedgerRepository):
             )
         return totals
 
-    async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
-        # Exactly what Posting.base_signed sums, unrounded: direction times
-        # amount (minor units of its currency) times the rate, per currency,
-        # then scaled by that currency's decimals.
-        rows = await self._session.execute(
-            select(
-                PostingORM.account_id,
-                PostingORM.currency,
-                func.sum(PostingORM.direction * PostingORM.amount_minor * PostingORM.fx_rate),
-            )
-            .join(JournalEntryORM, JournalEntryORM.id == PostingORM.entry_id)
-            .where(JournalEntryORM.user_id == user_id, JournalEntryORM.entry_date < before)
-            .group_by(PostingORM.account_id, PostingORM.currency)
-        )
-        balances: dict[str, Decimal] = {}
-        for account_id, currency, total in rows.all():
-            scaled = Decimal(total).scaleb(-exponent(currency, strict=False))
-            balances[account_id] = balances.get(account_id, Decimal(0)) + scaled
-        return balances
-
     async def search_entries(
         self,
         user_id: str,

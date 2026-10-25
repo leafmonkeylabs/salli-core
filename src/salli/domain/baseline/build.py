@@ -10,6 +10,10 @@ Building the baseline from what the application gathered. Pure.
   liability. Never from its name.
 - **Debts** are counted once: a debt linked to its ledger account owes what
   the account says; one the ledger doesn't hold owes its declared principal.
+- **Net worth** is what those balances own less what they and the debts owe
+  (`Worth`); `worth` makes it as of a day from only what it needs, and
+  `worth_by_day` as of many, so every net worth Salli gives is the
+  baseline's.
 - **Income and expenses** follow the one definition (`flows`).
 - **What keeps happening** is what the cash forecast projects: the rhythms
   in the ledger, and the declared subscriptions no rhythm shows.
@@ -30,7 +34,7 @@ Building the baseline from what the application gathered. Pure.
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from decimal import ROUND_HALF_UP, Decimal
 
 from salli.domain import canonical
@@ -47,6 +51,7 @@ from salli.domain.baseline.models import (
     DeclaredDebt,
     Flows,
     Rate,
+    Worth,
 )
 from salli.domain.currency import quantum
 from salli.domain.fi.assumptions import resolve
@@ -80,6 +85,68 @@ def _native_amounts(
         else:
             unknowable.add(account_id)
     return native, unknowable
+
+
+def _balances(
+    accounts: Sequence[Account],
+    totals: Sequence[tuple[str, str, Decimal, Decimal]],
+    rates: Mapping[str, Rate],
+    base: str,
+    day: str,
+    linked: Mapping[str, str],
+    cash_ids: Collection[str] = frozenset(),
+) -> tuple[list[Balance], list[str], list[str]]:
+    """Each asset and liability account's balance on `day`, in its currency
+    and in the base currency at the published rate for the day; and what was
+    left out and why: the cash accounts' notes, then the others'."""
+    native, unknowable = _native_amounts(totals, {a.id: a for a in accounts}, base)
+    balances: list[Balance] = []
+    cash_notes: list[str] = []
+    notes: list[str] = []
+    for a in accounts:
+        if a.type not in ("asset", "liability"):
+            continue
+        amount = None if a.id in unknowable else native.get(a.id, Decimal(0))
+        if not a.is_active and not amount and a.id not in linked:
+            continue  # closed and empty
+        said = cash_notes if a.id in cash_ids else notes
+        if amount is None:
+            said.append(
+                f"{a.name}: its balance in {a.currency} can't be known (amounts posted to it "
+                f"in another currency, with no rate into its own); left out"
+            )
+            value = None
+        elif a.currency == base:
+            value = amount
+        else:
+            rate = rates.get(a.currency)
+            if rate is None or rate.rate is None:
+                said.append(
+                    f"{a.name}: no published {a.currency} rate for {day}, so it is left out "
+                    f"of the totals in {base}"
+                )
+                value = None
+            else:
+                value = amount * rate.rate
+        role = ROLE_OF[a.asset_role or "cash"] if a.type == "asset" else "liability"
+        in_cash = amount is not None and (
+            a.id in cash_ids or (role == "cash" and not a.is_active and amount != 0)
+        )
+        balances.append(
+            Balance(
+                account_id=a.id,
+                code=a.code,
+                name=a.name,
+                role=role,
+                currency=a.currency,
+                amount=amount,
+                value=value,
+                is_active=a.is_active,
+                in_cash=in_cash,
+                debt_id=linked.get(a.id),
+            )
+        )
+    return balances, cash_notes, notes
 
 
 def _interest(balance: Decimal, apr: Decimal, currency: str) -> Decimal:
@@ -213,12 +280,10 @@ def build(inputs: BaselineInputs) -> Baseline:
     base = inputs.currency
     day = as_of.isoformat()
     accounts = list(inputs.accounts)
-    by_id = {a.id: a for a in accounts}
     # Nothing after the as-of date: the baseline as of a day is what was known then.
     entries = [e for e in inputs.entries if e.entry_date <= day]
     notes: list[str] = []
 
-    native, unknowable = _native_amounts(inputs.totals, by_id, base)
     linked = {d.account_id: d.id for d in inputs.debts if d.account_id}
     booked = booked_transactions(entries, accounts)
     since = (as_of - dt.timedelta(days=_CARD_DAYS)).isoformat()
@@ -226,52 +291,10 @@ def build(inputs: BaselineInputs) -> Baseline:
         booked, accounts, since, inputs.statement_accounts, debt_accounts=set(linked)
     )
 
-    balances: list[Balance] = []
-    cash_notes: list[str] = []
-    for a in accounts:
-        if a.type not in ("asset", "liability"):
-            continue
-        amount = None if a.id in unknowable else native.get(a.id, Decimal(0))
-        if not a.is_active and not amount and a.id not in linked:
-            continue  # closed and empty
-        said = cash_notes if a.id in cash_ids else notes
-        if amount is None:
-            said.append(
-                f"{a.name}: its balance in {a.currency} can't be known (amounts posted to it "
-                f"in another currency, with no rate into its own); left out"
-            )
-            value = None
-        elif a.currency == base:
-            value = amount
-        else:
-            rate = inputs.rates.get(a.currency)
-            if rate is None or rate.rate is None:
-                said.append(
-                    f"{a.name}: no published {a.currency} rate for {day}, so it is left out "
-                    f"of the totals in {base}"
-                )
-                value = None
-            else:
-                value = amount * rate.rate
-        role = ROLE_OF[a.asset_role or "cash"] if a.type == "asset" else "liability"
-        in_cash = amount is not None and (
-            a.id in cash_ids or (role == "cash" and not a.is_active and amount != 0)
-        )
-        balances.append(
-            Balance(
-                account_id=a.id,
-                code=a.code,
-                name=a.name,
-                role=role,
-                currency=a.currency,
-                amount=amount,
-                value=value,
-                is_active=a.is_active,
-                in_cash=in_cash,
-                debt_id=linked.get(a.id),
-            )
-        )
-
+    balances, cash_notes, balance_notes = _balances(
+        accounts, inputs.totals, inputs.rates, base, day, linked, cash_ids
+    )
+    notes += balance_notes
     debts, debt_notes = _debts(inputs.debts, {b.account_id: b for b in balances}, base)
     notes += debt_notes
 
@@ -340,3 +363,61 @@ def build(inputs: BaselineInputs) -> Baseline:
             Decimal(0),
         ),
     )
+
+
+def worth(
+    as_of: dt.date,
+    currency: str,
+    accounts: Sequence[Account],
+    totals: Sequence[tuple[str, str, Decimal, Decimal]],
+    rates: Mapping[str, Rate],
+    debts: Sequence[DeclaredDebt],
+) -> Worth:
+    """What is owned and owed as of a day, from only what it needs of a
+    baseline's inputs: the balances and debts `build` makes from them, so
+    `Worth.net_worth` is the baseline's."""
+    day = as_of.isoformat()
+    linked = {d.account_id: d.id for d in debts if d.account_id}
+    balances, _, notes = _balances(accounts, totals, rates, currency, day, linked)
+    owed, debt_notes = _debts(debts, {b.account_id: b for b in balances}, currency)
+    return Worth(
+        as_of=as_of,
+        currency=currency,
+        balances=tuple(balances),
+        debts=tuple(owed),
+        notes=tuple(dict.fromkeys([*notes, *debt_notes])),
+    )
+
+
+def worth_by_day(
+    days: Sequence[dt.date],
+    currency: str,
+    accounts: Sequence[Account],
+    opening: Sequence[tuple[str, str, Decimal, Decimal]],
+    entries: Sequence[StoredJournalEntry],
+    rates: Mapping[str, Mapping[str, Rate]],
+    debts: Sequence[DeclaredDebt],
+) -> list[Worth]:
+    """`worth` as of each of `days`, oldest first, without summing the whole
+    ledger for each: `opening` is the totals (as `BaselineInputs.totals`) of
+    everything before `entries`, which run to the last day; `rates` the
+    published rates for each day (ISO date → currency → rate)."""
+    held = {a.id for a in accounts if a.type in ("asset", "liability")}
+    sums: dict[tuple[str, str], tuple[Decimal, Decimal]] = {
+        (account_id, cur): (amount, in_base) for account_id, cur, amount, in_base in opening
+    }
+    ordered = sorted(entries, key=lambda e: e.entry_date)
+    out: list[Worth] = []
+    i = 0
+    for as_of in sorted(days):
+        day = as_of.isoformat()
+        while i < len(ordered) and ordered[i].entry_date <= day:
+            for p in ordered[i].postings:
+                if p.account_id in held:
+                    amount, in_base = sums.get((p.account_id, p.currency), (Decimal(0), Decimal(0)))
+                    signed = Decimal(p.direction.value) * p.amount
+                    sums[(p.account_id, p.currency)] = (amount + signed, in_base + p.base_signed)
+            i += 1
+        totals = [(a, cur, amount, in_base) for (a, cur), (amount, in_base) in sums.items()]
+        out.append(worth(as_of, currency, accounts, totals, rates.get(day, {}), debts))
+    return out

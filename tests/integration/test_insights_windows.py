@@ -3,14 +3,17 @@ did: a five-year ledger took over a second per call."""
 
 from __future__ import annotations
 
+import calendar
 import datetime as dt
 import random
 from decimal import Decimal
 
+from salli.application.services.baseline_service import BaselineService
 from salli.application.services.insights_service import InsightsService
 from salli.application.services.ledger_service import LedgerService
 from salli.domain.accounting.models import Direction
 from salli.domain.reports import insights
+from tests.fakes import FakeFx
 from tests.integration.pg import requires_postgres
 
 pytestmark = requires_postgres
@@ -77,17 +80,21 @@ async def test_windowed_insights_answer_as_the_whole_ledger_does(uow_factory):
         day = (day.replace(day=1) + dt.timedelta(days=32)).replace(day=1)
     await ledger.deactivate_account("u1", euros)  # closed, and still owned
 
-    service = InsightsService(uow_factory, today=lambda: TODAY)
+    fx = FakeFx({("EUR", "USD", None): (Decimal("1.0791"), "ecb")})
+    baselines = BaselineService(uow_factory, fx=fx, today=lambda: TODAY)
+    service = InsightsService(uow_factory, today=lambda: TODAY, baselines=baselines)
     async with uow_factory() as uow:
         accounts = await uow.ledger.get_accounts("u1", include_inactive=True)
         everything = await uow.ledger.get_entries("u1")
 
-    window = insights.last_months(TODAY, 24)
-    full = insights.net_worth_series(everything, accounts, window)
+    # Each month's end, and today: the baseline's net worth as of that day.
     served = (await service.net_worth("u1", months=24))["points"]
-    assert [p["net_worth"] for p in served] == [
-        str(p.net_worth.quantize(Decimal("0.01"))) for p in full
+    days = [
+        dt.date(int(m[:4]), int(m[5:]), calendar.monthrange(int(m[:4]), int(m[5:]))[1])
+        for m in insights.last_months(TODAY, 24)[:-1]
     ]
+    expected = [(await baselines.build("u1", day)).net_worth for day in [*days, TODAY]]
+    assert [p["net_worth"] for p in served] == [str(n.quantize(Decimal("0.01"))) for n in expected]
 
     # Twelve full months, then this month so far: what is dated after today
     # (October's groceries, on the 10th) hasn't happened yet.

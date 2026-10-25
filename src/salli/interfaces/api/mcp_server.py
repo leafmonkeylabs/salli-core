@@ -982,7 +982,10 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
 
     @mcp.tool(annotations=READS)
     async def get_net_worth_history(months: int = 24) -> dict[str, Any]:
-        """What the user owns less what they owe, at the end of each month."""
+        """What the user owns less what they owe at the end of each month,
+        and this month as of today: get_overview's net worth as of each day
+        (each account at that day's published rate, declared debts counted).
+        A point's notes say what it left out."""
         return await insights_svc.net_worth(_current_user_id(), _window(months, 1, 600))
 
     @mcp.tool(annotations=READS)

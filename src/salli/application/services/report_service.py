@@ -1,8 +1,9 @@
 """
-ReportService — read-only composition over LedgerService/FiService data into
-exportable statements: a balance sheet, a net-worth statement (current value
-+ historical trend, reusing the fi_scores snapshot history rather than a new
-table), and a goal progress report. export_csv() flattens any of the three
+ReportService — read-only composition over the baseline, LedgerService and
+FiService into exportable statements: a balance sheet (the baseline's
+balances and debts today), a net-worth statement (current value + historical
+trend, reusing the fi_scores snapshot history rather than a new table), and a
+goal progress report. export_csv() flattens any of the three
 into downloadable CSV bytes via the pure domain/reports/csv_export helper.
 """
 
@@ -11,56 +12,75 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from salli.application.services.baseline_service import BaselineService
+from salli.domain.baseline import Balance
 from salli.domain.currency import quantize
 
 
 class ReportService:
-    def __init__(self, ledger_svc: Any, fi_svc: Any) -> None:
+    def __init__(self, ledger_svc: Any, fi_svc: Any, baselines: BaselineService) -> None:
         self._ledger = ledger_svc
         self._fi = fi_svc
+        self._baselines = baselines
 
     async def get_balance_sheet(self, user_id: str) -> dict[str, Any]:
-        accounts = await self._ledger.list_accounts(user_id)
-        balances = await self._ledger.get_trial_balance(user_id)
-        # Every balance is the account's value in the base currency.
-        currency = await self._ledger.base_currency(user_id)
+        """What is owned and owed today as the baseline counts it
+        (`BaselineService.worth`), so its net worth is every other read's:
+        each asset and liability account at today's published rate (one
+        without a rate is left out, and said in `notes`), a debt the ledger
+        doesn't hold at its declared principal, and the totals with each
+        account judged on its own sign. Equity as the trial balance keeps it."""
+        [now] = await self._baselines.worth(user_id, [self._baselines.today()])
+        currency = now.currency
 
         def money(amount: Decimal) -> str:
             return str(quantize(amount, currency))
 
-        assets: list[dict[str, Any]] = []
-        liabilities: list[dict[str, Any]] = []
-        equity: list[dict[str, Any]] = []
-        total_assets = Decimal(0)
-        total_liabilities = Decimal(0)
-        total_equity = Decimal(0)
+        def line(b: Balance, owed: bool) -> dict[str, Any]:
+            value = b.value or Decimal(0)
+            return {
+                "account_id": b.account_id,
+                "code": b.code,
+                "name": b.name,
+                # What a liability owes is shown as a positive amount.
+                "balance": money(-value if owed else value),
+            }
 
+        known = [b for b in now.balances if b.value is not None]
+        liabilities = [line(b, True) for b in known if b.role == "liability"]
+        liabilities += [
+            {"account_id": None, "code": "", "name": d.name, "balance": money(d.balance)}
+            for d in now.debts
+            if d.source == "declared"
+        ]
+
+        accounts = await self._ledger.list_accounts(user_id)
+        balances = await self._ledger.get_trial_balance(user_id)
+        equity: list[dict[str, Any]] = []
+        total_equity = Decimal(0)
         for acc in accounts:
-            bal = balances.get(acc.id, Decimal(0))
-            line = {"account_id": acc.id, "code": acc.code, "name": acc.name}
-            if acc.type == "asset":
-                assets.append({**line, "balance": money(bal)})
-                total_assets += bal
-            elif acc.type == "liability":
-                # Liabilities are credit-normal (negative in trial_balance) —
-                # display the magnitude owed, matching ledger_ops.net_worth's convention.
-                magnitude = -bal
-                liabilities.append({**line, "balance": money(magnitude)})
-                total_liabilities += magnitude
-            elif acc.type == "equity":
-                magnitude = -bal
-                equity.append({**line, "balance": money(magnitude)})
+            if acc.type == "equity":
+                magnitude = -balances.get(acc.id, Decimal(0))
+                equity.append(
+                    {
+                        "account_id": acc.id,
+                        "code": acc.code,
+                        "name": acc.name,
+                        "balance": money(magnitude),
+                    }
+                )
                 total_equity += magnitude
 
         return {
             "currency": currency,
-            "assets": assets,
+            "assets": [line(b, False) for b in known if b.role != "liability"],
             "liabilities": liabilities,
             "equity": equity,
-            "total_assets": money(total_assets),
-            "total_liabilities": money(total_liabilities),
+            "total_assets": money(now.total_assets),
+            "total_liabilities": money(now.total_liabilities),
             "total_equity": money(total_equity),
-            "net_worth": money(total_assets - total_liabilities),
+            "net_worth": money(now.net_worth),
+            "notes": list(now.notes),
         }
 
     async def get_net_worth_statement(self, user_id: str) -> dict[str, Any]:

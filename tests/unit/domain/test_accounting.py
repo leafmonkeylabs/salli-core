@@ -10,7 +10,6 @@ from salli.domain.accounting.ledger import (
     assert_trial_balance,
     build_reversing_entry,
     income_for_period,
-    net_worth,
     trial_balance,
 )
 from salli.domain.accounting.models import Direction, JournalEntry, Posting, StoredJournalEntry
@@ -173,14 +172,6 @@ def test_income_for_period():
     entries = [make_stored(salary_entry())]
     net = income_for_period(entries, {"salary_income"}, set())
     assert net == Decimal("300000")
-
-
-def test_net_worth():
-    entries = [make_stored(salary_entry())]
-    # bank is an asset (debit-normal, positive balance)
-    # salary_income is income (credit-normal, negative in trial balance)
-    worth = net_worth(entries, {"bank"}, set())
-    assert worth == Decimal("300000")
 
 
 def test_account_running_balance_accumulates_chronologically():

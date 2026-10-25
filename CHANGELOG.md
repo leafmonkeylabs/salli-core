@@ -114,6 +114,32 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 #### Changed
 
+- **One net worth.** Net worth over time and the balance sheet said a
+  different net worth from the overview, FI and the reports for the same
+  day: book value, with each foreign balance at the rates its entries
+  recorded and no debt the ledger doesn't hold. Both are now the baseline's,
+  as every other net worth is ([docs/baseline.md](docs/baseline.md#net-worth)):
+  each account at the published rate for the day, judged on its own sign,
+  and a declared debt the ledger doesn't hold at its principal.
+  - API (still v1): `GET /v1/insights/net-worth` (MCP
+    `get_net_worth_history`, `salli insights net-worth`): each point's
+    `assets`, `liabilities` and `net_worth` are the baseline's as of the
+    month's end, and this month's as of today, no longer book value; a new
+    `notes` says what a point left out (an account in a currency with no
+    published rate for that day). `GET /v1/reports/balance-sheet` (`salli
+    reports balance-sheet`, `salli status`, the console's and the app's net
+    worth): asset and liability lines at today's published rate, a line for
+    each declared debt the ledger doesn't hold (`account_id` null, `code`
+    empty; breaking for clients that took it to be a string), totals with
+    each account judged on its own sign, and a new `notes`. Equity stays as
+    the books keep it.
+  - On the golden household, for 2026-10-11: 335,901.47 everywhere, where
+    the history and the balance sheet said 344,026.47.
+  - `LedgerRepository.balances_before`, `insights.net_worth_series`,
+    `ledger.net_worth` and `LedgerService.get_net_worth` (book value) are
+    gone; `BaselineService.worth` and `baseline.worth` /
+    `baseline.worth_by_day` give what is owned and owed as of any days.
+
 - **AI connections read unless you allow changes** (breaking for MCP clients
   that wrote without asking). A connection gets `mcp:read`, and
   `mcp:write` only when the person ticks **Allow changes** on the consent or

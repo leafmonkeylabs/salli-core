@@ -44,7 +44,7 @@ describe('the books', () => {
     expect(within(card).getByText('(691.68)')).toBeTruthy();
     expect(within(card).getByText('minus 691.68 euros')).toBeTruthy();
     // The totals are the balance sheet's, as key figures.
-    expect(within(screen.getByRole('group', { name: 'Where the books stand' })).getByText('344,026.47')).toBeTruthy();
+    expect(within(screen.getByRole('group', { name: 'Where the books stand' })).getByText('335,901.47')).toBeTruthy();
     // The books' facts: the trial balance's net as the server gave it.
     expect(screen.getByText('Trial balance nets 0.00')).toBeTruthy();
     expect(screen.getByRole('navigation', { name: 'Books' })).toBeTruthy();

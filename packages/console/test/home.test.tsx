@@ -19,11 +19,11 @@ describe('Home', () => {
 
     // The key figures, each the server's.
     const netWorth = figure('Net worth');
-    expect(home.BALANCE_SHEET.net_worth).toBe('344026.47');
-    await waitFor(() => expect(within(netWorth).getByText('344,026.47')).toBeTruthy());
-    expect(within(netWorth).getByText('344,026.47 euros')).toBeTruthy();
+    expect(home.BALANCE_SHEET.net_worth).toBe('335901.47');
+    await waitFor(() => expect(within(netWorth).getByText('335,901.47')).toBeTruthy());
+    expect(within(netWorth).getByText('335,901.47 euros')).toBeTruthy();
     expect(within(netWorth).getByText('As of Oct 11, 2026, from your ledger')).toBeTruthy();
-    expect(within(netWorth).getByText('EUR 354,618.15')).toBeTruthy();
+    expect(within(netWorth).getByText('EUR 354,493.15')).toBeTruthy();
 
     const safeFigure = figure('Free until payday');
     await waitFor(() => expect(within(safeFigure).getByText('15,316.35')).toBeTruthy());
@@ -83,8 +83,8 @@ describe('Home', () => {
     const chart = section('Net worth over time');
     const toggle = await within(chart).findByRole('button', { name: 'Show the figures' });
     const last = home.NET_WORTH.points[home.NET_WORTH.points.length - 1];
-    expect(last?.net_worth).toBe('344026.47');
-    expect(within(chart).getAllByRole('img')[0]?.getAttribute('aria-label')).toContain('EUR 344,026.47 in Oct 2026');
+    expect(last?.net_worth).toBe('335901.47');
+    expect(within(chart).getAllByRole('img')[0]?.getAttribute('aria-label')).toContain('EUR 335,901.47 in Oct 2026');
     // A month read off the chart: the list picks it, the server's figures beside it.
     const months = within(chart).getByRole('combobox', { name: 'Month shown' }) as HTMLSelectElement;
     expect(months.value).toBe(last?.month);
@@ -109,7 +109,7 @@ describe('Home', () => {
     expect(within(fi).getByText('The FI engine is busy. Try again in a minute.')).toBeTruthy();
     expect(within(fi).getByText(/Request req-42/)).toBeTruthy();
     expect(within(fi).getByRole('button', { name: 'Try again' })).toBeTruthy();
-    await waitFor(() => expect(within(figure('Net worth')).getByText('344,026.47')).toBeTruthy());
+    await waitFor(() => expect(within(figure('Net worth')).getByText('335,901.47')).toBeTruthy());
   });
 
   it('shows no FI score until two months of data are behind it', async () => {
@@ -138,7 +138,7 @@ describe('Home', () => {
     const written: string[] = [];
     Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (text: string) => void written.push(text) }, configurable: true });
     const { api } = await setup();
-    await within(figure('Net worth')).findByText('344,026.47');
+    await within(figure('Net worth')).findByText('335,901.47');
     const before = api.requests.length;
     fireEvent.click(screen.getByRole('button', { name: 'Copy a prompt for your AI' }));
     await screen.findAllByText(/Copied\./);

@@ -7,8 +7,6 @@ signed amounts so a reversing entry cancels the one it reverses. Pure: no I/O.
 - cash flow: income, spending, what is left, and the savings rate, per month;
 - spending: by category tag (falling back to the account), account or need,
   with each month's figure;
-- net worth: the book value of everything owned less everything owed, at
-  each month's end;
 - recurring payments: charges from one payee at a regular rhythm — what
   subscriptions look like before anyone has written them down.
 """
@@ -24,7 +22,7 @@ from decimal import Decimal
 from statistics import median
 from typing import Literal, get_args
 
-from salli.domain.accounting.ledger import native_signed, owned_and_owed
+from salli.domain.accounting.ledger import native_signed
 from salli.domain.accounting.models import Account, StoredJournalEntry
 from salli.domain.rules.engine import Direction, payee_name, payee_word
 from salli.domain.rules.history import Booked
@@ -180,50 +178,6 @@ def spending(
     ]
     lines.sort(key=lambda line: (-line.total, line.key))
     return [line for line in lines if line.total != 0]
-
-
-@dataclass(frozen=True)
-class NetWorthPoint:
-    month: str
-    assets: Decimal
-    liabilities: Decimal
-    net_worth: Decimal
-
-
-def net_worth_series(
-    entries: Sequence[StoredJournalEntry],
-    accounts: Sequence[Account],
-    months: Sequence[str],
-    opening: Mapping[str, Decimal] | None = None,
-) -> list[NetWorthPoint]:
-    """Book value at each month's end, judged per account on its own sign
-    (`ledger.owned_and_owed`, as FiService does): an overdrawn bank account
-    counts as owed, not as a smaller asset. Every account counts, closed ones
-    too: a deactivated account with a balance is still owned or owed.
-
-    `opening` is each account's balance before `entries` begin, when they
-    are only the window's: the sum of everything earlier."""
-    by_id = _types(accounts)
-    balances: dict[str, Decimal] = defaultdict(Decimal, opening or {})
-    ordered = sorted(entries, key=lambda e: e.entry_date)
-    points: list[NetWorthPoint] = []
-    i = 0
-    for month in months:
-        while i < len(ordered) and month_of(ordered[i].entry_date) <= month:
-            for p in ordered[i].postings:
-                balances[p.account_id] += p.base_signed
-            i += 1
-        assets = Decimal(0)
-        liabilities = Decimal(0)
-        for account_id, balance in balances.items():
-            account = by_id.get(account_id)
-            if account is None:
-                continue
-            owned, owed = owned_and_owed(account.type, balance)
-            assets += owned
-            liabilities += owed
-        points.append(NetWorthPoint(month, assets, liabilities, assets - liabilities))
-    return points
 
 
 @dataclass(frozen=True)

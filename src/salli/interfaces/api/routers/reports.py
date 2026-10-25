@@ -19,26 +19,35 @@ _VALID_REPORT_TYPES = ("balance-sheet", "net-worth", "goal-progress")
 
 
 class BalanceSheetLine(BaseModel):
-    account_id: str
+    #: Null for a debt the ledger doesn't hold, at its declared principal
+    #: (its code is then empty).
+    account_id: str | None
     code: str
     name: str
     #: What the account holds (an asset) or owes (a liability, equity), in the
-    #: base currency.
+    #: base currency: assets and liabilities at today's published rate, equity
+    #: at the rates its entries recorded.
     balance: Amount
 
 
 class BalanceSheet(BaseModel):
-    """Every asset, liability and equity account, valued in the base currency."""
+    """What is owned and owed today, as the baseline counts it (and so every
+    net worth Salli gives), and the equity accounts as the books keep them."""
 
     currency: CurrencyCode
     assets: list[BalanceSheetLine]
     liabilities: list[BalanceSheetLine]
     equity: list[BalanceSheetLine]
+    #: Everything owned and everything owed, each account judged on its own
+    #: sign (an overdrawn account is owed), declared debts included.
     total_assets: Amount
     total_liabilities: Amount
     total_equity: Amount
     #: total_assets − total_liabilities.
     net_worth: Amount
+    #: What was left out, and why (an account in a currency with no published
+    #: rate for today).
+    notes: list[str]
 
 
 class NetWorthPoint(BaseModel):

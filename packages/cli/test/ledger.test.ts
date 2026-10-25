@@ -105,7 +105,8 @@ describe('salli status', () => {
           "total_assets": "15234.50",
           "total_liabilities": "1200.00",
           "total_equity": "0.00",
-          "net_worth": "14034.50"
+          "net_worth": "14034.50",
+          "notes": []
         },
         "income_statement": {
           "from_date": "2026-10-01",

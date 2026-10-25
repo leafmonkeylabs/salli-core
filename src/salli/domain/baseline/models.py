@@ -84,6 +84,18 @@ class Balance:
         return owned_and_owed("asset", self.value or Decimal(0))[1]
 
 
+def total_assets(balances: Sequence[Balance]) -> Decimal:
+    """Everything owned, each account judged on its own sign."""
+    return sum((b.owned for b in balances), Decimal(0))
+
+
+def total_liabilities(balances: Sequence[Balance], debts: Sequence[BaselineDebt]) -> Decimal:
+    """Everything owed: each account judged on its own sign, and the debts
+    the ledger doesn't hold."""
+    declared = sum((d.balance for d in debts if d.source == "declared"), Decimal(0))
+    return sum((b.owed for b in balances), Decimal(0)) + declared
+
+
 @dataclass(frozen=True)
 class MonthFlow:
     """One calendar month's money in and out, in the base currency, signed
@@ -467,15 +479,11 @@ class Baseline:
 
     @property
     def total_assets(self) -> Decimal:
-        """Everything owned, each account judged on its own sign."""
-        return sum((b.owned for b in self.balances), Decimal(0))
+        return total_assets(self.balances)
 
     @property
     def total_liabilities(self) -> Decimal:
-        """Everything owed: each account judged on its own sign, and the
-        debts the ledger doesn't hold."""
-        declared = sum((d.balance for d in self.debts if d.source == "declared"), Decimal(0))
-        return sum((b.owed for b in self.balances), Decimal(0)) + declared
+        return total_liabilities(self.balances, self.debts)
 
     @property
     def net_worth(self) -> Decimal:
@@ -496,3 +504,30 @@ class Baseline:
         """Which assumptions are placeholders: FI's, and inflation when the
         user set none (nominal amounts then keep their real value)."""
         return (*self.assumptions.placeholders, *(("inflation",) if self.inflation is None else ()))
+
+
+@dataclass(frozen=True)
+class Worth:
+    """What is owned and owed as of a day, as the baseline counts it: the
+    same balances and debts, without the rest of a baseline (`build.worth`).
+    Net worth over time and the balance sheet read it; a baseline as of the
+    same day has the same net worth."""
+
+    as_of: dt.date
+    currency: str
+    balances: tuple[Balance, ...]
+    debts: tuple[BaselineDebt, ...]
+    #: What was left out, and why.
+    notes: tuple[str, ...]
+
+    @property
+    def total_assets(self) -> Decimal:
+        return total_assets(self.balances)
+
+    @property
+    def total_liabilities(self) -> Decimal:
+        return total_liabilities(self.balances, self.debts)
+
+    @property
+    def net_worth(self) -> Decimal:
+        return self.total_assets - self.total_liabilities

@@ -58,12 +58,6 @@ class LedgerRepository(ABC):
         before `to_date`, when given)."""
         raise NotImplementedError
 
-    async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
-        """Each account's signed base-currency balance from every entry dated
-        before `before` (YYYY-MM-DD): debits up, credits down, exactly as
-        `Posting.base_signed` sums them. Summed by the store, not loaded."""
-        raise NotImplementedError
-
     async def search_entries(
         self,
         user_id: str,
