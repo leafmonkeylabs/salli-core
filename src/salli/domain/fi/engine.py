@@ -10,7 +10,8 @@ Methodology (FIRE composite):
   • Emergency fund = liquid savings / monthly expenses  (target 3–6 months)
   • Debt cost      = the debts' yearly rates, weighted by balance, where any
                      debt's rate is known; else liabilities / assets
-                     (lower is better)
+                     (lower is better); blended with the debt-service ratio,
+                     scheduled payments / income, by the pack's weight
   • Goal progress  = weighted progress across the user's active goals
 The 0–100 score is a weighted blend of the five component scores. Its grade
 needs progress to FI as well ("FI-ready" and "Strong" have a progress floor in
@@ -165,6 +166,12 @@ def compute(
     else:
         debt_score = _clamp((Decimal(1) - debt_ratio) * _HUNDRED)
         debt_detail = f"Liabilities are {_q2(debt_ratio * 100)}% of assets"
+    if snapshot.monthly_debt_payments > 0 and pack.debt_service_weight > 0:
+        service = snapshot.monthly_debt_payments / income if income > 0 else Decimal(1)
+        service_score = _clamp((Decimal(1) - service / pack.debt_service_for_zero_score) * _HUNDRED)
+        w = pack.debt_service_weight
+        debt_score = debt_score * (Decimal(1) - w) + service_score * w
+        debt_detail += f"; payments take {_q2(service * 100)}% of income"
 
     comp_defs = [
         ("savings_rate", "Savings rate", sr_score, f"Saving {_q2(savings_rate * 100)}% of income"),

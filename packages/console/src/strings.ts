@@ -222,7 +222,7 @@ export const strings = {
       reviews: 'decisions to review',
       spending: 'spending',
     },
-    severity: { high: 'High', medium: 'Medium', info: 'For information' } as Record<string, string>,
+    severity: { high: 'High', medium: 'Medium', low: 'Low', info: 'For information' } as Record<string, string>,
     prompt: (date: string) =>
       [
         `Using my Salli tools, go through where I stand as of ${date}: net worth, safe to spend until my next income, this month so far, my FI score and date, what needs attention, what is coming up and any decision due for review.`,

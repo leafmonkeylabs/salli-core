@@ -1232,6 +1232,22 @@ class PortfolioRepository(ABC):
         return None
 
 
+class InvestmentPolicyRepository(ABC):
+    """A user's investment policy statements: one version a row, added and
+    never changed; the latest is the one in force."""
+
+    @abstractmethod
+    async def add(self, user_id: str, content: dict[str, Any]) -> dict[str, Any]:
+        """Store `content` as the next version; returns {id, version, content,
+        created_at}."""
+        ...
+
+    @abstractmethod
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        """Every version, oldest first."""
+        ...
+
+
 class HoldingTransactionRepository(ABC):
     """Holdings' transactions, as plain dicts of their stored columns: money in
     minor units of the holding's currency, quantities, prices, ratios and the

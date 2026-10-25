@@ -25,7 +25,7 @@ import { countArg } from './shared';
 
 const AXES = ['category', 'account', 'need'] as const;
 
-const SEVERITY_MARK: Record<FinanceSignal['severity'], string> = { high: '!', medium: '!', info: '•' };
+const SEVERITY_MARK: Record<FinanceSignal['severity'], string> = { high: '!', medium: '!', low: '•', info: '•' };
 
 /** A signal as one or two lines, coloured by how pressing it is. */
 export function signalLines(out: Output, signal: FinanceSignal, indent = ''): string[] {

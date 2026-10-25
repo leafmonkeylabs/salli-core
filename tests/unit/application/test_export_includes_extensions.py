@@ -34,6 +34,7 @@ def _service(
             tax_rule_sets=SimpleNamespace(export=AsyncMock(return_value=rule_sets)),
             fire_strategies=SimpleNamespace(export=AsyncMock(return_value=strategies)),
             principles=SimpleNamespace(list=AsyncMock(return_value=[])),
+            investment_policies=SimpleNamespace(list=AsyncMock(return_value=[])),
             decisions=SimpleNamespace(list_full=AsyncMock(return_value=[])),
         )
 

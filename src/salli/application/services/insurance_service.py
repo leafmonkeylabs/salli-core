@@ -12,10 +12,13 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
+from salli.application.services.baseline_service import BaselineService
 from salli.domain.currency import quantize
 from salli.domain.insurance import engine
 from salli.domain.insurance.models import CoverageTarget, Policy
 from salli.domain.money import from_minor, to_minor
+
+ZERO = Decimal(0)
 
 # Coverage, premiums and targets are kept in the user's base currency.
 
@@ -66,8 +69,68 @@ def _to_domain_target(t: dict[str, Any], currency: str) -> CoverageTarget:
 
 
 class InsuranceService:
-    def __init__(self, uow_factory: Callable[[], Any]) -> None:
+    def __init__(
+        self, uow_factory: Callable[[], Any], baselines: BaselineService | None = None
+    ) -> None:
         self._uow_factory = uow_factory
+        # The figures a needs analysis starts from.
+        self._baselines = baselines
+
+    async def get_needs(self, user_id: str, replacement_years: int = 10) -> dict[str, Any]:
+        """Life cover and income protection, as figures from the baseline:
+        income replacement for `replacement_years`, debts and the active
+        goals still to fund, less cash, savings and investments; and a
+        month's spending. Never a product."""
+        if self._baselines is None:
+            raise RuntimeError("InsuranceService needs the baseline for a needs analysis")
+        baseline = await self._baselines.build(user_id)
+        currency = baseline.currency
+        async with self._uow_factory() as uow:
+            goals = await uow.goals.list(user_id, active_only=True)
+            policies = await uow.policies.list(user_id, active_only=True)
+        to_fund = sum(
+            (
+                max(
+                    from_minor(g["target_amount_minor"] - g["current_amount_minor"], currency), ZERO
+                )
+                for g in goals
+            ),
+            ZERO,
+        )
+        held = sum(
+            (
+                from_minor(p["coverage_amount_minor"], currency)
+                for p in policies
+                if p["policy_type"] == "life"
+            ),
+            ZERO,
+        )
+        investments = sum((b.owned for b in baseline.balances if b.role == "investment"), ZERO)
+        result = engine.needs(
+            baseline.flows.income,
+            baseline.flows.expenses,
+            baseline.total_liabilities,
+            to_fund,
+            baseline.liquid + investments,
+            held,
+            replacement_years,
+        )
+
+        def money(value: Decimal) -> str:
+            return str(quantize(value, currency, strict=False))
+
+        return {
+            "currency": currency,
+            "replacement_years": result.replacement_years,
+            "income_replacement": money(result.income_replacement),
+            "debts": money(result.debts),
+            "goals": money(result.goals),
+            "assets": money(result.assets),
+            "life_cover_need": money(result.life_cover_need),
+            "life_cover_held": money(result.life_cover_held),
+            "life_cover_gap": money(result.life_cover_gap),
+            "income_protection_monthly": money(result.income_protection_monthly),
+        }
 
     async def add_policy(self, user_id: str, data: dict[str, Any]) -> str:
         async with self._uow_factory() as uow:

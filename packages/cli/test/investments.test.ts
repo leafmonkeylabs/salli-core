@@ -91,6 +91,9 @@ describe('salli portfolio', () => {
       Total return           USD 1,523.40
       Time-weighted          15.23% (19.8% a year)
       Money-weighted (XIRR)  18.74%
+      Volatility (yearly)    14.2% over 9 months
+      Largest fall           8.1%
+      Sharpe ratio           1.18 against a cash yield of 3%
 
       HOLDING                 VALUE (USD)  TOTAL RETURN    TWR
       VTI Total Stock Market    11,250.40      1,523.40  15.2%

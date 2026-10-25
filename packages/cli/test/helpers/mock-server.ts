@@ -830,8 +830,63 @@ export class MockSalli {
             { asset_class: 'bond', current_value: '2890.10', pct_of_portfolio: '0.2044' },
           ],
           alerts: req.query.getAll('target').length ? [{ asset_class: 'equity', current_pct: '0.7956', target_pct: '0.6', drift_pct: '0.1956' }] : [],
+          target_source: req.query.getAll('target').length ? 'given' : null,
+          costs: { weighted_expense_ratio: '0.000300', yearly_cost: '3.38', value_covered: '11250.40', without_ratio: ['BND'] },
+          notes: [],
         },
       };
+    }
+    if (method === 'GET' && path === '/v1/insurance/needs') {
+      // eslint-disable-next-line no-restricted-syntax -- not money: a count of years
+      const years = Number.parseInt(req.query.get('replacement_years') ?? '10', 10);
+      return {
+        status: 200,
+        body: {
+          currency: 'USD', replacement_years: years, income_replacement: '600000.00', debts: '20000.00',
+          goals: '15000.00', assets: '60000.00', life_cover_need: '575000.00', life_cover_held: '500000.00', life_cover_gap: '75000.00',
+          income_protection_monthly: '3200.00',
+        },
+      };
+    }
+    if (path.startsWith('/v1/ips')) {
+      const risk = {
+        tolerance: { score: 72, category: 'aggressive' as const },
+        capacity: {
+          score: 61, category: 'balanced' as const, breakdown: { emergency_months: 15, income_stability: 25, horizon: 20, debt_service: 18 }, missing: [],
+          emergency_months: '4.20', income_variation: '0.04', horizon_years: 12, debt_service_ratio: '0.12',
+        },
+        profile: 'balanced' as const,
+        equity_max: '0.70',
+      };
+      const version = {
+        id: uid(1501), version: 2, created_at: '2026-10-01T09:00:00+00:00',
+        content: {
+          schema: 'salli.ips/1' as const, targets: [{ asset_class: 'equity', target: '0.8', band: '0.05' }, { asset_class: 'bond', target: '0.2', band: '0.05' }],
+          rebalancing: { rule: 'both' as const, every_months: 12 }, horizon_years: 12, objectives: 'Retire at 55', constraints: '', review_on: '2027-10-01',
+        },
+      };
+      if (method === 'POST' && path === '/v1/ips') {
+        this.data.bodies.push({ method, path, body: req.json });
+        return { status: 201, body: { ...version, version: 3 } };
+      }
+      if (method === 'GET' && path === '/v1/ips') return { status: 200, body: version };
+      if (method === 'GET' && path === '/v1/ips/versions') return { status: 200, body: { versions: [version] } };
+      if (method === 'GET' && path === '/v1/ips/risk-profile') return { status: 200, body: risk };
+      if (method === 'GET' && path === '/v1/ips/drift') {
+        return {
+          status: 200,
+          body: {
+            version: 2, currency: 'USD', total_value: '14140.50',
+            classes: [
+              { asset_class: 'equity', value: '11250.40', current_pct: '0.7956', target_pct: '0.8', band: '0.05', drift_pct: '-0.0044', outside_band: false, to_target: '62.00', in_policy: true },
+              { asset_class: 'bond', value: '2890.10', current_pct: '0.2044', target_pct: '0.2', band: '0.05', drift_pct: '0.0044', outside_band: false, to_target: '-62.00', in_policy: true },
+            ],
+            rebalance_due: false, review_due: false, risk_profile: risk,
+            equity_check: { equity_target: '0.8', profile: 'balanced', profile_equity_max: '0.70', above_profile: true },
+            notes: [],
+          },
+        };
+      }
     }
     if (method === 'GET' && path === '/v1/insurance/report') {
       return {
@@ -1115,6 +1170,10 @@ export class MockSalli {
         start: req.query.get('from_date') ?? '2026-01-01', end: req.query.get('to_date') ?? '2026-10-09', days: 282, base_currency: 'USD',
         portfolio: figures('USD'),
         holdings: [{ holding_id: uid(421), symbol: 'VTI', name: 'Total Stock Market', asset_class: 'equity', is_active: true, native: figures('USD'), base: figures('USD'), notes: [] }],
+        risk: {
+          months: 9, yearly_return: '0.198000', volatility: '0.142000', max_drawdown: '0.081000', sharpe: '1.183099', hurdle: '0.030000',
+          hurdle_source: 'cash_yield', benchmark: null,
+        },
         notes: ['BND is declared, so it has no returns.'],
       };
       return { status: 200, body };
@@ -1136,7 +1195,7 @@ export class MockSalli {
     params = match('/v1/portfolio/{holding}/lots', path);
     if (params && method === 'GET') {
       const body: HoldingLots = {
-        holding_id: params.holding ?? "", currency: 'USD', base_currency: 'USD', quantity: '40', cost: '9000.00', cost_base: '9000.00',
+        holding_id: params.holding ?? "", currency: 'USD', base_currency: 'USD', cost_method: 'fifo', quantity: '40', cost: '9000.00', cost_base: '9000.00',
         lots: [
           { id: uid(1401), kind: 'buy', opened_on: '2025-03-01', opened_quantity: '45', quantity: '40', cost: '9000.00', cost_base: '9000.00', cost_per_unit: '225.00', is_open: true },
         ],

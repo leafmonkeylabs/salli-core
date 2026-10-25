@@ -34,7 +34,7 @@ import { singleLine } from '../output/text';
 import { displayDate, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
 import { renderRecord } from './records';
-import { amountArg, collect, confirmAction, currencyArg } from './shared';
+import { amountArg, collect, confirmAction, currencyArg, rateArg } from './shared';
 
 const KINDS = ['buy', 'sell', 'dividend', 'interest', 'split', 'transfer_in'] as const;
 
@@ -131,11 +131,15 @@ export function registerInvestments(portfolio: Command, app: App): void {
     .description('Gains, income and returns over a period (default: this year so far)')
     .option('--from <date>', 'From this date (YYYY-MM-DD)')
     .option('--to <date>', 'Up to this date (default: today)')
+    .option('--benchmark <symbol>', 'Measure against the closes you record for this symbol')
+    .option('--cash-yield <fraction>', 'A yearly cash yield for the Sharpe ratio, e.g. 0.03 or 3%')
     .action(async (query, opts) => {
       const now = app.runtime.now();
       const period = {
         ...(opts.from ? { from_date: parseDate(opts.from, now, '--from') } : {}),
         ...(opts.to ? { to_date: parseDate(opts.to, now, '--to') } : {}),
+        ...(opts.benchmark ? { benchmark: opts.benchmark } : {}),
+        ...(opts.cashYield ? { cash_yield: rateArg(opts.cashYield, '--cash-yield') } : {}),
       };
       const api = await app.api();
       const holding = query ? await resolveHolding(api, query) : undefined;
@@ -147,7 +151,17 @@ export function registerInvestments(portfolio: Command, app: App): void {
         human: (d) => {
           const out = app.out;
           out.line(`${out.heading(holding ? `${holding.symbol} performance` : 'Portfolio performance')} ${out.colors.dim(`${displayDate(d.start, out.locale)} – ${displayDate(d.end, out.locale)} · ${d.days} days`)}`);
-          out.line(out.details(figuresRows(out, d.portfolio)));
+          const r = d.risk;
+          const pct = (v: string | null): string => (v === null ? '—' : out.percent(v, 1));
+          out.line(
+            out.details([
+              ...figuresRows(out, d.portfolio),
+              ['Volatility (yearly)', `${pct(r.volatility)} over ${r.months} months`],
+              ['Largest fall', pct(r.max_drawdown)],
+              ['Sharpe ratio', r.sharpe === null ? '—' : `${r.sharpe.replace(/(\.\d{2})\d*$/, '$1')} against ${r.hurdle_source === 'benchmark' ? 'the benchmark' : 'a cash yield'} of ${pct(r.hurdle)}`],
+              ...(r.benchmark ? [[`Benchmark ${r.benchmark.symbol}`, `${pct(r.benchmark.yearly_return)} a year, volatility ${pct(r.benchmark.volatility)}, largest fall ${pct(r.benchmark.max_drawdown)}`] as const] : []),
+            ]),
+          );
           if (!holding && d.holdings.length) {
             out.line();
             out.line(

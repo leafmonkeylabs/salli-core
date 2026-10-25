@@ -893,13 +893,35 @@ def build_mcp_server(
         return report
 
     @mcp.tool(annotations=READS)
-    async def get_coverage_report() -> dict[str, Any]:
-        """Return the user's insurance coverage-gap report: declared target vs.
-        actual coverage per policy type, uncovered policy types, and policies
-        expiring within 30 days."""
+    async def get_coverage_report(replacement_years: int = 10) -> dict[str, Any]:
+        """The user's insurance cover against their targets, uncovered types,
+        policies expiring within 30 days, and `needs`: life cover from
+        `replacement_years` of income, debts and goals less assets, and
+        income protection as a month's spending. Figures, never a product."""
+        if not 0 <= replacement_years <= 50:
+            _fail("invalid_input", "replacement_years is 0 to 50")
         user_id = _current_user_id()
         today = datetime.date.today().isoformat()
-        return await insurance_svc.get_report(user_id, today)
+        report = await insurance_svc.get_report(user_id, today)
+        return {**report, "needs": await insurance_svc.get_needs(user_id, replacement_years)}
+
+    @mcp.tool(annotations=READS)
+    async def get_investment_policy() -> dict[str, Any]:
+        """The user's investment policy (null if none), drift against it, and
+        their risk profile: tolerance, capacity from their figures, and the
+        lower. Quote it; never choose its targets or suggest a security."""
+        user_id = _current_user_id()
+        policy = await services.investment_policy.current(user_id)
+        drift = await services.investment_policy.drift(user_id) if policy else None
+        return {
+            "policy": policy,
+            "drift": drift,
+            "risk_profile": (
+                drift["risk_profile"]
+                if drift
+                else await services.investment_policy.risk_profile(user_id)
+            ),
+        }
 
     @mcp.tool(annotations=READS)
     async def get_latest_briefing() -> dict[str, Any]:
@@ -2009,6 +2031,7 @@ def build_mcp_server(
         get_portfolio_summary,
         get_subscription_report,
         get_coverage_report,
+        get_investment_policy,
         get_latest_briefing,
         run_briefing,
         save_document,

@@ -261,6 +261,10 @@ class RuleSet(Model):
         default_factory=list[SuggestedAccount]
     )
     forms: Annotated[list[Form], Field(max_length=50)] = Field(default_factory=list[Form])
+    #: How holdings' sales are costed where this rule set applies, unless a
+    #: holding says otherwise: first in, first out (named lots allowed) or
+    #: the average cost. None: first in, first out.
+    cost_basis: Literal["fifo", "average"] | None = None
     examples: Annotated[list[Example], Field(max_length=200)] = Field(default_factory=list[Example])
 
 

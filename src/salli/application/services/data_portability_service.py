@@ -143,6 +143,7 @@ class DataPortabilityService:
             "holdings": await self._portfolio.list_holdings(user_id, active_only=False),
             "holding_transactions": await self._portfolio.export_transactions(user_id),
             "holding_prices": await self._portfolio.list_prices(user_id),
+            "investment_policies": await self._investment_policies(user_id),
             "recurring_subscriptions": await self._subscription.list_subscriptions(
                 user_id, active_only=False
             ),
@@ -193,6 +194,11 @@ class DataPortabilityService:
         version's document, status and validation report."""
         async with self._uow_factory() as uow:
             return list(await uow.tax_rule_sets.export(user_id))
+
+    async def _investment_policies(self, user_id: str) -> list[dict[str, Any]]:
+        """Every version of the investment policy statement, oldest first."""
+        async with self._uow_factory() as uow:
+            return list(await uow.investment_policies.list(user_id))
 
     async def _decisions(self, user_id: str) -> dict[str, Any]:
         """Every principle (archived ones too), and the decision journal

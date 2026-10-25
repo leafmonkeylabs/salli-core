@@ -7304,7 +7304,7 @@
           "portfolio"
         ],
         "summary": "Get Performance",
-        "description": "Gains, income and returns over a period (a tax year, say), per holding\nin its own currency and the base one, and for the whole portfolio.",
+        "description": "Gains, income and returns over a period (a tax year, say), per holding\nin its own currency and the base one, and for the whole portfolio; and\nits volatility, largest fall and Sharpe ratio, against a cash yield or a\nbenchmark's recorded closes.",
         "operationId": "portfolio.performance",
         "security": [
           {
@@ -7349,6 +7349,43 @@
               "title": "To Date"
             },
             "description": "Last day of the period, YYYY-MM-DD. Omitted: today."
+          },
+          {
+            "name": "benchmark",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A symbol whose recorded closes are the benchmark.",
+              "title": "Benchmark"
+            },
+            "description": "A symbol whose recorded closes are the benchmark."
+          },
+          {
+            "name": "cash_yield",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?\\d+(\\.\\d+)?$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A yearly cash yield for the Sharpe ratio, a fraction (0.03).",
+              "title": "Cash Yield"
+            },
+            "description": "A yearly cash yield for the Sharpe ratio, a fraction (0.03)."
           }
         ],
         "responses": {
@@ -8240,6 +8277,208 @@
         }
       }
     },
+    "/v1/ips": {
+      "get": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Get Policy",
+        "description": "The investment policy statement in force (its latest version).",
+        "operationId": "ips.get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestmentPolicyVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Adopt Policy",
+        "description": "Adopt a new version of the investment policy statement. Earlier\nversions are kept, never changed.",
+        "operationId": "ips.adopt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvestmentPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestmentPolicyVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/ips/versions": {
+      "get": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "List Policy Versions",
+        "operationId": "ips.versions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestmentPolicyVersions"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/ips/drift": {
+      "get": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Get Drift",
+        "description": "The portfolio against the policy in force, class by class, with the\nrisk profile beside it.",
+        "operationId": "ips.drift",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriftReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/ips/risk-profile": {
+      "get": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Get Risk Profile",
+        "description": "Risk tolerance (the questionnaire), risk capacity (the baseline) and\nthe profile, the lower of the two.",
+        "operationId": "ips.riskProfile",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestorRiskProfile"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/subscriptions/": {
       "get": {
         "tags": [
@@ -8764,6 +9003,69 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/v1/insurance/needs": {
+      "get": {
+        "tags": [
+          "insurance"
+        ],
+        "summary": "Get Needs",
+        "description": "Life cover from income replacement years, debts and goals less assets;\nincome protection from spending. Policies of type \"life\" count as held.",
+        "operationId": "insurance.needs",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "replacement_years",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 0,
+              "description": "Years of income to replace.",
+              "default": 10,
+              "title": "Replacement Years"
+            },
+            "description": "Years of income to replace."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsuranceNeeds"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/insurance/targets": {
@@ -16327,6 +16629,71 @@
         "title": "BaselineTotals",
         "description": "In the base currency, at the as-of rates."
       },
+      "BenchmarkFigures": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "yearly_return": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yearly Return"
+          },
+          "volatility": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volatility"
+          },
+          "max_drawdown": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "yearly_return",
+          "volatility",
+          "max_drawdown"
+        ],
+        "title": "BenchmarkFigures",
+        "description": "A series of closes you record for any symbol, measured month by month\nover the same period."
+      },
       "BriefingAssumptions": {
         "properties": {
           "status": {
@@ -20690,6 +21057,156 @@
         ],
         "title": "DraftedTransactions"
       },
+      "DriftClass": {
+        "properties": {
+          "asset_class": {
+            "type": "string",
+            "title": "Asset Class"
+          },
+          "value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Value",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "current_pct": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Current Pct",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "target_pct": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Target Pct",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "band": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Band",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "drift_pct": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Drift Pct",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "outside_band": {
+            "type": "boolean",
+            "title": "Outside Band"
+          },
+          "to_target": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "To Target",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "in_policy": {
+            "type": "boolean",
+            "title": "In Policy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_class",
+          "value",
+          "current_pct",
+          "target_pct",
+          "band",
+          "drift_pct",
+          "outside_band",
+          "to_target",
+          "in_policy"
+        ],
+        "title": "DriftClass"
+      },
+      "DriftReport": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "total_value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Value",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/DriftClass"
+            },
+            "type": "array",
+            "title": "Classes"
+          },
+          "rebalance_due": {
+            "type": "boolean",
+            "title": "Rebalance Due"
+          },
+          "review_due": {
+            "type": "boolean",
+            "title": "Review Due"
+          },
+          "risk_profile": {
+            "$ref": "#/components/schemas/InvestorRiskProfile"
+          },
+          "equity_check": {
+            "$ref": "#/components/schemas/EquityCheck"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "currency",
+          "total_value",
+          "classes",
+          "rebalance_due",
+          "review_due",
+          "risk_profile",
+          "equity_check",
+          "notes"
+        ],
+        "title": "DriftReport"
+      },
       "DueReview": {
         "properties": {
           "id": {
@@ -20967,6 +21484,49 @@
           "net"
         ],
         "title": "EntryTotal"
+      },
+      "EquityCheck": {
+        "properties": {
+          "equity_target": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Equity Target",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "conservative",
+              "balanced",
+              "aggressive"
+            ],
+            "title": "Profile"
+          },
+          "profile_equity_max": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Profile Equity Max",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "above_profile": {
+            "type": "boolean",
+            "title": "Above Profile"
+          }
+        },
+        "type": "object",
+        "required": [
+          "equity_target",
+          "profile",
+          "profile_equity_max",
+          "above_profile"
+        ],
+        "title": "EquityCheck"
       },
       "ExchangeRate": {
         "properties": {
@@ -22592,6 +23152,7 @@
             "enum": [
               "high",
               "medium",
+              "low",
               "info"
             ],
             "title": "Severity"
@@ -22666,6 +23227,17 @@
             },
             "type": "array",
             "title": "Refs"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
           }
         },
         "type": "object",
@@ -23156,6 +23728,39 @@
             ],
             "title": "Account Id"
           },
+          "cost_method": {
+            "type": "string",
+            "enum": [
+              "fifo",
+              "average"
+            ],
+            "title": "Cost Method"
+          },
+          "cost_method_source": {
+            "type": "string",
+            "enum": [
+              "holding",
+              "rule_set",
+              "default"
+            ],
+            "title": "Cost Method Source"
+          },
+          "expense_ratio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Ratio"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -23266,6 +23871,8 @@
           "cost_basis",
           "current_value",
           "is_active",
+          "cost_method",
+          "cost_method_source",
           "created_at",
           "updated_at",
           "tracking",
@@ -23410,6 +24017,14 @@
               "USD"
             ]
           },
+          "cost_method": {
+            "type": "string",
+            "enum": [
+              "fifo",
+              "average"
+            ],
+            "title": "Cost Method"
+          },
           "quantity": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
@@ -23457,6 +24072,7 @@
           "holding_id",
           "currency",
           "base_currency",
+          "cost_method",
           "quantity",
           "cost",
           "cost_base",
@@ -23569,6 +24185,36 @@
               }
             ],
             "title": "Account Id"
+          },
+          "cost_method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "fifo",
+                  "average"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Method"
+          },
+          "expense_ratio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Ratio"
           }
         },
         "type": "object",
@@ -24384,6 +25030,36 @@
               }
             ],
             "title": "Account Id"
+          },
+          "cost_method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "fifo",
+                  "average"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Method"
+          },
+          "expense_ratio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Ratio"
           }
         },
         "type": "object",
@@ -24664,6 +25340,110 @@
         ],
         "title": "IncomeStatementLine"
       },
+      "InsuranceNeeds": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "replacement_years": {
+            "type": "integer",
+            "title": "Replacement Years"
+          },
+          "income_replacement": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Income Replacement",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "debts": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Debts",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "goals": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Goals",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "assets": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Assets",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "life_cover_need": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Life Cover Need",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "life_cover_held": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Life Cover Held",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "life_cover_gap": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Life Cover Gap",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "income_protection_monthly": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Income Protection Monthly",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "replacement_years",
+          "income_replacement",
+          "debts",
+          "goals",
+          "assets",
+          "life_cover_need",
+          "life_cover_held",
+          "life_cover_gap",
+          "income_protection_monthly"
+        ],
+        "title": "InsuranceNeeds",
+        "description": "A needs analysis from your own figures. Figures only: never a product."
+      },
       "InsurancePolicy": {
         "properties": {
           "id": {
@@ -24838,6 +25618,207 @@
         ],
         "title": "InvestChange",
         "description": "Cash moved into your investments on a day, where it then grows at\nyour real return. Into one of your holdings (`holding`), it also shows\nthe units it buys at the holding's last recorded price, and opens a lot\na later sale in the same scenario can sell. Fees (yours, your broker's;\nnone when left out) leave cash with the amount and never reach the\ninvestments."
+      },
+      "InvestmentPolicyContent": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.ips/1",
+            "title": "Schema"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyTargetOut"
+            },
+            "type": "array",
+            "title": "Targets"
+          },
+          "rebalancing": {
+            "$ref": "#/components/schemas/RebalancingRule"
+          },
+          "horizon_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Years"
+          },
+          "objectives": {
+            "type": "string",
+            "title": "Objectives"
+          },
+          "constraints": {
+            "type": "string",
+            "title": "Constraints"
+          },
+          "review_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "targets",
+          "rebalancing",
+          "horizon_years",
+          "objectives",
+          "constraints",
+          "review_on"
+        ],
+        "title": "InvestmentPolicyContent"
+      },
+      "InvestmentPolicyRequest": {
+        "properties": {
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyTargetIn"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Targets"
+          },
+          "rebalancing": {
+            "$ref": "#/components/schemas/RebalancingRule",
+            "default": {
+              "rule": "bands"
+            }
+          },
+          "horizon_years": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Years"
+          },
+          "objectives": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Objectives",
+            "default": ""
+          },
+          "constraints": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Constraints",
+            "default": ""
+          },
+          "review_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "targets"
+        ],
+        "title": "InvestmentPolicyRequest"
+      },
+      "InvestmentPolicyVersion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "content": {
+            "$ref": "#/components/schemas/InvestmentPolicyContent"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "content",
+          "created_at"
+        ],
+        "title": "InvestmentPolicyVersion"
+      },
+      "InvestmentPolicyVersions": {
+        "properties": {
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/InvestmentPolicyVersion"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "versions"
+        ],
+        "title": "InvestmentPolicyVersions"
+      },
+      "InvestorRiskProfile": {
+        "properties": {
+          "tolerance": {
+            "$ref": "#/components/schemas/RiskTolerance"
+          },
+          "capacity": {
+            "$ref": "#/components/schemas/RiskCapacityFigures"
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "conservative",
+              "balanced",
+              "aggressive"
+            ],
+            "title": "Profile"
+          },
+          "equity_max": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Equity Max",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "tolerance",
+          "capacity",
+          "profile",
+          "equity_max"
+        ],
+        "title": "InvestorRiskProfile"
       },
       "JournalEntry": {
         "properties": {
@@ -27275,6 +28256,72 @@
         ],
         "title": "PolicyRequest"
       },
+      "PolicyTargetIn": {
+        "properties": {
+          "asset_class": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Asset Class"
+          },
+          "target": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Target",
+            "examples": [
+              "0.05"
+            ]
+          },
+          "band": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Band",
+            "default": "0.05",
+            "examples": [
+              "0.05"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_class",
+          "target"
+        ],
+        "title": "PolicyTargetIn"
+      },
+      "PolicyTargetOut": {
+        "properties": {
+          "asset_class": {
+            "type": "string",
+            "title": "Asset Class"
+          },
+          "target": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Target",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "band": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Band",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_class",
+          "target",
+          "band"
+        ],
+        "title": "PolicyTargetOut"
+      },
       "PolicyUpdateRequest": {
         "properties": {
           "name": {
@@ -27412,6 +28459,9 @@
             "type": "array",
             "title": "Holdings"
           },
+          "risk": {
+            "$ref": "#/components/schemas/RiskFigures"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -27428,6 +28478,7 @@
           "base_currency",
           "portfolio",
           "holdings",
+          "risk",
           "notes"
         ],
         "title": "PortfolioPerformance"
@@ -27488,6 +28539,24 @@
             "type": "array",
             "title": "Alerts"
           },
+          "target_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "given",
+                  "policy"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Source"
+          },
+          "costs": {
+            "$ref": "#/components/schemas/RunningCosts"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -27505,6 +28574,7 @@
           "total_gain_pct",
           "allocation",
           "alerts",
+          "costs",
           "notes"
         ],
         "title": "PortfolioSummary",
@@ -28752,6 +29822,35 @@
         "title": "RebalancingAlert",
         "description": "An asset class whose share has drifted from its target by the threshold or more."
       },
+      "RebalancingRule": {
+        "properties": {
+          "rule": {
+            "type": "string",
+            "enum": [
+              "bands",
+              "calendar",
+              "both"
+            ],
+            "title": "Rule",
+            "default": "bands"
+          },
+          "every_months": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 120.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Every Months"
+          }
+        },
+        "type": "object",
+        "title": "RebalancingRule"
+      },
       "RecordedPrice": {
         "properties": {
           "id": {
@@ -29426,6 +30525,234 @@
         "title": "RiskBreakdown",
         "description": "The points each answer contributed to the score."
       },
+      "RiskCapacityFigures": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "conservative",
+              "balanced",
+              "aggressive"
+            ],
+            "title": "Category"
+          },
+          "breakdown": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Breakdown"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing"
+          },
+          "emergency_months": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emergency Months"
+          },
+          "income_variation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Income Variation"
+          },
+          "horizon_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Years"
+          },
+          "debt_service_ratio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Service Ratio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "category",
+          "breakdown",
+          "missing",
+          "emergency_months",
+          "income_variation",
+          "horizon_years",
+          "debt_service_ratio"
+        ],
+        "title": "RiskCapacityFigures"
+      },
+      "RiskFigures": {
+        "properties": {
+          "months": {
+            "type": "integer",
+            "title": "Months"
+          },
+          "yearly_return": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yearly Return"
+          },
+          "volatility": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volatility"
+          },
+          "max_drawdown": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown"
+          },
+          "sharpe": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe"
+          },
+          "hurdle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hurdle"
+          },
+          "hurdle_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash_yield",
+                  "benchmark"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hurdle Source"
+          },
+          "benchmark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BenchmarkFigures"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "months",
+          "yearly_return",
+          "volatility",
+          "max_drawdown",
+          "sharpe",
+          "hurdle",
+          "hurdle_source",
+          "benchmark"
+        ],
+        "title": "RiskFigures",
+        "description": "From the period's monthly time-weighted returns. Fractions of one."
+      },
       "RiskProfile": {
         "properties": {
           "score": {
@@ -29486,6 +30813,43 @@
           "investment_experience"
         ],
         "title": "RiskQuestionnaireRequest"
+      },
+      "RiskTolerance": {
+        "properties": {
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "conservative",
+                  "balanced",
+                  "aggressive"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "category"
+        ],
+        "title": "RiskTolerance"
       },
       "RuleActions": {
         "properties": {
@@ -29857,6 +31221,60 @@
         },
         "type": "object",
         "title": "RuleUpdate"
+      },
+      "RunningCosts": {
+        "properties": {
+          "weighted_expense_ratio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weighted Expense Ratio"
+          },
+          "yearly_cost": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Yearly Cost",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "value_covered": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Value Covered",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "without_ratio": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Without Ratio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weighted_expense_ratio",
+          "yearly_cost",
+          "value_covered",
+          "without_ratio"
+        ],
+        "title": "RunningCosts",
+        "description": "The holdings' expense ratios (your own figures), rolled up."
       },
       "SafeToSpend": {
         "properties": {

@@ -268,6 +268,26 @@ def test_debt_is_scored_by_its_rates_weighted_by_balance_when_known():
     assert debt.detail == "Debts cost 15.00% a year, averaged by balance"
 
 
+def test_debt_service_ratio_is_blended_into_the_debt_score():
+    """FI pack 4.0.0: half the debt component is scheduled payments ÷ income,
+    no marks at 40%, so a large debt at a low rate still weighs."""
+    rated = _snapshot(
+        monthly_income=Decimal(4000),
+        monthly_expenses=Decimal(2000),
+        liquid_savings=Decimal(10000),
+        investments=Decimal(0),
+        total_assets=Decimal(10000),
+        total_liabilities=Decimal(4000),
+        debt_rates=((Decimal("0.05"), Decimal(4000)),),
+        monthly_debt_payments=Decimal(800),
+    )
+    pack = replace(PACK, debt_service_weight=Decimal("0.5"))
+    debt = {c.key: c for c in engine.compute(rated, pack, swr=SWR).components}["debt"]
+    # Rate: 1 − 5/20 = 75; service: 800 / 4,000 = 20%, 1 − 20/40 = 50.
+    assert debt.score == Decimal("62.50")
+    assert debt.detail.endswith("; payments take 20.00% of income")
+
+
 def test_the_grade_needs_progress_to_fi_and_two_full_months():
     rich = _snapshot(
         monthly_income=Decimal(10000),

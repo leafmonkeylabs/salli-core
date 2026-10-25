@@ -46,6 +46,11 @@ class FiPack:
     # The yearly rate, averaged over debts by balance, at which the debt
     # component scores nothing (a rate of 0 scores full marks).
     debt_rate_for_zero_score: Decimal = Decimal("0.20")
+    # The debt-service ratio (scheduled payments ÷ income) at which its part
+    # of the debt component scores nothing, and that part's share of the
+    # component (the rest is the rate, or the share of assets).
+    debt_service_for_zero_score: Decimal = Decimal("0.40")
+    debt_service_weight: Decimal = Decimal(0)
     # The progress to FI below which the top grades are not given:
     # "FI-ready" and "Strong" each.
     progress_for_fi_ready: Decimal = Decimal(1)
@@ -66,6 +71,8 @@ class FinancialSnapshot:
     currency: str  # the owner's base currency, which every figure above is in
     #: The debts with known terms: (yearly rate, balance owed) each.
     debt_rates: tuple[tuple[Decimal, Decimal], ...] = ()
+    #: The debts' scheduled monthly payments, together.
+    monthly_debt_payments: Decimal = Decimal(0)
     #: Full months of income and spending observed; None when not counted.
     full_months: int | None = None
 

@@ -218,3 +218,40 @@ def test_a_rate_of_any_size_is_shown_to_six_places():
 
     assert _rate_view(Decimal("1e60")) == "1" + "0" * 60 + ".000000"
     assert _rate_view(Decimal("-0.1234565")) == "-0.123456"
+
+
+async def test_risk_figures_month_by_month_against_a_benchmark_or_a_cash_yield():
+    from decimal import Decimal
+
+    svc, _, _ = _service()
+    h = await _holding(svc, "FND")
+    await _add(svc, h, kind="buy", date="2026-01-01", quantity="100", price="10")
+    for day, close in (("2026-01-31", "11"), ("2026-02-28", "9.9"), ("2026-03-31", "10.89")):
+        await svc.set_price(USER, {"symbol": "FND", "close": close, "date": day})
+    for day, close in (
+        ("2025-12-31", "100"),
+        ("2026-01-31", "105"),
+        ("2026-02-28", "105"),
+        ("2026-03-31", "105"),
+    ):
+        await svc.set_price(USER, {"symbol": "IDX", "close": close, "date": day, "currency": "LKR"})
+
+    report = await svc.get_performance(USER, "2026-01-01", "2026-03-31", benchmark="IDX")
+    assert report is not None
+    figures = report["risk"]
+    # Monthly: +10%, −10%, +10%.
+    assert figures["months"] == 3 and figures["max_drawdown"] == "0.100000"
+    assert figures["hurdle_source"] == "benchmark"
+    assert figures["benchmark"]["symbol"] == "IDX"
+    assert Decimal(figures["benchmark"]["max_drawdown"]) == 0
+    with_cash = await svc.get_performance(
+        USER, "2026-01-01", "2026-03-31", cash_yield=Decimal("0.03")
+    )
+    assert with_cash is not None
+    assert (with_cash["risk"]["hurdle"], with_cash["risk"]["hurdle_source"]) == (
+        "0.030000",
+        "cash_yield",
+    )
+    no_series = await svc.get_performance(USER, "2026-01-01", "2026-03-31", benchmark="NONE")
+    assert no_series is not None and no_series["risk"]["benchmark"] is None
+    assert any("NONE" in note for note in no_series["notes"])

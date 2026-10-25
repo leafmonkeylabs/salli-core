@@ -9,6 +9,41 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Added
 
+- **An investment policy statement.** Target allocation by asset class with
+  a band each, a rebalancing rule (bands, calendar or both), horizon,
+  objectives, constraints and a review date, stored as versions and never
+  changed (`salli.ips/1`; `GET`/`POST /v1/ips`, `GET /v1/ips/versions`;
+  `salli ips show|history|set`). `GET /v1/ips/drift` (`salli ips drift`)
+  reports each class against its target and band, the amount to its
+  target, and whether the rule says rebalance or the review date has come.
+  The portfolio summary takes its targets and bands when none are given
+  (`target_source`). MCP `get_investment_policy`. Migration
+  `core_0037_investment_policy`.
+- **Risk capacity beside tolerance.** From the baseline: emergency months,
+  income stability, horizon (the policy's, or the questionnaire's, now
+  kept) and debt service, 0 to 100; the profile is the lower of tolerance
+  and capacity (`GET /v1/ips/risk-profile`, `salli ips risk`, and beside
+  the drift report). It gates nothing; a policy whose equity target is
+  above the profile's band is flagged.
+- **Risk figures and costs.** Portfolio performance carries `risk`: monthly
+  time-weighted returns compounded to a year, volatility, largest fall and
+  a Sharpe ratio against a cash yield (`cash_yield`) or a benchmark's
+  recorded closes (`benchmark`, any symbol). A holding takes an expense
+  ratio (your figure); the summary's `costs` weight them by value and say
+  what they take in a year.
+- **Average cost.** A holding's sales are costed first in, first out (named
+  lots allowed) or at average cost (`cost_method`), the holding's choice,
+  else the active tax rule set's new optional `cost_basis`, else first in,
+  first out. Rule sets without it hash as before.
+- **An insurance needs analysis** (`GET /v1/insurance/needs`, `salli
+  insurance needs`, and `needs` in MCP `get_coverage_report`): life cover from years of
+  income, debts and goals less cash, savings and investments, against the
+  life cover held; income protection as a month's spending. Figures, never
+  a product.
+- **Plainer signals.** A signal's `detail` is in plain words, and why Salli
+  says so is in a new `rationale`. The emergency fund signal is graded: high
+  under a month, medium under three, low (a new severity) under the target.
+
 - **Two more signals.** `emergency_fund_low`: cash and savings cover fewer
   months of average spending than the FI method's emergency target, once a
   full month is seen. `expensive_debt`: a declared debt charging at or above
@@ -165,6 +200,13 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 ### Breaking
 
 #### Changed
+
+- **FI pack 4.0.0: debt is scored by its size too.** Half of the debt
+  component is now the debt-service ratio (scheduled payments ÷ income),
+  no marks at 40%. Scores with debts move (the golden household's from
+  57.59 to 57.42).
+- **A signal's `severity` may be `low`.** Clients that map severities need
+  the new value.
 
 - **FI pack 3.0.0.** "FI-ready" needs 100% progress to FI and "Strong" 50%;
   the debt component is scored by what the debts cost (their rates weighted by

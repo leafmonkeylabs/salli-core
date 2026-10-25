@@ -209,6 +209,12 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/portfolio/{holding_id}"): "holdings.get",
     ("PATCH", "/portfolio/{holding_id}"): "holdings.update",
     ("DELETE", "/portfolio/{holding_id}"): "holdings.delete",
+    # investment policy
+    ("GET", "/ips"): "ips.get",
+    ("POST", "/ips"): "ips.adopt",
+    ("GET", "/ips/versions"): "ips.versions",
+    ("GET", "/ips/drift"): "ips.drift",
+    ("GET", "/ips/risk-profile"): "ips.riskProfile",
     # subscriptions
     ("GET", "/subscriptions/"): "subscriptions.list",
     ("POST", "/subscriptions/"): "subscriptions.create",
@@ -227,6 +233,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("PUT", "/insurance/targets"): "insurance.targets.set",
     ("DELETE", "/insurance/targets/{policy_type}"): "insurance.targets.delete",
     ("GET", "/insurance/report"): "insurance.report",
+    ("GET", "/insurance/needs"): "insurance.needs",
     # reports
     ("GET", "/reports/balance-sheet"): "reports.balanceSheet",
     ("GET", "/reports/net-worth"): "reports.netWorth",
