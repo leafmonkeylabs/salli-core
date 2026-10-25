@@ -112,6 +112,11 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
+- **Closed books keep their accounts' type and tax role in the database.**
+  A trigger (migration `core_0032_account_freeze`) refuses changing either on
+  an account with any posting on or before the lock date, even postings that
+  net to zero, by whatever path.
+
 - Every MCP tool call is in the audit log: a read as one row (the tool, the
   client and the outcome, no arguments), written before its answer is sent.
 - An AI client's connection ends 90 days after the person approved it
@@ -142,6 +147,15 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 ### Breaking
 
 #### Changed
+
+- **Closed years keep their tax figure.** Computing or preparing a return
+  for a tax year that ends on or before the lock date no longer stores a new
+  computation: it is refused with a 409 `/problems/books-locked`. A preview
+  (`persist=false`) still works and warns that the year is closed; the
+  recompute sweep leaves closed years as they are.
+- **An account holding a balance can't be closed.** `DELETE
+  /accounts/{id}` (`salli accounts deactivate`) refuses it with a 409
+  `/problems/account-not-empty`; move the balance first.
 
 - `compose.yaml` runs a named release (0.4.1), not `latest`, and believes
   `X-Forwarded-For` only from Caddy (`FORWARDED_ALLOW_IPS=10.248.53.2`); set

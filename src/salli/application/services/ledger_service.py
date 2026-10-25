@@ -14,6 +14,7 @@ from salli.domain.accounting import ledger as ledger_ops
 from salli.domain.accounting.models import (
     ASSET_ROLES,
     Account,
+    AccountNotEmpty,
     AccountType,
     AssetRole,
     BooksLocked,
@@ -489,6 +490,8 @@ class LedgerService:
             if (
                 locked is not None
                 and (type != account.type or tax_role != account.tax_role)
+                # A row per currency posted to there, even one netting to zero
+                # (an original and its reversal): any posting at all freezes it.
                 and await uow.ledger.posting_totals(user_id, [account_id], to_date=locked)
             ):
                 # Its type and tax role decide what its postings count as,
@@ -542,7 +545,15 @@ class LedgerService:
             await uow.ledger.set_posting_tags(user_id, posting_id, tags)
 
     async def deactivate_account(self, user_id: str, account_id: str) -> None:
+        """Close an account. One that still holds a balance is refused."""
         async with self._uow_factory() as uow:
+            held = [
+                f"{amount} {currency}"
+                for _, currency, amount, _ in await uow.ledger.posting_totals(user_id, [account_id])
+                if amount
+            ]
+            if held:
+                raise AccountNotEmpty(", ".join(held))
             await uow.ledger.deactivate_account(user_id, account_id)
 
     async def reactivate_account(self, user_id: str, account_id: str) -> None:
