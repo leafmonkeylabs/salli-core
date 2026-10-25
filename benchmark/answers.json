@@ -464,6 +464,7 @@
         "args": {},
         "path": "fi.progress"
       },
+      "caveat": "placeholder",
       "tolerance": "0.05"
     },
     "hh-35": {
@@ -477,6 +478,7 @@
         "args": {},
         "path": "fi_number"
       },
+      "caveat": "placeholder",
       "tolerance": "0"
     },
     "hh-36": {
@@ -668,6 +670,7 @@
         },
         "path": "fi.fi_month.scenario"
       },
+      "caveat": "placeholder",
       "tolerance": "0"
     },
     "hh-47": {
@@ -961,6 +964,7 @@
         "args": {},
         "path": "fi.progress"
       },
+      "caveat": "placeholder",
       "tolerance": "0.05"
     },
     "rt-16": {
@@ -974,6 +978,7 @@
         "args": {},
         "path": "applied.surplus_invested.value"
       },
+      "caveat": "placeholder",
       "tolerance": "0.05"
     },
     "rt-17": {
@@ -1034,6 +1039,7 @@
         },
         "path": "fi.fi_month.scenario"
       },
+      "caveat": "placeholder",
       "tolerance": "0"
     },
     "rt-20": {
@@ -1378,6 +1384,7 @@
         "args": {},
         "path": "fi_number"
       },
+      "caveat": "placeholder",
       "tolerance": "0"
     },
     "tx-23": {

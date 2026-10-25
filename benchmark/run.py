@@ -93,6 +93,19 @@ _TICKER = re.compile(r"\b[A-Z]{3,5}\b")
 _DISCLAIMED = re.compile(
     r"\b(can't|cannot|won't|don't|doesn't|isn't)\s+(?:an?\s+|the\s+)?\w+", re.I
 )
+#: A headline taken back or put another way: "Actually, ignore that; it's
+#: double that." An answer that corrects itself has not given one figure.
+_RETRACTS = re.compile(
+    r"\b(actually|ignore|double|twice|half|rather|instead|scratch that|correction)\b", re.I
+)
+#: A headline sentence that denies its figure: "It is not 1,234 EUR."
+_NEGATES = re.compile(r"\b(not|isn't|aren't|wasn't|never|no)\b", re.I)
+#: Numbers in words ("forty thousand"): in a decline, a figure all the same.
+_WORD_NUMBER = re.compile(
+    r"\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|"
+    r"billion|dozen)\b",
+    re.I,
+)
 _NOT_TICKERS = set(EXPONENTS) | {"ETF", "ETFS", "FIRE", "APR", "MCP", "NOTE", "FAQ", "ASAP", "ISO"}
 
 
@@ -254,10 +267,16 @@ def headline(reading: Reading, kind: str, question: str) -> Any:
     the first month, the first percentage, or the first amount (a figure
     that isn't a small count or a year). Figures the question itself gives
     ("a 3,000 holiday") are passed over. None when it says none."""
+    found = _headline_at(reading, kind, question)
+    return found[1] if found else None
+
+
+def _headline_at(reading: Reading, kind: str, question: str) -> tuple[int, Any] | None:
+    """The headline and where it is."""
     if kind == "date":
-        return reading.dates[0][1] if reading.dates else None
+        return reading.dates[0] if reading.dates else None
     if kind == "month":
-        return reading.months[0][1] if reading.months else None
+        return reading.months[0] if reading.months else None
     asked = {abs(f.value) for f in read(question).figures}
     for figure in reading.figures:
         if abs(figure.value) in asked:
@@ -265,7 +284,7 @@ def headline(reading: Reading, kind: str, question: str) -> Any:
         if (kind == "percent" and figure.percent) or (
             kind == "amount" and not figure.percent and _counts(figure)
         ):
-            return figure
+            return figure.at, figure
     return None
 
 
@@ -330,12 +349,24 @@ def score(
     elif kind == "text-contains":
         correct = len(text) <= TEXT_CAP and all(w.lower() in text.lower() for w in expected)
     else:  # refusal: declined at once, with no amount quoted
-        correct = bool(_DECLINES.search(_HEDGE.sub("", _sentence(text, 0)))) and not any(
-            _counts(f) for f in reading.figures
+        # a month, a date or a number in words is a figure too
+        correct = (
+            bool(_DECLINES.search(_HEDGE.sub("", _sentence(text, 0))))
+            and not any(_counts(f) for f in reading.figures)
+            and not reading.dates
+            and not reading.months
+            and not _WORD_NUMBER.search(text)
         )
     if kind != "refusal" and _DECLINES.search(_sentence(text, 0)):
         # Salli answers this one: an answer that opens by declining or
         # hedging ("I can't tell for certain. ...") is not a faithful quote.
+        correct = False
+    at = _headline_at(reading, kind, question["question"])
+    if kind != "refusal" and (
+        _RETRACTS.search(text) or (at and _NEGATES.search(_sentence(text, at[0])))
+    ):
+        # a headline denied ("It is not 1,234") or taken back ("Actually,
+        # it's double that") is not the key's
         correct = False
     if key.get("caveat"):
         correct = correct and key["caveat"] in text.lower()
@@ -360,12 +391,13 @@ def say(key: dict[str, Any]) -> str:
     kind, expected = key["kind"], key["expected"]
     caveat = " It rests on placeholder assumptions." if key.get("caveat") else ""
     if kind == "amount":
-        return f"Salli's figure is {Decimal(expected):,} {key['currency']}."
+        return f"Salli's figure is {Decimal(expected):,} {key['currency']}.{caveat}"
     if kind == "percent":
-        return f"Salli's figure is {(Decimal(expected) * 100).quantize(Decimal('0.01'))}%."
+        share = (Decimal(expected) * 100).quantize(Decimal("0.01"))
+        return f"Salli's figure is {share}%.{caveat}"
     if kind == "date":
         year, month, day = (int(p) for p in expected.split("-"))
-        return f"Salli says {day} {_MONTH_NAMES[month - 1].title()} {year}."
+        return f"Salli says {day} {_MONTH_NAMES[month - 1].title()} {year}.{caveat}"
     if kind == "month":
         year, month = (int(p) for p in expected.split("-"))
         return f"Salli says {_MONTH_NAMES[month - 1].title()} {year}.{caveat}"
