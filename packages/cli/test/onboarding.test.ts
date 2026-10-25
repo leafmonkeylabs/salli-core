@@ -169,6 +169,11 @@ describe('deleting your account', () => {
     expect(sent('DELETE', '/v1/onboarding/account')).toEqual({ confirm_email: 'Sam@Example.com' });
     expect(JSON.parse(result.stdout)).toEqual({ deleted: true, counts: { journal_entries: 12, accounts: 9 } });
   });
+
+  it('sends the authenticator code as the second step', async () => {
+    await run(['profile', 'delete-account', '--confirm-email', 'Sam@Example.com', '--code', '123456']);
+    expect(mock.requestsTo('DELETE', '/v1/onboarding/account')[0]?.headers['salli-two-step']).toBe('123456');
+  });
 });
 
 describe('the monthly briefing', () => {

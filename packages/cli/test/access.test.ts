@@ -40,4 +40,9 @@ describe('salli access', () => {
     await run(['--books', 'u-ada', 'access', 'list']);
     expect(mock.requestsTo('GET', '/v1/access-grants')[0]?.headers['salli-books']).toBe('u-ada');
   });
+
+  it('sends a write with --idempotency-key', async () => {
+    await run(['--idempotency-key', 'grant-1', 'access', 'grant', 'ada@example.org']);
+    expect(mock.requestsTo('POST', '/v1/access-grants')[0]?.headers['idempotency-key']).toBe('grant-1');
+  });
 });

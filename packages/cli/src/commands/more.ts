@@ -357,6 +357,23 @@ function registerDocuments(program: Command, app: App): void {
 
 // ── Profile and your data ────────────────────────────────────────────────────
 
+/**
+ * The export's and erasure's second step: `--code`, or asked for when two-step
+ * sign-in is on and someone is at the terminal. Sent as `Salli-Two-Step`.
+ */
+async function secondStep(
+  app: App,
+  api: SalliClient,
+  given: string | undefined,
+  enabled?: boolean,
+): Promise<{ headers?: Record<string, string> }> {
+  let code = given;
+  if (code === undefined && app.prompter.interactive && (enabled ?? (await api.call(authMe)).totp_enabled)) {
+    code = await app.prompter.text({ message: 'Your authenticator code' });
+  }
+  return code ? { headers: { 'Salli-Two-Step': code.trim() } } : {};
+}
+
 function registerProfile(program: Command, app: App): void {
   const profile = program.command('profile').description('Your profile: name, base currency, and what tax and planning need to know');
 
@@ -434,9 +451,11 @@ function registerProfile(program: Command, app: App): void {
     .command('export')
     .description('Download everything Salli stores about you, as one JSON file')
     .option('-o, --out <file>', 'Where to write it ("-" for stdout; default: salli-export-<date>.json)')
+    .option('--code <code>', 'Your authenticator code (or a recovery code), when two-step sign-in is on')
     .action(async (opts) => {
       const api = await app.api();
-      const data = await api.call(accountExport, { timeoutMs: 5 * 60_000 });
+      const code = await secondStep(app, api, opts.code);
+      const data = await api.call(accountExport, { timeoutMs: 5 * 60_000, ...code });
       const text = `${toJsonText(data)}\n`;
       await writeOutput(app, text, opts.out ?? `salli-export-${isoDate(app.runtime.now())}.json`, {}, 'your data', { private: true });
     });
@@ -558,6 +577,7 @@ function registerProfile(program: Command, app: App): void {
     .command('delete-account')
     .description('Delete your account and everything Salli stores about you. This cannot be undone')
     .option('--confirm-email <email>', 'Your account’s email, typed out: confirms without asking (for scripts)')
+    .option('--code <code>', 'Your authenticator code (or a recovery code), when two-step sign-in is on')
     .action(async (opts) => {
       const api = await app.api();
       const me = await api.call(authMe);
@@ -575,7 +595,8 @@ function registerProfile(program: Command, app: App): void {
       if (typed.trim().toLowerCase() !== me.email.toLowerCase()) {
         throw new UsageError('That is not this account’s email: nothing was deleted.');
       }
-      const result = await api.call(accountDelete, { body: { confirm_email: typed.trim() } });
+      const code = await secondStep(app, api, opts.code, me.totp_enabled);
+      const result = await api.call(accountDelete, { body: { confirm_email: typed.trim() }, ...code });
       const total = Object.values(result.counts).reduce((sum, n) => sum + n, 0);
       app.out.done(result, `Deleted your account (${total} record${total === 1 ? '' : 's'}).`);
     });

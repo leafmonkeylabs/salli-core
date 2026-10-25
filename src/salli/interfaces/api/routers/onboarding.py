@@ -31,6 +31,7 @@ from salli.interfaces.api.deps import (
     CurrentEmail,
     CurrentUser,
     require_recent_password,
+    require_second_step,
 )
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
@@ -530,14 +531,20 @@ class DataExport(BaseModel):
 _STEP_UP = {
     403: {
         "description": "`/problems/step-up-required`: sign in again on Salli's page first "
-        "(the console or the app, more than five minutes after the password)"
-    }
+        "(the console or the app, more than five minutes after the password); or the "
+        "authenticator code in `Salli-Two-Step` is missing or wrong (needed when two-step "
+        "sign-in is on, and the owner needs two-step on)"
+    },
+    429: {"description": "Too many wrong codes; `Retry-After` says when to try again"},
 }
 
 
 @router.get(
     "/export",
-    dependencies=[require_recent_password("Exporting all your data")],
+    dependencies=[
+        require_recent_password("Exporting all your data"),
+        require_second_step("Exporting all your data"),
+    ],
     responses=_STEP_UP,
 )
 async def export_my_data(user_id: CurrentUser, svc: AppServices) -> DataExport:
@@ -567,7 +574,10 @@ class AccountDeletion(BaseModel):
 
 @router.delete(
     "/account",
-    dependencies=[require_recent_password("Deleting your account")],
+    dependencies=[
+        require_recent_password("Deleting your account"),
+        require_second_step("Deleting your account"),
+    ],
     responses=_STEP_UP,
 )
 async def delete_my_account(

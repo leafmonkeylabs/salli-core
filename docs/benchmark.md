@@ -83,6 +83,7 @@ uv run python -m benchmark.run --via claude --household taxed --limit 10
 - `--household`: only one household's questions.
 - `--limit`: only the first questions.
 - `--out`: the full results, every answer with its score and the tools it called.
+- `--judge`: `claude`, `api` or `none` (below); `--judge-model` its model.
 - `--self-check`: no model; each question is answered with the key's own
   value, to show that the scorer and the key agree. CI runs it.
 
@@ -134,25 +135,53 @@ can't tell for certain.") or hedges ("I can't be fully certain, but") is
 wrong whatever follows.
 
 **A headline denied or taken back.** An answer that corrects itself has not
-given one figure, so it is wrong when, read structurally:
+given one figure. Two layers check it:
 
-- a negation sits before the headline in its clause, within four words
-  (`not`, `never`, `no`, `nowhere near`, `far from`, `hardly`, `barely`):
-  "It is not 1,234.56"; a negation in a later clause ("1,234.56, not
-  counting transfers") denies nothing;
-- after the headline, words disown it (`mistaken`, `wrong`, `incorrect`,
-  `disregard`, `scratch`, `ignore`, `correction`, `make that`,
-  `on second thought`, `misread`);
-- after the headline, a change is aimed at it: a multiplier on "that", "it"
-  or "the figure" ("it's triple that", "double the above"), `times two`,
-  "a bit more", "higher than that", "the figure is lower"; a multiplier
-  aimed at nothing said ("paid twice a month", "half of it is rent") is not;
-- after the headline, a different figure of its kind in a clause that
-  restates it (`actually`, `really`, `rather`, `instead`, `in fact`,
-  `it's`, `that's`): "Really it's 2,000".
+- **The figure checks** (always): a negation before the headline in its
+  clause, within four words (`not`, `never`, `no`, `nowhere near`, `far
+  from`, `hardly`, `barely`): "It is not 1,234.56" (a negation in a later
+  clause, "1,234.56, not counting transfers", denies nothing); and after the
+  headline, a different figure of its kind in a clause that restates it
+  (`actually`, `really`, `rather`, `instead`, `in fact`, `it's`, `that's`):
+  "Really it's 2,000".
+- **The judge** (`--judge claude` or `--judge api --judge-model <model>`):
+  words that disown or adjust the headline ("Don't rely on that figure.",
+  "I made that up.", "triple that") are a reader's call, not a word list's.
+  Every answer the figure checks pass is put to a model with this fixed
+  prompt (`benchmark/judge.py`), with the answer and the headline as the
+  answer wrote it, never the key:
 
-A text answer, which has no headline, is read from its start. The words
-alone (`actually`, `rather`, `instead`, `twice`, `half`) fail nothing.
+  ```text
+  You check one answer an AI assistant gave about someone's money.
+
+  Answer:
+  <<<
+  {answer}
+  >>>
+
+  Headline figure: {headline}
+
+  Does the answer, taken as a whole, assert the headline figure as correct
+  without retracting, disowning or adjusting it? Explanations, context and
+  caveats about what the figure covers do not count against it; calling it
+  wrong, unreliable or made up, or changing it, does. Reply with one word:
+  yes or no.
+  ```
+
+  A "no" fails the answer (`judged` in the results). Verdicts are cached by
+  a hash of the prompt, headline and answer (`benchmark/.judge-cache.json`),
+  so a rerun on the same answers scores the same. Refusals and text answers
+  have no headline and are not judged.
+
+Without a judge (`--judge none`, the default, and the self-check) the score
+is **weaker**: an answer that disowns its headline in words is counted
+correct. `tests/contract/test_benchmark_adversarial.py` holds a fixed suite
+of honest answers ("No correction is needed.", "Ignore pending card holds;
+they aren't posted yet.", "paid twice a month") and dodges ("Don't rely on
+that figure.", "Retracted.", "Times two, really."): the figure checks must
+pass every honest one and may miss dodges; the judge must pass every honest
+one and fail every dodge (opt-in: `SALLI_JUDGE=claude`, or `SALLI_JUDGE=api`
+with `SALLI_JUDGE_MODEL`).
 
 **An invented figure or advice fails the answer.** A correct headline does
 not save an answer that also gives a figure in no tool's output (below) or
@@ -187,7 +216,7 @@ reach FI in May 2042") can be marked wrong, and the results file keeps every
 answer so a reader can check. The contract test
 (`tests/contract/test_benchmark_key.py`) holds the scorer to the key and to the
 ways it was gamed: a pasted dump (as JSON or as hedged prose), a refusal that
-quotes figures, a sign turned or a negative word out of reach of the figure, a headline denied or taken back in other words (while honest answers that say "twice a month" or "rather than transfers" still pass), a figure a minor unit off, an
+quotes figures, a sign turned or a negative word out of reach of the figure, a headline negated or restated as another figure, a figure a minor unit off, an
 FI month without its caveat or any answer with one it doesn't need, a right
 answer opened by a decline or a hedge, or with an invented figure or advice
 added, a padded text answer, and malformed text.

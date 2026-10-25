@@ -54,8 +54,8 @@ issued from it belongs to, through every refresh. A grant records when the
 person's password was checked (`authenticated_at`), which the console's
 step-up reads (application/permissions.py). The console's grants end
 SALLI_CONSOLE_SIGN_IN_HOURS after it, and an AI client's (any but Salli's
-own) MCP_GRANT_LIFETIME_DAYS after it, however often they refresh; the CLI's
-and the app's have no such end. Refresh
+own) MCP_GRANT_LIFETIME_DAYS after it, and the CLI's and the app's
+SALLI_APP_SIGN_IN_DAYS after it, however often they refresh. Refresh
 tokens rotate, and a rotated one presented again revokes its whole grant, for
 every client: a thief and the person can't both keep going, and the person
 finds out by being signed out. Revoking any token of a grant (RFC 7009)
@@ -199,6 +199,7 @@ class McpOAuthService:
         console_redirect_uri: str | None = None,
         console_sign_in_hours: int = 12,
         mcp_grant_lifetime_days: int = 90,
+        app_sign_in_days: int = 90,
         console_secure: bool = True,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -223,6 +224,7 @@ class McpOAuthService:
         self._console_redirect = console_redirect_uri
         self._console_lifetime = timedelta(hours=console_sign_in_hours)
         self._third_party_lifetime = timedelta(days=mcp_grant_lifetime_days)
+        self._app_lifetime = timedelta(days=app_sign_in_days)
         # Whether SALLI_PUBLIC_URL is HTTPS or localhost: the console signs
         # in only where a browser treats it as a secure context.
         self._console_secure = console_secure
@@ -310,12 +312,13 @@ class McpOAuthService:
 
     def _lifetime_of(self, client_id: str) -> timedelta | None:
         """How long a sign-in of this client lasts at most, refresh or not:
-        the console's SALLI_CONSOLE_SIGN_IN_HOURS; none for the CLI's and the
-        app's; MCP_GRANT_LIFETIME_DAYS for any other (an AI client)."""
+        the console's SALLI_CONSOLE_SIGN_IN_HOURS; SALLI_APP_SIGN_IN_DAYS for
+        the CLI's and the app's; MCP_GRANT_LIFETIME_DAYS for any other (an AI
+        client)."""
         if client_id == CONSOLE_CLIENT_ID:
             return self._console_lifetime
         if client_id in (CLI_CLIENT_ID, MOBILE_CLIENT_ID):
-            return None
+            return self._app_lifetime
         return self._third_party_lifetime
 
     # ── Authorize → consent handoff ──────────────────────────────────────────

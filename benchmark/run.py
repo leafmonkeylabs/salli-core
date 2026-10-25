@@ -34,6 +34,7 @@ from typing import Any
 
 from benchmark.answer_key import ANSWERS, compute, questions
 from benchmark.households import HOUSEHOLDS, Salli
+from benchmark.judge import Judge, api_judge, claude_judge
 from salli.domain.currency import EXPONENTS
 from tests.guardrails import NEGATED, RANKING_WORDS
 
@@ -92,25 +93,6 @@ _TICKER = re.compile(r"\b[A-Z]{3,5}\b")
 #: disclaimer too, as after the negations tests/guardrails.py knows.
 _DISCLAIMED = re.compile(
     r"\b(can't|cannot|won't|don't|doesn't|isn't)\s+(?:an?\s+|the\s+)?\w+", re.I
-)
-#: After the headline, words that disown it ("I was mistaken", "disregard
-#: the above", "make that ..."): an answer that corrects itself has not
-#: given one figure.
-_DISOWNS = re.compile(
-    r"\b(mistaken|wrong|incorrect|not right|disregard|scratch|ignore|correction|make (?:that|it)|"
-    r"(?:on )?second thoughts?|misread|misspoke|take (?:that|it) back)\b",
-    re.I,
-)
-#: After the headline, a change aimed at it: a multiplier on "that" or "it"
-#: ("it's triple that"), "times two", or "a bit more"/"higher than that".
-#: "Paid twice a month" and "half of it is rent" aim at nothing said.
-_ADJUSTS = re.compile(
-    r"\b(?:(?:double|triple|quadruple|twice|thrice|half)\s+(?:that|this|it|the (?:figure|amount|number|above))\b|"
-    r"times\s+(?:\d+|two|three|four|five|ten)\b|"
-    r"(?:a (?:bit|little|lot)|slightly|somewhat|much|far)\s+(?:more|less|higher|lower)\b|"
-    r"(?:more|less|higher|lower) than (?:that|this|it)\b|"
-    r"(?:figure|amount|number|it|that)(?:'s| is| was) (?:higher|lower|more|less|bigger|smaller)\b)",
-    re.I,
 )
 #: A later figure of the headline's kind in a clause that restates it
 #: ("really it's 2,000") is a second figure for the same quantity.
@@ -416,15 +398,12 @@ def _clause(text: str, at: int) -> tuple[int, int]:
 
 def _taken_back(text: str, reading: Reading, at: tuple[int, Any]) -> bool:
     """Whether the headline is denied or taken back (docs/benchmark.md):
-    a negation before it in its clause; or after it, words disowning it, a
-    change aimed at it, or a different figure of its kind restating it. A
-    text answer, with no headline, is read from its start."""
+    a negation before it in its clause, or after it a different figure of
+    its kind restating it. Words that disown or adjust it are the judge's
+    (benchmark/judge.py): word lists failed honest answers."""
     where, said = at
     start, _ = _clause(text, where)
     if _NEGATES.search(" ".join(text[start:where].split()[-NEAR_WORDS:])):
-        return True
-    after = text[where:]
-    if _DISOWNS.search(after) or _ADJUSTS.search(after):
         return True
     if not isinstance(said, Figure):
         return False
@@ -616,6 +595,39 @@ def claude_answerer(model: str | None = None, command: str = "claude") -> Answer
     return answer
 
 
+# ── The judge ─────────────────────────────────────────────────────────────────
+
+_WRITTEN = (_ISO_DATE, _DAY_MONTH, _MONTH_DAY, _MONTH_YEAR, _ISO_MONTH, _NUMBER)
+
+
+def written_headline(text: str, kind: str, question: str) -> str | None:
+    """The headline as the answer wrote it, for the judge; None for a
+    refusal or a text answer, which have none."""
+    if kind in ("refusal", "text-contains"):
+        return None
+    text = text.replace("\u2019", "'")
+    found = _headline_at(read(text), kind, question)
+    if found is None:
+        return None
+    for pattern in _WRITTEN:
+        match = pattern.match(text, found[0])
+        if match:
+            return match[0].strip()
+    return None
+
+
+async def _judged(
+    scored: dict[str, Any], q: dict[str, Any], text: str, judge: Judge | None
+) -> dict[str, Any]:
+    """`scored`, failed when the judge says the answer doesn't stand by its
+    headline. Only answers the figure checks passed are judged."""
+    said = written_headline(text, q["kind"], q["question"])
+    if judge is None or not scored["correct"] or said is None:
+        return scored
+    stands = await judge(said, text)
+    return {**scored, "correct": stands, "judged": "yes" if stands else "no"}
+
+
 # ── The run ───────────────────────────────────────────────────────────────────
 
 
@@ -659,10 +671,12 @@ async def run(
     limit: int | None = None,
     key: dict[str, Any] | None = None,
     evidence: dict[str, list[Any]] | None = None,
+    judge: Judge | None = None,
 ) -> dict[str, Any]:
     """Every question (of `household`, the first `limit`), asked of
     `answerer`; with none, the self-check, which answers each with the key's
-    own value and the tool output it came from (`evidence`)."""
+    own value and the tool output it came from (`evidence`). With a `judge`,
+    an answer the figure checks pass must also stand by its headline."""
     answers: dict[str, Any] = (key or json.loads(ANSWERS.read_text()))["answers"]
     asked = [q for q in questions() if household in (None, q["household"])][:limit]
     salli: dict[str, Salli] = {}
@@ -685,7 +699,7 @@ async def run(
                 "question": q["question"],
                 "expected": entry["expected"],
                 "answer": text,
-                **score(q, entry, text, seen),
+                **await _judged(score(q, entry, text, seen), q, text, judge),
                 "tool_calls": calls,
                 "seconds": round(time.monotonic() - started, 2),
             }
@@ -718,7 +732,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int)
     parser.add_argument("--out", help="write the full results here (JSON)")
     parser.add_argument("--self-check", action="store_true", help="score the key against itself")
+    parser.add_argument(
+        "--judge",
+        choices=("claude", "api", "none"),
+        default="none",
+        help="whether an answer stands by its headline: claude (`claude -p`), api "
+        "(--judge-model, with its key) or none (the figure checks only; weaker)",
+    )
+    parser.add_argument(
+        "--judge-model", help="the judge's model (api: anthropic:<model> or openai:<model>)"
+    )
     args = parser.parse_args(argv)
+    judge: Judge | None = None
+    if args.judge == "claude":
+        judge = claude_judge(args.judge_model)
+    elif args.judge == "api":
+        if not args.judge_model:
+            parser.error("--judge api needs --judge-model")
+        judge = api_judge(chat_model(args.judge_model))
 
     if args.self_check:
         result = asyncio.run(self_check())
@@ -729,7 +760,10 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("--model is needed (or --via claude, or --self-check)")
         else:
             answerer, name = model_answerer(chat_model(args.model)), args.model
-        result = asyncio.run(run(answerer, model=name, household=args.household, limit=args.limit))
+        result = asyncio.run(
+            run(answerer, model=name, household=args.household, limit=args.limit, judge=judge)
+        )
+        result["judge"] = args.judge
     summary = {k: v for k, v in result.items() if k != "results"}
     print(json.dumps(summary, indent=2))
     if args.out:

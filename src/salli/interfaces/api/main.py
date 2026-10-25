@@ -58,6 +58,7 @@ from salli.interfaces.api import experimental
 from salli.interfaces.api.console import NoStoreMiddleware, console_router
 from salli.interfaces.api.contract import API_PREFIX, document_problems, operation_id
 from salli.interfaces.api.deps import StepUpRequired, get_services
+from salli.interfaces.api.idempotency import IdempotencyMiddleware, Replay
 from salli.interfaces.api.request_context import UNEXPECTED_TITLE, RequestContextMiddleware
 from salli.interfaces.api.routers import (
     access,
@@ -261,6 +262,9 @@ def create_app() -> FastAPI:
     # browser cannot read it and the request id never reaches the user.
     app.add_middleware(RequestContextMiddleware)
 
+    # ── Idempotency-Key on POST writes (idempotency.py) ───────────────────────
+    app.add_middleware(IdempotencyMiddleware)
+
     # ── No caching of anyone's ledger ─────────────────────────────────────────
     # Every response but the console's own files says `no-store` unless it
     # set its own Cache-Control, so no browser or proxy keeps a page of
@@ -359,6 +363,14 @@ def create_app() -> FastAPI:
     # redacted: a provider SDK error (or our own validation of a user-supplied
     # API key) can carry the key itself, and these are catch-alls for *any*
     # uncaught ValueError/KeyError.
+    @app.exception_handler(Replay)
+    async def _replay(_: Request, exc: Replay) -> JSONResponse:
+        return JSONResponse(
+            exc.answer.get("body"),
+            status_code=exc.answer.get("status", 200),
+            headers={"Idempotent-Replayed": "true"},
+        )
+
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
         return problem(

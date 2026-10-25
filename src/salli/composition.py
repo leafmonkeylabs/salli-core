@@ -282,6 +282,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         ),
         console_sign_in_hours=settings.salli_console_sign_in_hours,
         mcp_grant_lifetime_days=settings.mcp_grant_lifetime_days,
+        app_sign_in_days=settings.salli_app_sign_in_days,
         console_secure=is_secure_origin(public_url),
     )
     data_portability = DataPortabilityService(

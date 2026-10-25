@@ -94,6 +94,8 @@ def mock_services():
     # deployment without anything of the user's resolves.
     svc.llm_credentials = AsyncMock()
     svc.llm_credentials.resolve.return_value = platform_credentials()
+    # The export's and erasure's second step: none asked of these callers.
+    svc.logins.check_second_step = AsyncMock(return_value=None)
     return svc
 
 

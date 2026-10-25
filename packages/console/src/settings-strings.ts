@@ -203,5 +203,7 @@ export const settingsStrings = {
     everything: 'Everything',
     everythingHelp: 'All Salli stores about you, as one JSON file: your profile, books, rules, decisions, digests and more. Amounts stay exact.',
     json: 'Save all of it (JSON)',
+    code: 'Authenticator code',
+    codeHelp: 'Needed when two-step sign-in is on, and always for the owner. A recovery code works too.',
   },
 } as const;
