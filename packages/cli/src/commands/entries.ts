@@ -1,5 +1,5 @@
 /**
- * salli entries list | search | show | add | reverse | tag
+ * salli entries list | search | show | add | reverse | recategorise | tag
  *
  * Posted entries are never edited: a mistake is corrected by reversing the
  * entry (a new entry that cancels it) and posting the right one.
@@ -11,6 +11,7 @@ import {
   entriesList,
   entriesPostingsSetTags,
   entriesProvenance,
+  entriesRecategorise,
   entriesReverse,
   entriesSearch,
   type AddEntryRequest,
@@ -64,6 +65,7 @@ Examples:
   $ salli entries search bakery --from 2026-01-01
   $ salli entries add --desc "Lunch" --debit groceries:12.50 --credit cash:12.50
   $ salli entries reverse 3fa85f64 --reason "Booked twice"
+  $ salli entries recategorise 9b1c2d3e groceries --reason "Was eating out"
   $ salli add "lunch 12.50 cash"          (let the AI draft it)`,
     );
 
@@ -307,6 +309,40 @@ Examples:
       const reversal = await api.call(entriesReverse, { path: { entry_id: entry.id }, body: { reason: opts.reason } });
       if (app.out.machine) app.out.emit(reversal, { human: () => undefined });
       else app.out.success(`Reversed “${singleLine(entry.description)}” with entry ${reversal.id.slice(0, 8)}.`);
+    });
+
+  entries
+    .command('recategorise')
+    .argument('<posting>', 'Posting id (or the start of one), from `salli entries show`')
+    .argument('<account>', 'The account it moves to: same type, by code, name or id')
+    .description('Move a posting to another account: reverses the entry and books a corrected copy (entries are never edited)')
+    .requiredOption('--reason <text>', 'Why, in a few words; the reversal’s description keeps it')
+    .option('-y, --yes', 'Do not ask for confirmation')
+    .action(async (query, accountQuery, opts) => {
+      const api = await app.api();
+      const all = await api.call(entriesList);
+      const postings = all.flatMap((e) => e.postings.map((p) => ({ ...p, entry: e })));
+      const posting = resolveById(postings, query, 'posting');
+      const book = await AccountBook.load(api);
+      const target = book.resolve(accountQuery);
+      const ok = await confirmAction(
+        app,
+        opts.yes,
+        `Move “${singleLine(posting.entry.description)}” from ${book.label(posting.account_id)} to ${book.label(target.id)}?`,
+      );
+      if (!ok) {
+        app.out.note('Nothing changed.');
+        return;
+      }
+      const made = await api.call(entriesRecategorise, {
+        path: { entry_id: posting.entry.id },
+        body: { posting_id: posting.id, account_id: target.id, reason: opts.reason },
+      });
+      if (app.out.machine) app.out.emit(made, { human: () => undefined });
+      else
+        app.out.success(
+          `Moved to ${book.label(target.id)}: reversal ${made.reversal_id.slice(0, 8)}, corrected entry ${made.corrected_id.slice(0, 8)}.`,
+        );
     });
 
   entries

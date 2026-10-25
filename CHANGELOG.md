@@ -4,6 +4,21 @@
 
 ### Added
 
+- **Household basics for the phone app** (exempt from the scope freeze by
+  the owner). Changing a category after booking: `POST
+  /v1/entries/{id}/recategorise` (`salli entries recategorise`, MCP
+  `recategorise_entry`) books the entry's reversal and a corrected copy,
+  source `recategorise`, in one transaction, dated as a reversal is. Owe
+  lines in first run may carry `rate` and `minimum_payment`, declaring a debt
+  linked to the account; the payoff plan's debts carry `apr`,
+  `minimum_payment` and `payoff_month`. A monthly budget with optional
+  rollover (`/v1/budget/monthly`, `/v1/budget/current` with the pace,
+  `/v1/budget/trend`; `salli budgets monthly|current|trend`) and the `budget_over` and
+  `budget_pace` signals. Push alerts: devices (`/v1/devices`, `salli
+  devices`), sent through `SALLI_PUSH_RELAY_URL` by `salli-server jobs
+  send-push`, once per state, worded like digests. Migration
+  `core_0044_household_basics`.
+
 - **Invitations, without sign-up.** `salli-server members invite <email>`
   prints a link, good once for seven days, to a server-rendered page (no
   script, the consent page's CSP) where the person chooses their password

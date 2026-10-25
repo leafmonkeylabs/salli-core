@@ -26,6 +26,7 @@ from salli.domain.jurisdiction import (
     parse_tax_ids,
     stored_tax_ids,
 )
+from salli.domain.money import to_minor
 from salli.domain.risk import engine as risk_engine
 from salli.domain.risk.life_stage import derive_life_stage
 from salli.domain.risk.models import RiskQuestionnaireAnswers
@@ -391,7 +392,12 @@ class UserProfileService:
         self, user_id: str, balances: list[dict[str, Any]]
     ) -> list[str]:
         """balances: [{"code", "name", "type": "asset"|"liability", "amount",
-        "asset_role"?, "currency"?, "fx_rate"?}].
+        "asset_role"?, "currency"?, "fx_rate"?, "rate"?, "minimum_payment"?}].
+
+        A liability with a `rate` (yearly, a fraction) is also declared as a
+        debt linked to its account, with its `minimum_payment` (0 when not
+        given), unless the account already holds an active debt. Debts are
+        kept in the base currency, so such a line must be in it (ValueError).
 
         Amounts are in the base currency unless an item names another, in which
         case it is converted at `fx_rate`, or today's rate when none is given.
@@ -412,6 +418,16 @@ class UserProfileService:
         cache = {a.code: a.id for a in existing}
         held_in = {a.code: a.currency for a in existing}
         entry_ids: list[str] = []
+        for item in balances:
+            if item.get("rate") is None and item.get("minimum_payment") is None:
+                continue
+            if item["type"] != "liability" or item.get("rate") is None:
+                raise ValueError(
+                    f"{item['name']}: a rate and minimum payment belong to something owed, "
+                    "and a minimum payment needs its rate"
+                )
+            if normalize_currency(item.get("currency") or base) != base:
+                raise ValueError(f"{item['name']}: a debt is kept in your base currency ({base})")
 
         for item in balances:
             amount = Decimal(str(item["amount"]))
@@ -467,7 +483,31 @@ class UserProfileService:
                 user_id, today, f"Opening balance: {item['name']}", "manual", postings
             )
             entry_ids.append(entry_id)
+            if acc_type == "liability" and item.get("rate") is not None:
+                await self._declare_debt(user_id, acc_id, item, amount, base)
         return entry_ids
+
+    async def _declare_debt(
+        self, user_id: str, account_id: str, item: dict[str, Any], amount: Decimal, base: str
+    ) -> None:
+        """The debt an owe line with a rate stands for, linked to its account
+        (an account holds one active debt: one already there is kept)."""
+        async with self._uow_factory() as uow:
+            linked = await uow.debts.list(user_id, active_only=True)
+            if any(d.get("account_id") == account_id for d in linked):
+                return
+            await uow.debts.save(
+                user_id,
+                {
+                    "name": item["name"],
+                    "principal_minor": to_minor(amount, base),
+                    "apr": str(Decimal(str(item["rate"]))),
+                    "minimum_payment_minor": to_minor(
+                        Decimal(str(item.get("minimum_payment") or 0)), base
+                    ),
+                    "account_id": account_id,
+                },
+            )
 
     async def _rate_to_base(
         self, currency: str, base: str, on_date: str, given: Any = None

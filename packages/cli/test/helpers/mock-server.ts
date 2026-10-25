@@ -802,8 +802,8 @@ export class MockSalli {
           currency: 'USD',
           as_of: '2026-10-09',
           debts: [
-            { debt_id: uid(411), name: 'Credit card', balance: '1200.00', source: 'declared', account_id: null },
-            { debt_id: uid(412), name: 'Car loan', balance: '8400.00', source: 'account', account_id: uid(4) },
+            { debt_id: uid(411), name: 'Credit card', balance: '1200.00', source: 'declared', account_id: null, apr: '0.1990', minimum_payment: '35.00', payoff_month: '2027-06' },
+            { debt_id: uid(412), name: 'Car loan', balance: '8400.00', source: 'account', account_id: uid(4), apr: '0.0650', minimum_payment: '250.00', payoff_month: '2028-12' },
           ],
           months_to_payoff: 26,
           first_month: '2026-11',

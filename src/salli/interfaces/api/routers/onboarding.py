@@ -234,6 +234,13 @@ class OpeningBalanceItem(BaseModel):
     #: start when omitted.
     currency: str | None = None
     fx_rate: DecimalIn | None = None
+    #: Something owed: its yearly rate as a fraction ("0.18" is 18%). Given,
+    #: the line is also declared as a debt linked to its account (in the base
+    #: currency only), so the payoff plan has its rate.
+    rate: DecimalIn | None = None
+    #: Something owed: the minimum payment a month (0 when not given; needs
+    #: `rate`).
+    minimum_payment: AmountIn | None = None
 
 
 class BalanceSheetRequest(BaseModel):

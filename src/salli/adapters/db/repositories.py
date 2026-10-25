@@ -64,6 +64,7 @@ from salli.adapters.db.models import (
     PostingORM,
     PostingTagORM,
     PrincipleORM,
+    PushDeviceORM,
     ReconciliationORM,
     RecurringSubscriptionORM,
     ReminderORM,
@@ -1544,6 +1545,7 @@ class SQLUserProfileRepository(UserProfileRepository):
             "tax_ids": list(row.tax_ids or []),
             "fi_assumptions": dict(row.fi_assumptions or {}),
             "fi_plan": dict(row.fi_plan or {}),
+            "monthly_budget": [dict(line) for line in row.monthly_budget or []],
             "time_zone": row.time_zone,
             "lock_date": row.lock_date.isoformat() if row.lock_date else None,
             "books_start": row.books_start.isoformat() if row.books_start else None,
@@ -1556,6 +1558,14 @@ class SQLUserProfileRepository(UserProfileRepository):
         if row is None:
             raise ProfileMissing(user_id)
         row.lock_date = date.fromisoformat(lock_date) if lock_date else None
+        await self._s.flush()
+
+    async def set_monthly_budget(self, user_id: str, lines: list[dict[str, Any]]) -> None:
+        result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
+        row = result.scalar_one_or_none()
+        if row is None:
+            raise ProfileMissing(user_id)
+        row.monthly_budget = lines
         await self._s.flush()
 
     async def set_fi_plan(self, user_id: str, stored: dict[str, Any]) -> None:
@@ -3085,6 +3095,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # The digest's preferences and its delivery log go with the account.
         await _delete(NotificationPreferencesORM, NotificationPreferencesORM.user_id)
         await _delete(NotificationDeliveryORM, NotificationDeliveryORM.user_id)
+        await _delete(PushDeviceORM, PushDeviceORM.user_id)
         await _delete(UserLlmCredentialORM, UserLlmCredentialORM.user_id)
         # Sealed ChatGPT tokens, the second place a user's AI credential lives.
         await _delete(AiConnectionORM, AiConnectionORM.user_id)

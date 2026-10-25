@@ -287,13 +287,15 @@ class FinanceSignal(BaseModel):
         "decision_review_due",
         "emergency_fund_low",
         "expensive_debt",
+        "budget_over",
+        "budget_pace",
     ]
     severity: Literal["high", "medium", "low", "info"]
     title: str
     detail: str
     #: Where to look: see_forecast, see_recurring, see_spending, see_cash_flow,
-    #: see_debts, review (transactions) or review_decision (a decision in the
-    #: journal).
+    #: see_debts, review (transactions), review_decision (a decision in the
+    #: journal) or see_budget (the monthly budget).
     action: Literal[
         "see_forecast",
         "see_recurring",
@@ -302,6 +304,7 @@ class FinanceSignal(BaseModel):
         "see_debts",
         "review",
         "review_decision",
+        "see_budget",
     ]
     amount: Amount | None
     currency: CurrencyCode | None

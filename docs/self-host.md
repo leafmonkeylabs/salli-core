@@ -213,6 +213,7 @@ is needed to start.
 |---|---|---|
 | `ANTHROPIC_API_KEY` | none | The server's own key. Every AI feature runs on it, unless a person brings their own key or ChatGPT plan. |
 | `SALLI_DEFAULT_CURRENCY` | `USD` | The base currency for a new account when none is named (ISO 4217). |
+| `SALLI_PUSH_RELAY_URL` | none | Where push alerts to the phone app go: a relay that forwards Expo push messages. Needs `BYOK_ENCRYPTION_KEYS` to seal device tokens. See [Push alerts](#push-alerts). |
 | `ALLOWED_ORIGINS` | none | Web origins whose pages may call the API from a browser, comma-separated. The CLI, scripts and MCP clients need none. |
 | `SALLI_SESSION_TTL_DAYS` | `30` | How long a session lasts from sign-in, however much it is used. |
 | `SALLI_CONSOLE` | `true` | Whether to serve [the console](#the-console). `false`: no `/console`, and the console's sign-in refuses everyone. |
@@ -293,6 +294,7 @@ crontab:
 0 6 * * *   cd /path/to/salli && docker compose exec -T salli salli-server jobs run-advisor
 0 */6 * * * cd /path/to/salli && docker compose exec -T salli salli-server jobs sync-banks
 0 * * * *   cd /path/to/salli && docker compose exec -T salli salli-server jobs send-digests
+30 * * * *  cd /path/to/salli && docker compose exec -T salli salli-server jobs send-push
 ```
 
 A scheduler that calls the API instead uses each job's cron route with the
@@ -411,6 +413,33 @@ the message: restyle it, but add nothing to it. Keep its destinations and
 secrets in its own tables and settings, give the extension
 `user_data_purgers` and `user_data_exporters` for them, so erasing and
 exporting an account reach them, and never log a message's text.
+
+## Push alerts
+
+The phone app registers itself for push alerts (`POST /v1/devices`; `salli
+devices list|remove`). An alert goes when a monthly budget line is over its
+limit, the cash forecast goes below zero (the `low_balance_ahead` signal at
+`high`), or one of the person's own reminders is due. It is built like a
+digest, by the same wording table: kinds, counts and dates, never an amount,
+a name or anything from the ledger.
+
+**The relay.** Salli never holds Apple's or Google's keys. Set
+`SALLI_PUSH_RELAY_URL` to a service you run that forwards Expo push
+messages: each alert is one POST of a JSON list of `{to, title, body,
+data}`, one per device, and any 2xx answer counts as sent. Device tokens are
+sealed with `BYOK_ENCRYPTION_KEYS` and found by their SHA-256 hash; without
+a relay and a key, registering a device answers 503 and nothing is sent.
+
+**Scheduling.** Run `salli-server jobs send-push` hourly (above). An alert
+goes once per state: its delivery-log period is a hash of its items, so the
+same alert never goes twice, and a new one goes only when what is waiting
+changes. Push alerts are logged with the digests (`salli notifications log`).
+
+**Push and digests together.** Core allows one notifier, an extension's, for
+digests. Push alerts go through Salli's own relay notifier, and a composite
+notifier (`application/defaults.CompositeNotifier`) routes each message by
+its kind, so the two coexist; an extension's notifier still delivers only
+digests.
 
 ## Backup and restore
 

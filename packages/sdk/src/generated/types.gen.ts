@@ -121,7 +121,7 @@ export type AccountActivity = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close' | 'recategorise';
     /**
      * External Ref
      */
@@ -2280,6 +2280,24 @@ export type CategoryInflationOut = {
 };
 
 /**
+ * CategoryTrend
+ */
+export type CategoryTrend = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Spent
+     */
+    spent: Array<string>;
+};
+
+/**
  * ChainBreak
  */
 export type ChainBreak = {
@@ -3243,6 +3261,88 @@ export type CreateTokenRequest = {
      * Permissions
      */
     permissions?: Array<'tax:activate'>;
+};
+
+/**
+ * CurrentBudget
+ */
+export type CurrentBudget = {
+    /**
+     * Month
+     */
+    month: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Month Gone
+     */
+    month_gone: string;
+    /**
+     * Lines
+     */
+    lines: Array<CurrentBudgetLine>;
+};
+
+/**
+ * CurrentBudgetLine
+ */
+export type CurrentBudgetLine = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Limit Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    limit_amount: string;
+    /**
+     * Carried
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    carried: string;
+    /**
+     * Available
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    available: string;
+    /**
+     * Spent
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    spent: string;
+    /**
+     * Left
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    left: string;
+    /**
+     * Expected By Now
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    expected_by_now: string;
+    /**
+     * Pace
+     */
+    pace: 'over' | 'within';
 };
 
 /**
@@ -4347,7 +4447,7 @@ export type DeliveredItem = {
     /**
      * Kind
      */
-    kind: 'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review';
+    kind: 'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review' | 'budget_over';
     /**
      * Count
      */
@@ -4356,6 +4456,24 @@ export type DeliveredItem = {
      * Date
      */
     date: string | null;
+};
+
+/**
+ * Device
+ */
+export type Device = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Platform
+     */
+    platform: 'ios' | 'android';
+    /**
+     * Created At
+     */
+    created_at: string;
 };
 
 /**
@@ -4388,6 +4506,34 @@ export type DeviceAuthorization = {
      * Interval
      */
     interval: number;
+};
+
+/**
+ * DeviceList
+ */
+export type DeviceList = {
+    /**
+     * Devices
+     */
+    devices: Array<Device>;
+    /**
+     * Push Enabled
+     */
+    push_enabled: boolean;
+};
+
+/**
+ * DeviceRequest
+ */
+export type DeviceRequest = {
+    /**
+     * Token
+     */
+    token: string;
+    /**
+     * Platform
+     */
+    platform: 'ios' | 'android';
 };
 
 /**
@@ -4490,7 +4636,7 @@ export type DigestItem = {
     /**
      * Kind
      */
-    kind: 'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review';
+    kind: 'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review' | 'budget_over';
     /**
      * Title
      */
@@ -4823,7 +4969,7 @@ export type EntryProvenance = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close' | 'recategorise';
     /**
      * External Ref
      */
@@ -5080,7 +5226,7 @@ export type ExportedJournalEntry = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close' | 'recategorise';
     /**
      * External Ref
      */
@@ -5852,7 +5998,7 @@ export type FinanceSignal = {
     /**
      * Kind
      */
-    kind: 'low_balance_ahead' | 'price_change' | 'new_recurring' | 'spending_spike' | 'savings_rate_drop' | 'review_waiting' | 'decision_review_due' | 'emergency_fund_low' | 'expensive_debt';
+    kind: 'low_balance_ahead' | 'price_change' | 'new_recurring' | 'spending_spike' | 'savings_rate_drop' | 'review_waiting' | 'decision_review_due' | 'emergency_fund_low' | 'expensive_debt' | 'budget_over' | 'budget_pace';
     /**
      * Severity
      */
@@ -5868,7 +6014,7 @@ export type FinanceSignal = {
     /**
      * Action
      */
-    action: 'see_forecast' | 'see_recurring' | 'see_spending' | 'see_cash_flow' | 'see_debts' | 'review' | 'review_decision';
+    action: 'see_forecast' | 'see_recurring' | 'see_spending' | 'see_cash_flow' | 'see_debts' | 'review' | 'review_decision' | 'see_budget';
     /**
      * Amount
      */
@@ -7455,7 +7601,7 @@ export type JournalEntry = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close' | 'recategorise';
     /**
      * External Ref
      */
@@ -7978,6 +8124,78 @@ export type MonthFigure = {
 };
 
 /**
+ * MonthlyBudget
+ *
+ * A limit per expense account that recurs every calendar month.
+ */
+export type MonthlyBudget = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Lines
+     */
+    lines: Array<MonthlyLine>;
+};
+
+/**
+ * MonthlyBudgetRequest
+ */
+export type MonthlyBudgetRequest = {
+    /**
+     * Lines
+     */
+    lines: Array<MonthlyLineRequest>;
+};
+
+/**
+ * MonthlyLine
+ */
+export type MonthlyLine = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Limit Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    limit_amount: string;
+    /**
+     * Rollover
+     */
+    rollover: boolean;
+    /**
+     * Since
+     */
+    since: string;
+};
+
+/**
+ * MonthlyLineRequest
+ */
+export type MonthlyLineRequest = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Limit Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    limit_amount: string;
+    /**
+     * Rollover
+     */
+    rollover?: boolean;
+};
+
+/**
  * MonthsFigure
  *
  * Months of spending covered ("8.29"), under each, and the delta.
@@ -8232,7 +8450,7 @@ export type NotificationPreferences = {
     /**
      * Items
      */
-    items: Array<'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review'>;
+    items: Array<'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review' | 'budget_over'>;
     /**
      * Time Zone
      */
@@ -8272,7 +8490,7 @@ export type NotificationPreferencesUpdate = {
     /**
      * Items
      */
-    items?: Array<'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review'> | null;
+    items?: Array<'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review' | 'budget_over'> | null;
     /**
      * Time Zone
      */
@@ -8650,6 +8868,14 @@ export type OpeningBalanceItem = {
      * Fx Rate
      */
     fx_rate?: string | null;
+    /**
+     * Rate
+     */
+    rate?: string | null;
+    /**
+     * Minimum Payment
+     */
+    minimum_payment?: string | null;
 };
 
 /**
@@ -9006,6 +9232,20 @@ export type PlannedDebt = {
      * Account Id
      */
     account_id: string | null;
+    /**
+     * Apr
+     */
+    apr: string;
+    /**
+     * Minimum Payment
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    minimum_payment: string;
+    /**
+     * Payoff Month
+     */
+    payoff_month?: string | null;
 };
 
 /**
@@ -9920,6 +10160,38 @@ export type RebalancingRule = {
      * Every Months
      */
     every_months?: number | null;
+};
+
+/**
+ * RecategoriseRequest
+ */
+export type RecategoriseRequest = {
+    /**
+     * Posting Id
+     */
+    posting_id: string;
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+};
+
+/**
+ * Recategorised
+ */
+export type Recategorised = {
+    /**
+     * Reversal Id
+     */
+    reversal_id: string;
+    /**
+     * Corrected Id
+     */
+    corrected_id: string;
 };
 
 /**
@@ -12330,6 +12602,26 @@ export type SpendingPhaseOut = {
     categories?: {
         [key: string]: string;
     };
+};
+
+/**
+ * SpendingTrend
+ */
+export type SpendingTrend = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Months
+     */
+    months: Array<string>;
+    /**
+     * Categories
+     */
+    categories: Array<CategoryTrend>;
 };
 
 /**
@@ -16235,6 +16527,40 @@ export type EntriesReverseResponses = {
 
 export type EntriesReverseResponse = EntriesReverseResponses[keyof EntriesReverseResponses];
 
+export type EntriesRecategoriseData = {
+    body: RecategoriseRequest;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: never;
+    url: '/v1/entries/{entry_id}/recategorise';
+};
+
+export type EntriesRecategoriseErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type EntriesRecategoriseError = EntriesRecategoriseErrors[keyof EntriesRecategoriseErrors];
+
+export type EntriesRecategoriseResponses = {
+    /**
+     * Successful Response
+     */
+    201: Recategorised;
+};
+
+export type EntriesRecategoriseResponse = EntriesRecategoriseResponses[keyof EntriesRecategoriseResponses];
+
 export type EntriesPostingsSetTagsData = {
     body: SetPostingTagsRequest;
     path: {
@@ -19505,6 +19831,119 @@ export type BudgetsCreateResponses = {
 };
 
 export type BudgetsCreateResponse = BudgetsCreateResponses[keyof BudgetsCreateResponses];
+
+export type BudgetsMonthlyGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/budget/monthly';
+};
+
+export type BudgetsMonthlyGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type BudgetsMonthlyGetError = BudgetsMonthlyGetErrors[keyof BudgetsMonthlyGetErrors];
+
+export type BudgetsMonthlyGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MonthlyBudget;
+};
+
+export type BudgetsMonthlyGetResponse = BudgetsMonthlyGetResponses[keyof BudgetsMonthlyGetResponses];
+
+export type BudgetsMonthlySetData = {
+    body: MonthlyBudgetRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/budget/monthly';
+};
+
+export type BudgetsMonthlySetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type BudgetsMonthlySetError = BudgetsMonthlySetErrors[keyof BudgetsMonthlySetErrors];
+
+export type BudgetsMonthlySetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MonthlyBudget;
+};
+
+export type BudgetsMonthlySetResponse = BudgetsMonthlySetResponses[keyof BudgetsMonthlySetResponses];
+
+export type BudgetsCurrentData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/budget/current';
+};
+
+export type BudgetsCurrentErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type BudgetsCurrentError = BudgetsCurrentErrors[keyof BudgetsCurrentErrors];
+
+export type BudgetsCurrentResponses = {
+    /**
+     * Successful Response
+     */
+    200: CurrentBudget;
+};
+
+export type BudgetsCurrentResponse = BudgetsCurrentResponses[keyof BudgetsCurrentResponses];
+
+export type BudgetsTrendData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Months
+         */
+        months?: number;
+    };
+    url: '/v1/budget/trend';
+};
+
+export type BudgetsTrendErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type BudgetsTrendError = BudgetsTrendErrors[keyof BudgetsTrendErrors];
+
+export type BudgetsTrendResponses = {
+    /**
+     * Successful Response
+     */
+    200: SpendingTrend;
+};
+
+export type BudgetsTrendResponse = BudgetsTrendResponses[keyof BudgetsTrendResponses];
 
 export type BudgetsDeleteData = {
     body?: never;
@@ -23876,6 +24315,94 @@ export type NotificationsCronSendDueResponses = {
 };
 
 export type NotificationsCronSendDueResponse = NotificationsCronSendDueResponses[keyof NotificationsCronSendDueResponses];
+
+export type DevicesListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/devices/';
+};
+
+export type DevicesListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DevicesListError = DevicesListErrors[keyof DevicesListErrors];
+
+export type DevicesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeviceList;
+};
+
+export type DevicesListResponse = DevicesListResponses[keyof DevicesListResponses];
+
+export type DevicesAddData = {
+    body: DeviceRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/devices/';
+};
+
+export type DevicesAddErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DevicesAddError = DevicesAddErrors[keyof DevicesAddErrors];
+
+export type DevicesAddResponses = {
+    /**
+     * Successful Response
+     */
+    201: Device;
+};
+
+export type DevicesAddResponse = DevicesAddResponses[keyof DevicesAddResponses];
+
+export type DevicesRemoveData = {
+    body?: never;
+    path: {
+        /**
+         * Device Id
+         */
+        device_id: string;
+    };
+    query?: never;
+    url: '/v1/devices/{device_id}';
+};
+
+export type DevicesRemoveErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DevicesRemoveError = DevicesRemoveErrors[keyof DevicesRemoveErrors];
+
+export type DevicesRemoveResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DevicesRemoveResponse = DevicesRemoveResponses[keyof DevicesRemoveResponses];
 
 export type AccessListData = {
     body?: never;

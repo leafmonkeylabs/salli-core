@@ -6,6 +6,9 @@
  */
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
+  devicesAdd,
+  devicesList,
+  devicesRemove,
   notificationsDeliveriesList,
   notificationsPreferencesGet,
   notificationsPreferencesUpdate,
@@ -17,6 +20,7 @@ import type { App } from '../app';
 import { UsageError } from '../errors';
 import { singleLine } from '../output/text';
 import { displayDate } from '../util/dates';
+import { resolveById } from '../util/resolve';
 import { countArg } from './shared';
 
 type ItemKind = NotificationPreferences['items'][number];
@@ -29,6 +33,7 @@ export const DIGEST_ITEMS: Readonly<Record<ItemKind, string>> = {
   filing_deadline: 'filing deadlines in the next 14 days',
   cash_below_zero_ahead: 'cash forecast below zero',
   transactions_to_review: 'transactions to review',
+  budget_over: 'budgets over their limit',
 };
 const KINDS = Object.keys(DIGEST_ITEMS) as ItemKind[];
 const WEEKDAYS: readonly Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -214,5 +219,54 @@ Examples:
           );
         },
       });
+    });
+
+  const devices = program.command('devices').alias('device').description('Phones that take push alerts');
+
+  devices
+    .command('list')
+    .alias('ls')
+    .description('List your registered devices')
+    .action(async () => {
+      const api = await app.api();
+      const data = await api.call(devicesList);
+      app.out.emit(data, {
+        records: (d) => d.devices,
+        human: (d) => {
+          if (!d.push_enabled) app.out.note('This server sends no push alerts.');
+          if (!d.devices.length) return app.out.note('No devices registered.');
+          app.out.line(
+            app.out.table(d.devices, [
+              { header: 'ID', get: (r) => r.id.slice(0, 12) },
+              { header: 'PLATFORM', get: (r) => r.platform },
+              { header: 'ADDED', get: (r) => displayDate(r.created_at, app.out.locale) },
+            ]),
+          );
+        },
+      });
+    });
+
+  devices
+    .command('add')
+    .argument('<token>', 'The Expo push token')
+    .description('Register a device for push alerts (the phone app does this itself)')
+    .addOption(new Option('--platform <platform>', 'ios or android').choices(['ios', 'android'] as const).makeOptionMandatory())
+    .action(async (token, opts) => {
+      const api = await app.api();
+      const device = await api.call(devicesAdd, { body: { token, platform: opts.platform } });
+      app.out.done(device, `Registered the device (${device.id.slice(0, 12)}).`);
+    });
+
+  devices
+    .command('remove')
+    .alias('rm')
+    .argument('<id>', 'Device id, from `salli devices list` (or the start of one)')
+    .description('Stop push alerts to a device')
+    .action(async (query) => {
+      const api = await app.api();
+      const { devices: all } = await api.call(devicesList);
+      const device = resolveById(all, query, 'device');
+      await api.call(devicesRemove, { path: { device_id: device.id } });
+      app.out.done({ removed: device.id }, 'Removed the device.');
     });
 }
