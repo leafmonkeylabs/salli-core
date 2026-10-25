@@ -31,7 +31,7 @@ services:
     restart: "no"
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
     restart: unless-stopped
     environment:
       POSTGRES_USER: salli
@@ -86,7 +86,7 @@ services:
   # SALLI_DOMAIN and SALLI_PUBLIC_URL (https://<domain>) in .env, and the
   # domain's DNS pointing here. Caddy gets and renews the certificate.
   caddy:
-    image: caddy:2.10-alpine
+    image: caddy:2.10-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
     profiles: [tls]
     restart: unless-stopped
     depends_on:

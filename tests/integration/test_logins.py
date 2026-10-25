@@ -94,6 +94,20 @@ async def test_a_session_is_stored_as_its_hash_and_ends_when_revoked(uow_factory
     assert await logins.verify_session(session.token) is None
 
 
+async def test_a_session_unused_for_its_idle_time_ends(uow_factory):
+    from datetime import timedelta
+
+    now = [_now()]
+    hasher = Argon2PasswordHasher(time_cost=1, memory_cost=1024, parallelism=1)
+    logins = LoginService(uow_factory, hasher, clock=lambda: now[0])
+    await logins.create_account("ada@example.org", PASSWORD)
+    session = await logins.sign_in("ada@example.org", PASSWORD)
+    now[0] += timedelta(minutes=90)
+    assert await logins.verify_session(session.token) is not None
+    now[0] += timedelta(minutes=121)
+    assert await logins.verify_session(session.token) is None
+
+
 async def test_one_user_cannot_see_or_end_another_s_sessions(uow_factory):
     logins = _service(uow_factory)
     ada = (await logins.create_account("ada@example.org", PASSWORD))["user_id"]

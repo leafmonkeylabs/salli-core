@@ -46,6 +46,7 @@ across a sign-in, so there is nothing to fix a session with.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import math
 import secrets
 import uuid
@@ -238,17 +239,23 @@ class LoginService:
         uow_factory: Callable[[], Any],
         hasher: PasswordHasher,
         *,
-        session_ttl: timedelta = timedelta(days=30),
+        session_ttl: timedelta = timedelta(hours=12),
+        session_idle: timedelta = timedelta(hours=2),
         throttle: Throttle | None = None,
         default_currency: str = "USD",
         clock: Callable[[], datetime] = _utcnow,
         keyring: Any = None,
+        audit_key: str = "",
     ) -> None:
         self._uow_factory = uow_factory
         self._hasher = hasher
         #: Seals authenticator secrets (adapters/crypto/keyring.KeyRing).
         self._keyring = keyring
         self._session_ttl = session_ttl
+        self._session_idle = session_idle
+        #: Keys the email hashes in the audit log, which outlives an erased
+        #: account: without the key, a hash names no one.
+        self._audit_key = (audit_key or secrets.token_hex(32)).encode()
         self._throttle = throttle or Throttle()
         self._default_currency = default_currency
         self._clock = clock
@@ -322,8 +329,13 @@ class LoginService:
                 _sha256(token), address, currency, now, now + INVITATION_TTL
             )
             if owner is not None:
+                # Nothing identifying: the log is append-only and survives erasure.
+                email_key = hmac.new(self._audit_key, address.encode(), "sha256").hexdigest()
                 await uow.audit_log.log(
-                    owner["user_id"], "member.invite", {"email": address}, "succeeded"
+                    owner["user_id"],
+                    "member.invite",
+                    {"invitation": _sha256(token), "email_key": email_key},
+                    "succeeded",
                 )
         return token
 
@@ -540,6 +552,8 @@ class LoginService:
             if row is None:
                 return None
             last = row["last_used_at"]
+            if last is not None and now - last > self._session_idle:
+                return None
             if last is None or now - last > _TOUCH_EVERY:
                 await uow.logins.touch_session(row["id"], now)
         return VerifiedSession(id=str(row["id"]), user_id=str(row["user_id"]))

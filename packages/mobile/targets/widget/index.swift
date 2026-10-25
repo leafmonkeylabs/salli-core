@@ -72,6 +72,7 @@ struct SafeView: View {
           if let glance, !entry.old {
             Text(glance.safe.label).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
             Text(figure(glance))
+              .privacySensitive()
               .font(.custom("Geist-Medium", size: 22))
               .foregroundStyle(look.ink)
               .minimumScaleFactor(0.6)

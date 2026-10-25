@@ -215,7 +215,7 @@ def world() -> World:
         )
 
     service = LoginService(
-        uow, hasher, session_ttl=timedelta(days=30), default_currency="EUR", clock=clock
+        uow, hasher, session_ttl=timedelta(hours=12), default_currency="EUR", clock=clock
     )
     return World(service=service, logins=logins, profiles=profiles, hasher=hasher, clock=clock)
 
@@ -444,7 +444,7 @@ async def test_a_session_is_an_opaque_token_stored_only_as_its_hash(world):
     uid = await _account(world)
     session = await world.service.sign_in("ada@example.org", PASSWORD, user_agent="Salli iOS")
     assert session.token.startswith(SESSION_PREFIX) and len(session.token) >= 50
-    assert session.expires_at == T0 + timedelta(days=30)
+    assert session.expires_at == T0 + timedelta(hours=12)
     [stored] = world.logins.sessions.values()
     assert stored["token_hash"] == hashlib.sha256(session.token.encode()).hexdigest()
     assert session.token not in repr(world.logins.sessions)
@@ -461,10 +461,10 @@ async def test_every_sign_in_is_a_new_token(world):
 async def test_a_session_ends_when_it_expires_however_much_it_is_used(world):
     await _account(world)
     session = await world.service.sign_in("ada@example.org", PASSWORD)
-    for _ in range(3):
-        world.clock.advance(days=9)
+    for _ in range(7):
+        world.clock.advance(minutes=100)
         assert await world.service.verify_session(session.token) is not None
-    world.clock.advance(days=3)
+    world.clock.advance(minutes=30)
     assert await world.service.verify_session(session.token) is None
 
 
