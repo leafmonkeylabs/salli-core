@@ -3671,6 +3671,10 @@ export type DebtList = {
      */
     debts: Array<Debt>;
     /**
+     * Order
+     */
+    order?: 'rate_desc';
+    /**
      * Total Balance
      *
      * Decimal string in the currency's own precision; never a float.

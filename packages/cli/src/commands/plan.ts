@@ -363,6 +363,7 @@ function registerDebts(program: Command, app: App): void {
               ['Minimums a month', app.out.money(d.total_minimum_payments, currency)],
             ]),
           );
+          app.out.note('Sorted by interest rate: a fact about each debt, not advice.');
         },
       });
     });
