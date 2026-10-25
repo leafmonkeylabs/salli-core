@@ -263,6 +263,7 @@ export const strings = {
     todaysMoney: 'today’s money',
     projectionSpoken: (fiNumber: string) => `Projection of what you'll have invested, towards the FI number of ${fiNumber}, with a cautious and a growth case either side.`,
     fiNumber: 'FI number',
+    headline: { placeholder: 'On placeholders', pack: 'On your pack', own: 'On your own figures' } as Record<string, string>,
     assumptions: 'Assumptions',
     placeholders: (n: number) => (n === 1 ? '1 placeholder' : `${n} placeholders`),
     allYours: 'All yours',

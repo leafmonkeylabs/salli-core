@@ -151,3 +151,10 @@ def test_need_is_the_return_the_plan_requires():
     assert capacity.need_category(None) == "aggressive"
     # Dependents are a capacity measure.
     assert capacity.compute(None, None, None, None, 4).breakdown == {"dependents": 5}
+
+
+def test_every_tolerance_item_sits_in_one_factor():
+    from salli.domain.risk import engine
+
+    items = [i for group in engine.FACTORS.values() for i in group]
+    assert sorted(items) == sorted(["drawdown_reaction", *engine.ITEMS])

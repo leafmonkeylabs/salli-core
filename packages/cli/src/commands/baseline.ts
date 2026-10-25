@@ -25,6 +25,7 @@ const PLACEHOLDERS: Record<Baseline['placeholders'][number], string> = {
   real_return: 'the real return',
   safe_withdrawal_rate: 'the safe withdrawal rate',
   surplus_invested: 'the share of your monthly surplus invested (all of it)',
+  drawdown_horizon: 'the years drawn down (to a planning age of 95, or 30 years without a date of birth)',
   inflation: 'inflation (none set: nominal amounts keep their real value)',
 };
 

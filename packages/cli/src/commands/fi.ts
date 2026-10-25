@@ -86,6 +86,7 @@ const PLACEHOLDER_LABELS: Record<string, string> = {
   real_return: 'real return',
   safe_withdrawal_rate: 'safe withdrawal rate',
   surplus_invested: 'share of your monthly surplus invested',
+  drawdown_horizon: 'the years drawn down (to a planning age of 95, or 30 years without a date of birth)',
 };
 
 /** Says, on stderr, when figures rest on placeholders, and how to set your own. */

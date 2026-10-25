@@ -331,3 +331,19 @@ def test_debt_payments_leave_the_fi_spending_and_the_emergency_fund_is_held_out(
     assert fi.reserve(baseline) == living * 6
     point = fi.full_timeline(baseline).points[0]
     assert fi.asset_base(point, fi.reserve(baseline)) == fi.asset_base(point) - fi.reserve(baseline)
+
+
+def test_a_history_needs_a_source_and_ten_years() -> None:
+    def history(months: int, **over: object) -> dict[str, object]:
+        doc = {
+            "monthly_real_returns": ["0.004"] * months,
+            "source": "XA index",
+            "date": "2031-05-31",
+        }
+        return {**doc, **over}
+
+    assert cma.parse(pack(history=history(120))).history is not None
+    with pytest.raises(ValueError, match="list of 120 to 1200 monthly returns: at least 10 years"):
+        cma.parse(pack(history=history(119)))
+    with pytest.raises(ValueError, match="history.source must be non-empty text"):
+        cma.parse(pack(history=history(120, source=None)))

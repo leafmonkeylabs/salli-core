@@ -235,9 +235,19 @@ invest, the later it comes.
 - **The withdrawal rate.** Yours, when you set one. Without it, the rate the
   odds' returns sustain: the highest constant real withdrawal a year, as a
   share of the pool, that 90% of 1,000 seeded paths of yearly returns last
-  over 30 years drawn down, from the same returns the odds draw (below).
-  Its `origin` is `derived`, or `placeholder` while those returns are the
-  placeholder pack's, and its `source` says how it was found.
+  over your own drawdown, from the same returns the odds draw (below). The
+  drawdown runs from the month you reach FI (as of today when you don't) to
+  your planning age (the plan's `planning_age`, 50 to 120; without one, a
+  labelled placeholder of 95), by your date of birth; without a date of
+  birth, a labelled 30 years. `assumptions.drawdown_horizon` gives the
+  years and where they come from, and `drawdown_horizon` is among the
+  placeholders while they rest on one. Its `origin` is `derived`, or
+  `placeholder` while those returns are the placeholder pack's, and its
+  `source` says how it was found.
+- **The headline.** Every FI response carries `headline_status`:
+  `placeholder` while any input of the FI number or the odds is one, else
+  `pack` while your active capital-market assumptions give any, else
+  `own`; `headline` says it in a sentence, shown beside the figure.
 - **Gross of tax.** When your active tax rules (in your base currency)
   declare an income role keyed `withdrawal`, the year's spending is grossed
   up to what must be withdrawn so that, after the tax those rules take on
@@ -354,7 +364,7 @@ The format, as JSON Schema (draft 2020-12):
       "type": "object", "required": ["monthly_real_returns", "source", "date"],
       "properties": {
         "monthly_real_returns": {
-          "type": "array", "minItems": 24, "maxItems": 1200,
+          "type": "array", "minItems": 120, "maxItems": 1200,
           "items": {"type": "string", "pattern": "^-?\\d+(\\.\\d+)?$"}
         },
         "source": {"type": "string", "minLength": 1, "maxLength": 500},

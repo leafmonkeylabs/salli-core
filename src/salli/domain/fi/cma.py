@@ -46,8 +46,9 @@ _BOUNDS: dict[str, tuple[Decimal, Decimal]] = {
     "monthly_return": (Decimal("-0.50"), Decimal("0.50")),
 }
 
-#: How long a history may be, in months: two years at least, a century at most.
-_HISTORY = (24, 1200)
+#: How long a history may be, in months: ten years at least (fewer would
+#: resample one market's luck), a century at most.
+_HISTORY = (120, 1200)
 
 _MAX_CLASSES = 20
 _MAX_TEXT = 500
@@ -321,7 +322,10 @@ def _history(raw: object) -> History | None:
     values = item.get("monthly_real_returns")
     low, high = _HISTORY
     if not isinstance(values, list) or not low <= len(cast("list[Any]", values)) <= high:
-        raise ValueError(f"history.monthly_real_returns is a list of {low} to {high} returns")
+        raise ValueError(
+            f"history.monthly_real_returns is a list of {low} to {high} monthly returns: "
+            f"at least {low // 12} years, so the odds don't resample one short stretch"
+        )
     monthly = tuple(
         _number(v, f"history.monthly_real_returns[{i}]", "monthly_return")
         for i, v in enumerate(cast("list[Any]", values))

@@ -94,6 +94,19 @@ class CmaSummary(BaseModel):
     degrees_of_freedom: str
 
 
+HeadlineStatus = Literal["placeholder", "pack", "own"]
+
+
+class DrawdownHorizon(BaseModel):
+    """The years a derived withdrawal rate must last: from the FI month to
+    the planning age (a labelled placeholder of 95 when unset; 30 years,
+    labelled, without a date of birth)."""
+
+    years: int
+    origin: Literal["user", "placeholder"]
+    source: str
+
+
 class FiAssumptions(BaseModel):
     """The assumptions these figures were computed with, in real terms.
 
@@ -107,7 +120,14 @@ class FiAssumptions(BaseModel):
     status: Literal["placeholder", "user"]
     #: The placeholders in use: "real_return", "safe_withdrawal_rate",
     #: "surplus_invested".
-    placeholders: list[Literal["real_return", "safe_withdrawal_rate", "surplus_invested"]]
+    placeholders: list[
+        Literal["real_return", "safe_withdrawal_rate", "surplus_invested", "drawdown_horizon"]
+    ]
+    #: What the FI number and the odds rest on: "placeholder" while any of
+    #: their inputs is one, else "pack" while the active pack gives any,
+    #: else "own"; `headline` says it in a sentence, to show beside them.
+    headline_status: HeadlineStatus | None = None
+    headline: str | None = None
     #: What to tell a person about these assumptions, in a sentence or two.
     message: str
     #: The base scenario's yearly return after inflation.
@@ -126,6 +146,8 @@ class FiAssumptions(BaseModel):
     #: What cash earns a year after inflation: the active pack's, else a
     #: labelled placeholder of nothing.
     cash_yield: FiAssumption | None = None
+    #: The years a derived withdrawal rate must last.
+    drawdown_horizon: DrawdownHorizon | None = None
     #: Each scenario's real return.
     real_returns: FiScenarioReturns
     #: Each scenario's return before inflation; only with the user's inflation.
@@ -310,6 +332,9 @@ class FiScore(BaseModel):
     status: Literal["ok", "not_enough_data"] | None = None
     #: The full calendar months of income and spending observed (at most 12).
     months_observed: int | None = None
+    #: As `assumptions.headline_status` and `assumptions.headline`.
+    headline_status: HeadlineStatus | None = None
+    headline: str | None = None
     components: list[FiScoreComponent]
     #: The assumptions it was computed with, and where each came from.
     assumptions: FiAssumptions | None = None
@@ -533,6 +558,9 @@ class FiProjections(BaseModel):
 
     #: The user's base currency, which every amount here is in.
     currency: CurrencyCode | None = None
+    #: As `assumptions.headline_status` and `assumptions.headline`.
+    headline_status: HeadlineStatus | None = None
+    headline: str | None = None
     #: "real": amounts in today's money only; "real_and_nominal": each point
     #: also carries its year's own money.
     terms: Literal["real", "real_and_nominal"] | None = None
@@ -728,6 +756,8 @@ class OddsWithdrawalRate(BaseModel):
     origin: Literal["user", "placeholder", "derived"]
     #: The years the applied rate must last; null for yours.
     applied_years: int | None = None
+    #: Where those years come from (the planning age, or a placeholder).
+    applied_horizon: str | None = None
     #: The rate `success_level` of paths sustain over `years` drawn down.
     horizon_derived: str
     years: int
@@ -774,6 +804,9 @@ class FiOdds(BaseModel):
 
     currency: CurrencyCode
     as_of: str
+    #: As `FiAssumptions.headline_status` and `headline`.
+    headline_status: HeadlineStatus
+    headline: str
     paths: int
     seed: int
     horizon_years: int
@@ -854,6 +887,9 @@ class FiPlanIn(BaseModel):
     spending_phases: Annotated[list[SpendingPhase], Field(max_length=20)] = []
     #: Your own inflation by category of spending, over your pack's.
     category_inflation: Annotated[dict[str, CategoryInflationIn], Field(max_length=20)] = {}
+    #: The age the money must last to: a derived withdrawal rate is tested
+    #: from the FI month to it. Unset, a labelled placeholder of 95.
+    planning_age: Annotated[int, Field(ge=50, le=120)] | None = None
 
 
 class IncomeStreamOut(BaseModel):
@@ -886,6 +922,7 @@ class FiPlan(BaseModel):
     income_streams: list[IncomeStreamOut]
     spending_phases: list[SpendingPhaseOut]
     category_inflation: dict[str, CategoryInflationOut] = {}
+    planning_age: int | None = None
     #: From the profile; the phases go by it, and apply only with it.
     date_of_birth: str | None = None
 

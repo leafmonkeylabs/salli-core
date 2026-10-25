@@ -11,9 +11,11 @@ behaviour) — there is no universal "correct" coverage amount to assume otherwi
 
 `needs` is a needs analysis from the person's own figures: life cover from
 income replacement years, debts and goals less assets; income protection from
-spending; liability cover from what a claim against the person could reach,
+spending; disability (income protection) cover from income replaced to the
+planning age or a chosen benefit period, less the declared sick pay;
+liability cover from what a claim against the person could reach,
 their net worth. Figures only: it names no product and no provider. Where
-the person typed no target for life or liability cover, the report's gap
+the person typed no target for life, income-protection or liability cover, the report's gap
 line for it comes from the needs analysis (`basis` "needs").
 """
 
@@ -66,11 +68,16 @@ def compute_report(
         typed = {t.policy_type for t in targets}
         for kind, amount in (
             ("life", needed.life_cover_need),
+            ("income_protection", needed.protection_need),
             ("liability", needed.liability_cover_need),
         ):
             if kind in typed or amount <= 0:
                 continue
-            actual = coverage_by_type.get(kind, Decimal(0))
+            actual = (
+                needed.protection_held
+                if kind == "income_protection"
+                else coverage_by_type.get(kind, Decimal(0))
+            )
             lines.append(CoverageGapLine(kind, amount, actual, amount - actual, "needs"))
             if actual == Decimal(0):
                 missing_types.append(kind)
@@ -123,6 +130,17 @@ class Needs:
     #: The active liability policies' cover, and need − held (never below zero).
     liability_cover_held: Decimal = Decimal(0)
     liability_cover_gap: Decimal = Decimal(0)
+    #: The months income would be replaced for if the person could not work:
+    #: to the planning age, or the chosen benefit period.
+    protection_months: int = 0
+    #: What an employer would pay while off sick, as the person declares it.
+    sick_pay: Decimal = Decimal(0)
+    #: Income × protection_months − sick_pay, never below zero.
+    protection_need: Decimal = Decimal(0)
+    #: The active income-protection policies' monthly benefit × the months.
+    protection_held: Decimal = Decimal(0)
+    #: Need − held, never below zero.
+    protection_gap: Decimal = Decimal(0)
 
 
 def needs(
@@ -135,12 +153,19 @@ def needs(
     replacement_years: int,
     net_worth: Decimal = Decimal(0),
     liability_cover_held: Decimal = Decimal(0),
+    protection_months: int = 0,
+    protection_benefit: Decimal = Decimal(0),
+    sick_pay: Decimal = Decimal(0),
 ) -> Needs:
     """Life cover from replacing income for `replacement_years`, paying off
     debts and funding goals, less what is already there; income protection
-    from monthly spending."""
+    from monthly spending; disability cover from replacing income for
+    `protection_months` less `sick_pay`, against the monthly
+    `protection_benefit` held for as long."""
     replacement = max(monthly_income, Decimal(0)) * 12 * replacement_years
     need = max(replacement + debts + goals - assets, Decimal(0))
+    protection = max(max(monthly_income, Decimal(0)) * protection_months - sick_pay, Decimal(0))
+    held = protection_benefit * protection_months
     return Needs(
         replacement_years=replacement_years,
         income_replacement=replacement,
@@ -154,4 +179,9 @@ def needs(
         liability_cover_need=max(net_worth, Decimal(0)),
         liability_cover_held=liability_cover_held,
         liability_cover_gap=max(max(net_worth, Decimal(0)) - liability_cover_held, Decimal(0)),
+        protection_months=protection_months,
+        sick_pay=sick_pay,
+        protection_need=protection,
+        protection_held=held,
+        protection_gap=max(protection - held, Decimal(0)),
     )

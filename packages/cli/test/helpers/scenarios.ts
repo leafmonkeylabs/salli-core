@@ -432,9 +432,12 @@ export const SCENARIO_RUN: ScenarioRun = {
     "placeholders": [
       "real_return",
       "safe_withdrawal_rate",
-      "surplus_invested"
+      "surplus_invested",
+      "drawdown_horizon"
     ],
-    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "headline_status": "placeholder",
+    "headline": "Rests on placeholders for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.04",
       "origin": "placeholder",
@@ -461,6 +464,11 @@ export const SCENARIO_RUN: ScenarioRun = {
       "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
       "note": null
     },
+    "drawdown_horizon": {
+      "years": 30,
+      "origin": "placeholder",
+      "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -473,12 +481,13 @@ export const SCENARIO_RUN: ScenarioRun = {
     "real_return",
     "safe_withdrawal_rate",
     "surplus_invested",
+    "drawdown_horizon",
     "inflation"
   ],
   "versions": {
     "schema": "salli.scenario/1",
     "engine": "4",
-    "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
+    "fi_assumptions": "sha256:d88f80280a74ec5a04748ec1a9c473622b741f3f5c1930efb241de7ee25fb038",
     "rule_sets": []
   },
   "data_as_of": "2026-10-09",
@@ -856,9 +865,12 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "placeholders": [
           "real_return",
           "safe_withdrawal_rate",
-          "surplus_invested"
+          "surplus_invested",
+          "drawdown_horizon"
         ],
-        "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+        "headline_status": "placeholder",
+        "headline": "Rests on placeholders for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+        "message": "Using placeholder assumptions for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
         "real_return": {
           "value": "0.04",
           "origin": "placeholder",
@@ -885,6 +897,11 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
           "note": null
         },
+        "drawdown_horizon": {
+          "years": 30,
+          "origin": "placeholder",
+          "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
+        },
         "real_returns": {
           "conservative": "0.02",
           "base": "0.04",
@@ -897,12 +914,13 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "real_return",
         "safe_withdrawal_rate",
         "surplus_invested",
+        "drawdown_horizon",
         "inflation"
       ],
       "versions": {
         "schema": "salli.scenario/1",
         "engine": "4",
-        "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
+        "fi_assumptions": "sha256:d88f80280a74ec5a04748ec1a9c473622b741f3f5c1930efb241de7ee25fb038",
         "rule_sets": []
       },
       "data_as_of": "2026-10-09",
@@ -1306,9 +1324,12 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "placeholders": [
           "real_return",
           "safe_withdrawal_rate",
-          "surplus_invested"
+          "surplus_invested",
+          "drawdown_horizon"
         ],
-        "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+        "headline_status": "placeholder",
+        "headline": "Rests on placeholders for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+        "message": "Using placeholder assumptions for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
         "real_return": {
           "value": "0.04",
           "origin": "placeholder",
@@ -1335,6 +1356,11 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
           "note": null
         },
+        "drawdown_horizon": {
+          "years": 30,
+          "origin": "placeholder",
+          "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
+        },
         "real_returns": {
           "conservative": "0.02",
           "base": "0.04",
@@ -1347,12 +1373,13 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "real_return",
         "safe_withdrawal_rate",
         "surplus_invested",
+        "drawdown_horizon",
         "inflation"
       ],
       "versions": {
         "schema": "salli.scenario/1",
         "engine": "4",
-        "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
+        "fi_assumptions": "sha256:d88f80280a74ec5a04748ec1a9c473622b741f3f5c1930efb241de7ee25fb038",
         "rule_sets": []
       },
       "data_as_of": "2026-10-09",
@@ -2492,9 +2519,12 @@ export const TAXED_RUN: ScenarioRun = {
     "placeholders": [
       "real_return",
       "safe_withdrawal_rate",
-      "surplus_invested"
+      "surplus_invested",
+      "drawdown_horizon"
     ],
-    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "headline_status": "placeholder",
+    "headline": "Rests on placeholders for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.04",
       "origin": "placeholder",
@@ -2521,6 +2551,11 @@ export const TAXED_RUN: ScenarioRun = {
       "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
       "note": null
     },
+    "drawdown_horizon": {
+      "years": 30,
+      "origin": "placeholder",
+      "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -2533,13 +2568,14 @@ export const TAXED_RUN: ScenarioRun = {
     "real_return",
     "safe_withdrawal_rate",
     "surplus_invested",
+    "drawdown_horizon",
     "inflation",
     "tax_rules_carried_forward"
   ],
   "versions": {
     "schema": "salli.scenario/1",
     "engine": "4",
-    "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
+    "fi_assumptions": "sha256:d88f80280a74ec5a04748ec1a9c473622b741f3f5c1930efb241de7ee25fb038",
     "rule_sets": [
       {
         "country": "XA",
@@ -3065,9 +3101,12 @@ export const HOLDING_RUN: ScenarioRun = {
     "placeholders": [
       "real_return",
       "safe_withdrawal_rate",
-      "surplus_invested"
+      "surplus_invested",
+      "drawdown_horizon"
     ],
-    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "headline_status": "placeholder",
+    "headline": "Rests on placeholders for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.04",
       "origin": "placeholder",
@@ -3094,6 +3133,11 @@ export const HOLDING_RUN: ScenarioRun = {
       "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
       "note": null
     },
+    "drawdown_horizon": {
+      "years": 30,
+      "origin": "placeholder",
+      "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -3106,12 +3150,13 @@ export const HOLDING_RUN: ScenarioRun = {
     "real_return",
     "safe_withdrawal_rate",
     "surplus_invested",
+    "drawdown_horizon",
     "inflation"
   ],
   "versions": {
     "schema": "salli.scenario/1",
     "engine": "4",
-    "fi_assumptions": "sha256:3a8f1897c07b6cb1949226a49f1c205627bc5a5384bba8e6157017b387dace1a",
+    "fi_assumptions": "sha256:d88f80280a74ec5a04748ec1a9c473622b741f3f5c1930efb241de7ee25fb038",
     "rule_sets": [
       {
         "country": "XA",
@@ -3490,9 +3535,12 @@ export const ASSET_RUN: ScenarioRun = {
     "status": "placeholder",
     "placeholders": [
       "real_return",
-      "safe_withdrawal_rate"
+      "safe_withdrawal_rate",
+      "drawdown_horizon"
     ],
-    "message": "Using placeholder assumptions for the real return and the safe withdrawal rate: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "headline_status": "placeholder",
+    "headline": "Rests on placeholders for the real return, the safe withdrawal rate and the years drawn down: not a forecast.",
+    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.04",
       "origin": "placeholder",
@@ -3519,6 +3567,11 @@ export const ASSET_RUN: ScenarioRun = {
       "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
       "note": null
     },
+    "drawdown_horizon": {
+      "years": 30,
+      "origin": "placeholder",
+      "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -3530,13 +3583,14 @@ export const ASSET_RUN: ScenarioRun = {
   "placeholders": [
     "real_return",
     "safe_withdrawal_rate",
+    "drawdown_horizon",
     "inflation",
     "asset_growth"
   ],
   "versions": {
     "schema": "salli.scenario/1",
     "engine": "4",
-    "fi_assumptions": "sha256:692d46fb3494bad98b7e197d461942f87c20d3009801bfd9e4a6c9282e7b5039",
+    "fi_assumptions": "sha256:4b9cc81aa9c2e682334cd9a9201f98f23eef65f02366e3a5577d9b945650c366",
     "rule_sets": []
   },
   "data_as_of": "2031-06-25",

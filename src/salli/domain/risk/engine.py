@@ -8,6 +8,12 @@ items answered (0-100), then bucketed. The horizon, income stability and
 dependents are capacity (`capacity.py`), not tolerance; experience is
 recorded and never scored. The profile is the lower of tolerance and
 capacity, with need (the return a plan requires) beside it.
+
+The items follow the structure of Grable and Lytton's risk-tolerance scale
+(Financial Services Review 8(3), 1999), a published instrument free to use:
+items grouped in three factors (`FACTORS`), each scored and summed without
+weights. Salli's wording is its own, and experience, one of that scale's
+factors, is recorded and not scored. The weights and why: docs/risk.md.
 """
 
 from __future__ import annotations
@@ -25,6 +31,14 @@ ITEMS: dict[str, str] = {
     "self_rating": "How you see yourself with money: 1 very cautious, 5 very adventurous",
     "loss_focus": "After a decision, what you dwell on: 1 the possible loss, 5 the possible gain",
     "past_behaviour": "In a fall you lived through: 1 sold everything, 5 bought more",
+}
+
+
+#: The scale's three factors and the items in each.
+FACTORS: dict[str, tuple[str, ...]] = {
+    "investment_risk": ("drawdown_reaction", "loss_tolerance", "past_behaviour"),
+    "risk_comfort": ("certainty", "volatility_comfort", "self_rating"),
+    "speculative_risk": ("loss_focus",),
 }
 
 

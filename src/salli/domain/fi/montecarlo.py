@@ -48,7 +48,6 @@ from salli.domain.fi.returns import (
     DEFAULT_PATHS,
     DEFAULT_SEED,
     DEFAULT_SUCCESS,
-    DRAWDOWN_YEARS,
     ReturnSource,
     student_t,
 )
@@ -426,6 +425,8 @@ def plan_odds(
     return {
         "currency": currency,
         "as_of": baseline.as_of.isoformat(),
+        "headline_status": applied.headline_status,
+        "headline": applied.headline,
         "paths": odds.paths,
         "seed": odds.seed,
         "horizon_years": horizon_years,
@@ -448,7 +449,10 @@ def plan_odds(
             "origin": applied.safe_withdrawal_rate.origin,
             "applied_years": None
             if applied.safe_withdrawal_rate.origin == "user"
-            else DRAWDOWN_YEARS,
+            else applied.drawdown.years,
+            "applied_horizon": None
+            if applied.safe_withdrawal_rate.origin == "user"
+            else applied.drawdown.says,
             "horizon_derived": share(odds.horizon_rate),
             "years": odds.rate_years,
             "success_level": share(success_level),

@@ -52,6 +52,12 @@ export default function Independence() {
             <Text style={[styles.sub, { color: theme.tileMuted }]}>
               {t.at(wholeDigits(s.fi_number, s.currency), percentOf(String(s.swr)))}
             </Text>
+            {s.headline_status ? (
+              <Text accessibilityLabel={`${t.headline[s.headline_status]}. ${s.headline ?? ''}`} style={[styles.sub, { color: theme.tileMuted }]}>
+                {t.headline[s.headline_status]}
+                {s.headline ? ` · ${s.headline}` : ''}
+              </Text>
+            ) : null}
             <View accessible accessibilityLabel={t.progressSpoken(percentOf(s.progress_to_fi), s.overall_score)} style={{ gap: 6, marginTop: 4 }}>
               <View style={[styles.track, { backgroundColor: theme.tileMuted, opacity: 0.35 }]} />
               <View style={[styles.track, styles.fill, { width: `${progress * 100}%`, backgroundColor: theme.tileText }]} />

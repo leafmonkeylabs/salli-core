@@ -68,6 +68,7 @@ async def test_the_baseline_says_the_definitions_behind_every_figure(client, uow
         "real_return",
         "safe_withdrawal_rate",
         "surplus_invested",
+        "drawdown_horizon",
         "inflation",
     ]
     # The share of each month's regular surplus invested: the placeholder's

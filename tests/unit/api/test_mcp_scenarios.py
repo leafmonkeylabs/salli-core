@@ -95,6 +95,7 @@ async def test_a_scenario_runs_as_the_api_runs_it(services):
         "real_return",
         "safe_withdrawal_rate",
         "surplus_invested",
+        "drawdown_horizon",
         "inflation",
     ]
 

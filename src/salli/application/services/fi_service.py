@@ -302,6 +302,8 @@ class FiService:
         result["months_observed"] = len(baseline.flows.months)
         result["status"] = "not_enough_data" if score.grade == engine.NOT_ENOUGH_DATA else "ok"
         result["assumptions"] = assumptions_dict(applied)
+        result["headline_status"] = applied.headline_status
+        result["headline"] = applied.headline
         result["inputs_hash"] = self._inputs_hash(snapshot, applied, pack, outlook.month)
         return result
 
@@ -525,6 +527,8 @@ class FiService:
 
         return {
             "currency": currency,
+            "headline_status": applied.headline_status,
+            "headline": applied.headline,
             "as_of": baseline.as_of.isoformat(),
             # "real": every amount in today's money; "real_and_nominal": each
             # point also in its year's own money, from the user's inflation.

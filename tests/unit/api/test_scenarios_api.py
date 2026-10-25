@@ -97,6 +97,7 @@ async def test_a_scenario_runs_with_every_figure_against_the_baseline(client, uo
         "real_return",
         "safe_withdrawal_rate",
         "surplus_invested",
+        "drawdown_horizon",
         "inflation",
     ]
     assert body["assumptions"]["status"] == "placeholder"

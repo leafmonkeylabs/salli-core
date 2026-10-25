@@ -16,13 +16,15 @@ the mean.
 
 `sustained_rate` is the safe withdrawal rate the FI number uses when you set
 none: the highest constant real withdrawal a year, as a share of the pool,
-that `DEFAULT_SUCCESS` of `DEFAULT_PATHS` seeded paths sustain over
-`DRAWDOWN_YEARS` (yearly returns, the withdrawal at each year's end:
+that `DEFAULT_SUCCESS` of `DEFAULT_PATHS` seeded paths sustain over the
+person's own drawdown (`Drawdown`: from the FI month to their planning age;
+`DRAWDOWN_YEARS`, labelled, without a date of birth) (yearly returns, the withdrawal at each year's end:
 1 / Σₖ 1/Gₖ, Gₖ the growth to year k).
 """
 
 from __future__ import annotations
 
+import datetime as dt
 import functools
 import math
 import random
@@ -33,15 +35,59 @@ from typing import Literal
 DEFAULT_PATHS = 1000
 DEFAULT_SEED = 1
 DEFAULT_SUCCESS = Decimal("0.9")
-#: The years a derived withdrawal rate must last: part of the method, the
-#: span most writing on withdrawal rates tests, not anyone's lifespan.
+#: The years a derived withdrawal rate must last when there is no date of
+#: birth to count to a planning age from: a labelled placeholder, the span
+#: most writing on withdrawal rates tests, not anyone's lifespan.
 DRAWDOWN_YEARS = 30
+#: The planning age a drawdown runs to when the person set none: a labelled
+#: placeholder, not a life expectancy.
+PLANNING_AGE = 95
+#: The fewest years a derived rate is tested over.
+MIN_DRAWDOWN_YEARS = 5
 #: The range a derived rate is held to: the bounds of a rate you set.
 RATE_BOUNDS = (Decimal("0.01"), Decimal("0.10"))
 _TWELVE = Decimal(12)
 _FLOOR = Decimal("-0.95")
 
 Origin = Literal["user", "pack", "placeholder"]
+
+
+@dataclass(frozen=True)
+class Drawdown:
+    """The years a derived withdrawal rate must last, and why."""
+
+    years: int
+    origin: Literal["user", "placeholder"]
+    says: str
+
+
+#: Without a date of birth.
+NO_BIRTH = Drawdown(
+    DRAWDOWN_YEARS,
+    "placeholder",
+    f"Placeholder: {DRAWDOWN_YEARS} years drawn down, without a date of birth to count to a "
+    "planning age from. Set your date of birth and planning age to replace it.",
+)
+
+
+def drawdown(born: dt.date | None, planning_age: int | None, start: str) -> Drawdown:
+    """From `start` (\"YYYY-MM\", the FI month) to the planning age (the
+    person's, else the placeholder `PLANNING_AGE`), whole years rounded up."""
+    if born is None:
+        return NO_BIRTH
+    age = planning_age or PLANNING_AGE
+    months = (int(start[:4]) - born.year) * 12 + int(start[5:7]) - born.month
+    years = max(MIN_DRAWDOWN_YEARS, -(-(age * 12 - months) // 12))
+    if planning_age is not None:
+        return Drawdown(
+            years, "user", f"{years} years drawn down, from {start} to your planning age of {age}."
+        )
+    return Drawdown(
+        years,
+        "placeholder",
+        f"Placeholder: {years} years drawn down, from {start} to a planning age of {age}, not a "
+        "life expectancy. Set your own planning age to replace it.",
+    )
 
 
 @dataclass(frozen=True)
