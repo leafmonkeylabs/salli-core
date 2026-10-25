@@ -419,10 +419,18 @@ accounts whose `tax_role` is that role's key, dated within `year.start` to
   never guessed, when there is no rate); each total is then rounded to the
   currency's minor units.
 
+A role with the key `realised_gain` is filled from the user's holdings
+instead: each sale dated in the year adds the gain it realised in the base
+currency (proceeds less fees less the cost of the lots it consumed, first in
+first out unless lots were named, each at its own day's rate; a loss
+negative), so a rule set can tax capital gains like any other role. While an
+account carries `realised_gain` as its `tax_role`, the ledger's postings
+count instead, so a gain is never counted twice.
+
 Then the engine computes every line. Limits for now: an account counts
-towards one role (its `tax_role`); amounts come only from the ledger and the
-user's answers (no portfolio lots, so no capital gains yet); and conversion is
-always at each entry date's rate, never an annual average.
+towards one role (its `tax_role`); amounts come only from the ledger, the
+holdings' sales and the user's answers; and conversion is always at each
+entry date's rate, never an annual average.
 
 An account's `tax_role` must be a role one of the user's own rule sets
 declares now: in a version that matches the schema and hasn't been superseded
@@ -504,6 +512,33 @@ worksheet, ready to file; `reject` ends it; `edit` computes again (after the
 ledger is fixed, or with new `answers`) and comes back to review. Nobody
 edits a figure, and Salli files nothing. Rules without forms have no return
 to prepare (the computation is still stored).
+
+**What was filed.** Preparing a return files nothing, and the latest
+computation is not what was filed. A **return record** is: each version of a
+year's return, `draft`, `filed` (on `filed_on`, with the authority's
+`reference`) or `amended` (a filed return being corrected, with a required
+`reason`), made from a stored computation. It keeps the rule set version
+and its content hash, a snapshot of the computation as it stood and that
+snapshot's canonical-JSON hash (`domain/canonical.py`), and the payments
+made against it. Versions are numbered per jurisdiction and year; each
+supersedes the latest (`supersedes_id`), and after a filed one only an
+amendment may follow. Records and payments are append-only (core_0037's
+trigger, as the decision journal's; erasure excepted): nothing recorded
+changes.
+
+A filed year keeps its books closed. While a year's latest version is
+`filed` and the lock date covers the year's end, the lock date can't move
+before that end, nor be cleared (a 409): a correction is posted after the
+lock date. Recording an amendment, with its reason, lets the year open; the
+amended return, once filed, is recorded as a new `filed` version and closes
+it again.
+
+| | |
+|---|---|
+| `GET /tax/return-records` | Every version, newest year first (`?year=`), with its payments. `salli tax returns list`; MCP `list_tax_returns`. |
+| `POST /tax/return-records` | Record a version: `{computation_id, status, filed_on?, reference?, reason?}`. `salli tax returns record`. |
+| `GET /tax/return-records/{id}` | One version. `salli tax returns show`. |
+| `POST /tax/return-records/{id}/payments` | A payment against a filed or amended version: `{paid_on, amount, reference?}`, in its currency. `salli tax returns pay`. |
 
 **Filing reminders** are the active version's `deadlines`. Activating a
 version seeds them, and replaces the reminders of the version it supersedes:

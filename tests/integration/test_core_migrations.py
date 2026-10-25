@@ -58,8 +58,9 @@ def test_an_unbalanced_entry_cannot_commit(core_db):
         )
         conn.execute(
             text(
-                "insert into journal_entries (id, user_id, entry_date, description, source, created_at)"
-                " values ('e1', 'u1', current_date, 'x', 'manual', now())"
+                "insert into journal_entries (id, user_id, entry_date, description, source,"
+                " created_at, created_by, created_via, seq, hash)"
+                " values ('e1', 'u1', current_date, 'x', 'manual', now(), 'u1', 'sql', 1, 'x')"
             )
         )
         conn.execute(

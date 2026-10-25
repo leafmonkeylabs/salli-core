@@ -40,6 +40,8 @@ from salli.domain.baseline.models import Baseline
 from salli.domain.decisions import figures as figure_set
 from salli.domain.decisions import journal, review
 from salli.domain.decisions.templates import Answers, Built, Level, Template, answers_view
+from salli.domain.fi import montecarlo
+from salli.domain.fi.assumptions import real_return
 from salli.domain.scenarios import comparison, engine, views
 
 START_SCHEMA = "salli.decision-start/1"
@@ -148,6 +150,34 @@ def _placeholders(results: Sequence[engine.ScenarioResult], built: Built) -> lis
     return list(dict.fromkeys([*(p for r in results for p in r.placeholders), *built.placeholders]))
 
 
+def _odds_view(baseline: Baseline, debt_id: str, years: int) -> dict[str, Any] | None:
+    """How often investing beats paying down `debt_id` over `years`, under
+    the Monte Carlo: the debt's rate is certain, the return is not."""
+    debt = next((d for d in baseline.debts if d.debt_id == debt_id), None)
+    if debt is None:
+        return None
+    applied = baseline.assumptions
+    inflation = baseline.inflation
+    real_rate = debt.apr if inflation is None else real_return(debt.apr, inflation)
+    share = montecarlo.beats(
+        applied.real_return.value, applied.cma.volatility, years * 12, real_rate
+    )
+    return {
+        "debt": debt_id,
+        "debt_real_rate": f"{real_rate.quantize(Decimal('0.0001')).normalize():f}",
+        "months": years * 12,
+        "paths": montecarlo.DEFAULT_PATHS,
+        "seed": montecarlo.DEFAULT_SEED,
+        "invest_beats_paying_down": f"{share.normalize():f}" if share else "0",
+        "says": (
+            "The share of simulated return paths on which the money invested grows by more, "
+            f"over {years} years, than paying down the debt saves at its rate"
+            + (" (after your inflation)" if inflation is not None else " (inflation not set)")
+            + ". Paying down is certain; investing is not. Not a forecast."
+        ),
+    }
+
+
 def start(
     baseline: Baseline,
     template: Template,
@@ -224,6 +254,9 @@ def start(
             compared.horizon_years,
             [(label, done.outlook) for label, done, _ in evaluated],
         ),
+        "odds": None
+        if built.odds_against_debt is None
+        else _odds_view(baseline, built.odds_against_debt, compared.horizon_years),
         "placeholders": _placeholders(compared.options, built),
         "data_as_of": first.data_as_of,
         "is_stale": first.is_stale,

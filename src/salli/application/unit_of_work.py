@@ -18,8 +18,11 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from salli.adapters.db.access_grants import SQLAccessGrantRepository
+from salli.adapters.db.cma_packs import SQLCmaPackRepository
 from salli.adapters.db.decisions import SQLDecisionRepository, SQLPrincipleRepository
 from salli.adapters.db.notifications import SQLNotificationRepository
+from salli.adapters.db.reconciliations import SQLReconciliationRepository
 from salli.adapters.db.repositories import (
     SQLAdvisoryRepository,
     SQLAgentDocumentRepository,
@@ -53,8 +56,10 @@ from salli.adapters.db.repositories import (
     SQLUserProfileRepository,
 )
 from salli.adapters.db.tax_computations import SQLTaxComputationRepository
+from salli.adapters.db.tax_returns import SQLTaxReturnRepository
 from salli.adapters.db.tax_rule_sets import SQLTaxRuleSetRepository
 from salli.application.ports import (
+    AccessGrantRepository,
     AdvisoryRepository,
     AgentDocumentRepository,
     AgentSessionRepository,
@@ -62,6 +67,7 @@ from salli.application.ports import (
     AuditLogRepository,
     BankConnectionRepository,
     BudgetRepository,
+    CmaPackRepository,
     DataPortabilityRepository,
     DebtRepository,
     DecisionRepository,
@@ -83,11 +89,13 @@ from salli.application.ports import (
     PolicyRepository,
     PortfolioRepository,
     PrincipleRepository,
+    ReconciliationRepository,
     RecurringSubscriptionRepository,
     ReminderRepository,
     RuleRepository,
     StatementRepository,
     TaxComputationRepository,
+    TaxReturnRepository,
     TaxRuleSetRepository,
     UserProfileRepository,
 )
@@ -115,8 +123,11 @@ pending_audit: ContextVar[AuditRecord | None] = ContextVar("pending_audit", defa
 class UnitOfWork:
     ledger: LedgerRepository
     tax_computations: TaxComputationRepository
+    tax_returns: TaxReturnRepository
     tax_rule_sets: TaxRuleSetRepository
+    cma_packs: CmaPackRepository
     statements: StatementRepository
+    reconciliations: ReconciliationRepository
     reminders: ReminderRepository
     agent_documents: AgentDocumentRepository
     agent_sessions: AgentSessionRepository
@@ -142,6 +153,7 @@ class UnitOfWork:
     ai_connections: AiConnectionRepository
     instance_settings: InstanceSettingsRepository
     personal_access_tokens: PersonalAccessTokenRepository
+    access_grants: AccessGrantRepository
     logins: LoginRepository
     rules: RuleRepository
     bank_connections: BankConnectionRepository
@@ -162,8 +174,11 @@ class UnitOfWork:
         self._session = self._factory()
         self.ledger = SQLLedgerRepository(self._session)
         self.tax_computations = SQLTaxComputationRepository(self._session)
+        self.tax_returns = SQLTaxReturnRepository(self._session)
         self.tax_rule_sets = SQLTaxRuleSetRepository(self._session)
+        self.cma_packs = SQLCmaPackRepository(self._session)
         self.statements = SQLStatementRepository(self._session)
+        self.reconciliations = SQLReconciliationRepository(self._session)
         self.reminders = SQLReminderRepository(self._session)
         self.agent_documents = SQLAgentDocumentRepository(self._session)
         self.agent_sessions = SQLAgentSessionRepository(self._session)
@@ -189,6 +204,7 @@ class UnitOfWork:
         self.ai_connections = SQLAiConnectionRepository(self._session)
         self.instance_settings = SQLInstanceSettingsRepository(self._session)
         self.personal_access_tokens = SQLPersonalAccessTokenRepository(self._session)
+        self.access_grants = SQLAccessGrantRepository(self._session)
         self.logins = SQLLoginRepository(self._session)
         self.rules = SQLRuleRepository(self._session)
         self.bank_connections = SQLBankConnectionRepository(self._session)

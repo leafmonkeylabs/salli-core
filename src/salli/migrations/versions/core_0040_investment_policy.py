@@ -12,8 +12,8 @@ Additive and safe on existing data:
 - `user_profiles.risk_horizon_years` keeps the questionnaire's horizon for
   the risk capacity measure; NULL until it is answered again.
 
-Revision ID: core_0037_investment_policy
-Revises: core_0032_account_freeze
+Revision ID: core_0040_investment_policy
+Revises: core_0039_cma_packs
 Create Date: 2026-10-25
 """
 
@@ -23,8 +23,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "core_0037_investment_policy"
-down_revision: str | None = "core_0032_account_freeze"
+revision: str = "core_0040_investment_policy"
+down_revision: str | None = "core_0039_cma_packs"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -499,8 +499,9 @@ class RiskFigures(BaseModel):
     sharpe: DecimalOut | None
     #: The yearly return the Sharpe ratio is measured against.
     hurdle: DecimalOut | None
-    #: "cash_yield" (given) or "benchmark" (its yearly return); null: none.
-    hurdle_source: Literal["cash_yield", "benchmark"] | None
+    #: "cash_yield" (given), "benchmark" (its yearly return) or "cma_pack"
+    #: (the active pack's cash yield); null: none.
+    hurdle_source: Literal["cash_yield", "benchmark", "cma_pack"] | None
     benchmark: BenchmarkFigures | None
 
 

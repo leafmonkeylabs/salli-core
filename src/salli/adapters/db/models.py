@@ -25,10 +25,17 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    column_property,
+    mapped_column,
+    relationship,
+)
 
 
 def _uuid() -> str:
@@ -68,12 +75,26 @@ class AccountORM(Base):
     # (`domain.accounting.models.AssetRole`). Every asset account has one;
     # no other account does.
     asset_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # An equity account's role (`domain.accounting.models.EquityRole`): only
+    # `retained_earnings`, on at most one account of a user's.
+    equity_role: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
 
     __table_args__ = (
         UniqueConstraint("user_id", "code", name="uq_accounts_user_code"),
+        CheckConstraint(
+            "equity_role IS NULL OR (type = 'equity' AND equity_role = 'retained_earnings')",
+            name="ck_accounts_equity_role",
+        ),
+        Index(
+            "uq_accounts_user_equity_role",
+            "user_id",
+            "equity_role",
+            unique=True,
+            postgresql_where=text("equity_role IS NOT NULL"),
+        ),
         CheckConstraint(
             "type IN ('asset','liability','equity','income','expense')",
             name="ck_accounts_type",
@@ -105,9 +126,19 @@ class JournalEntryORM(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(String(20), nullable=False)
     external_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    reversed_by: Mapped[str | None] = mapped_column(
+    # For a reversal: the entry it reverses (once: a unique index). The
+    # original's `reversed_by` is read from here, never written on it.
+    reverses_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("journal_entries.id"), nullable=True
     )
+    # Who posted it: the signed-in person, and how they came in.
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_via: Mapped[str] = mapped_column(String(120), nullable=False)
+    # The user's hash chain (domain/accounting/chain.py): its place, the
+    # previous entry's hash and its own.
+    seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    prev_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    hash: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -118,8 +149,15 @@ class JournalEntryORM(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "source IN ('manual','statement','sms','system','reversal')",
+            "source IN ('manual','statement','sms','system','reversal','year_end_close')",
             name="ck_journal_entries_source",
+        ),
+        UniqueConstraint("user_id", "seq", name="uq_journal_entries_user_seq"),
+        Index(
+            "uq_journal_entries_reverses",
+            "reverses_id",
+            unique=True,
+            postgresql_where=text("reverses_id IS NOT NULL"),
         ),
         Index("ix_journal_entries_user_date", "user_id", "entry_date"),
         # A client_ref books once, even sent twice at the same time
@@ -132,6 +170,15 @@ class JournalEntryORM(Base):
             postgresql_where=text("source = 'manual' AND external_ref LIKE 'client-ref:%'"),
         ),
     )
+
+
+_reversal = JournalEntryORM.__table__.alias("reversal")
+JournalEntryORM.reversed_by = column_property(  # type: ignore[attr-defined]
+    select(_reversal.c.id)
+    .where(_reversal.c.reverses_id == JournalEntryORM.id)
+    .correlate_except(_reversal)
+    .scalar_subquery()
+)
 
 
 class PostingORM(Base):
@@ -153,6 +200,11 @@ class PostingORM(Base):
     # Base-currency amount, in the base currency's minor units; the balance
     # trigger checks these sum to zero per entry. Nothing reads them back.
     base_amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # Matched to a bank statement's line (reconciliation). The one column a
+    # posting in closed books may still change (core_0038).
+    cleared: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     entry: Mapped[JournalEntryORM] = relationship("JournalEntryORM", back_populates="postings")
     tag_links: Mapped[list[PostingTagORM]] = relationship(
@@ -243,6 +295,13 @@ class StatementORM(Base):
     )
     period_start: Mapped[str | None] = mapped_column(String(10), nullable=True)
     period_end: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # The account's balance at the start and end of the period as the bank
+    # states it, in the account's currency's minor units and its normal
+    # direction (held for an asset, owed for a liability): what a
+    # reconciliation checks the cleared postings against. Null when the
+    # import carried none.
+    opening_balance_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    closing_balance_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -280,6 +339,32 @@ class ParsedTransactionORM(Base):
         Index("ix_parsed_transactions_statement_id", "statement_id"),
         # What every import searches its history by: the row's date.
         Index("ix_parsed_transactions_date", text("(extracted_json ->> 'date')")),
+    )
+
+
+class ReconciliationORM(Base):
+    """A statement reconciled: its cleared postings add up to the bank's
+    closing balance. Recorded only once the difference is zero."""
+
+    __tablename__ = "reconciliations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    statement_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("statements.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    # The opening balance plus the cleared postings in the period, in the
+    # account's currency's minor units; and the closing balance less that.
+    cleared_total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    difference_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # Who completed it: "user", or the client that did ("mcp:<client id>").
+    completed_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint("difference_minor = 0", name="ck_reconciliations_difference"),
     )
 
 
@@ -354,10 +439,126 @@ class TaxComputationORM(Base):
     )
 
 
+# ── Capital-market assumptions (user data: docs/baseline.md) ────────────────
+
+
+class CmaPackORM(Base):
+    """A `salli.cma/1` pack a user (or their agent) imported: its document
+    never changes once written (an edit is a new import), and at most one
+    of a user's packs is active (the partial unique index)."""
+
+    __tablename__ = "cma_packs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(500), nullable=False)
+    version: Mapped[str] = mapped_column(String(500), nullable=False)
+    content: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "content_hash", name="uq_cma_packs_user_hash"),
+        Index(
+            "uq_cma_packs_one_active",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_active"),
+        ),
+    )
+
+
 # ── Tax rule sets (user data: docs/taxrules.md) ───────────────────────────────
 
 #: A version's lifecycle (application/services/tax_rule_service.py).
 RULE_SET_STATUSES = ("draft", "validated", "proposed", "active", "superseded", "invalid")
+
+
+class TaxReturnORM(Base):
+    """One version of a user's return for a jurisdiction and tax year
+    (docs/taxrules.md, "Returns"): a draft, what was filed, or an amendment.
+    It keeps a snapshot of the computation it was made from, with that
+    snapshot's canonical-JSON hash, so what was filed is kept whatever is
+    computed later. Append-only (core_0037's trigger): a later version
+    supersedes one before it (`supersedes_id`) and an amendment says why
+    (`reason`)."""
+
+    __tablename__ = "tax_returns"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    country: Mapped[str] = mapped_column(String(2), nullable=False)
+    region: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    year: Mapped[str] = mapped_column(String(32), nullable=False)
+    period_start: Mapped[date] = mapped_column(Date, nullable=False)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False)
+    supersedes_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("tax_returns.id"), nullable=True
+    )
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    computation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("tax_computations.id"), nullable=False
+    )
+    rule_set_version_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    snapshot_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    # The authority's reference for what was filed, and the day it was.
+    reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    filed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','filed','amended')", name="ck_tax_returns_status"),
+        CheckConstraint(
+            "status <> 'filed' OR filed_on IS NOT NULL", name="ck_tax_returns_filed_on"
+        ),
+        CheckConstraint(
+            "status <> 'amended' OR (reason IS NOT NULL AND supersedes_id IS NOT NULL)",
+            name="ck_tax_returns_amendment",
+        ),
+        # One line of versions a year: each supersedes one, once.
+        UniqueConstraint("supersedes_id", name="uq_tax_returns_supersedes"),
+        Index(
+            "uq_tax_returns_year_version",
+            "user_id",
+            "country",
+            text("coalesce(region, '')"),
+            "year",
+            "version",
+            unique=True,
+        ),
+    )
+
+
+class TaxReturnPaymentORM(Base):
+    """A payment made against a return version, in the computation's
+    currency. Append-only, like the returns."""
+
+    __tablename__ = "tax_return_payments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    return_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("tax_returns.id"), nullable=False, index=True
+    )
+    paid_on: Mapped[date] = mapped_column(Date, nullable=False)
+    amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (CheckConstraint("amount_minor > 0", name="ck_tax_return_payments_amount"),)
 
 
 class TaxRuleSetORM(Base):
@@ -519,6 +720,10 @@ class AgentDocumentORM(Base):
     # Named key for memories (unique per user+namespace)
     slug: Mapped[str | None] = mapped_column(String(200), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Kept until this day: not deleted before it. Set when it is saved from
+    # the person's retention period (`user_profiles.document_retention_years`);
+    # null when they chose none.
+    retain_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -875,6 +1080,11 @@ class UserProfileORM(Base):
     fi_assumptions: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
+    # Their guaranteed income and spending phases (domain/fi/plan.py):
+    # {"income_streams": [...], "spending_phases": [...]}.
+    fi_plan: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     # Where the person lives in time: an IANA name ("Europe/Lisbon"), or NULL
     # while they have not said. Their digest goes at their local hour, so
     # turning it on needs one (domain/notifications/schedule.py).
@@ -882,6 +1092,13 @@ class UserProfileORM(Base):
     # The books are closed up to and including this day: no entry is added on
     # or before it (core_0025's trigger). NULL while none are closed.
     lock_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # The day the books start: opening balances are posted on it, and a
+    # report for a time before it says the books don't cover it. NULL until
+    # opening balances are declared or the person sets it.
+    books_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # How many years a document is kept from the day it is saved
+    # (`agent_documents.retain_until`); NULL: no retention period.
+    document_retention_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -1247,7 +1464,7 @@ class HoldingORM(Base):
         String(36), ForeignKey("accounts.id"), nullable=True
     )
     # How its sales pick their lots: fifo or average; NULL, the active tax
-    # rule set's `cost_basis`, else fifo (core_0037).
+    # rule set's `cost_basis`, else fifo (core_0040).
     cost_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # The user's figure for its yearly running cost, a fraction of its value.
     expense_ratio: Mapped[Decimal | None] = mapped_column(Numeric(10, 6), nullable=True)
@@ -1271,7 +1488,7 @@ class HoldingORM(Base):
 
 class InvestmentPolicyORM(Base):
     """One version of a user's investment policy statement
-    (domain/portfolio/policy.py): added, never updated (core_0037)."""
+    (domain/portfolio/policy.py): added, never updated (core_0040)."""
 
     __tablename__ = "investment_policies"
 
@@ -1687,6 +1904,33 @@ class OAuthDeviceCodeORM(Base):
         CheckConstraint(
             "status IN ('pending','approved','denied','consumed')",
             name="ck_oauth_device_codes_status",
+        ),
+    )
+
+
+class AccessGrantORM(Base):
+    """One member letting another member of the same server read their
+    books, until either of them revokes it (`revoked_at`). Read only: the
+    grantee's requests on the grantor's books are reads (deps.get_current_user)."""
+
+    __tablename__ = "access_grants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    grantor_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    grantee_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("grantor_id <> grantee_id", name="ck_access_grants_not_self"),
+        Index(
+            "uq_access_grants_live_pair",
+            "grantor_id",
+            "grantee_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
         ),
     )
 

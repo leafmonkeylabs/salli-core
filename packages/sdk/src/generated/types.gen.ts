@@ -5,6 +5,42 @@ export type ClientOptions = {
 };
 
 /**
+ * AccessGrant
+ */
+export type AccessGrant = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Member Id
+     */
+    member_id: string;
+    /**
+     * Member Email
+     */
+    member_email: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * AccessGrants
+ */
+export type AccessGrants = {
+    /**
+     * Given
+     */
+    given: Array<AccessGrant>;
+    /**
+     * Received
+     */
+    received: Array<AccessGrant>;
+};
+
+/**
  * Account
  */
 export type Account = {
@@ -46,6 +82,10 @@ export type Account = {
      * Asset Role
      */
     asset_role?: 'cash' | 'savings' | 'investment' | 'other' | null;
+    /**
+     * Equity Role
+     */
+    equity_role?: 'retained_earnings' | null;
 };
 
 /**
@@ -81,7 +121,7 @@ export type AccountActivity = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
     /**
      * External Ref
      */
@@ -375,6 +415,10 @@ export type AgentDocument = {
      * Description
      */
     description: string | null;
+    /**
+     * Retain Until
+     */
+    retain_until?: string | null;
     /**
      * Created At
      */
@@ -869,6 +913,11 @@ export type BalanceSheet = {
      * Decimal string in the currency's own precision; never a float.
      */
     net_worth: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    unrealised_fx: UnrealisedFx;
     /**
      * Notes
      */
@@ -2169,6 +2218,39 @@ export type CategorizedTransactions = {
 };
 
 /**
+ * ChainBreak
+ */
+export type ChainBreak = {
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Entry Id
+     */
+    entry_id: string;
+    /**
+     * Reason
+     */
+    reason: 'missing' | 'link' | 'content';
+};
+
+/**
+ * ChainCheck
+ */
+export type ChainCheck = {
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * Checked
+     */
+    checked: number;
+    first_break: ChainBreak | null;
+};
+
+/**
  * ChangePasswordRequest
  */
 export type ChangePasswordRequest = {
@@ -2552,6 +2634,156 @@ export type CheckedOption = {
      * Scenario Hash
      */
     scenario_hash: string;
+};
+
+/**
+ * ClearRequest
+ */
+export type ClearRequest = {
+    /**
+     * Posting Ids
+     */
+    posting_ids: Array<string>;
+    /**
+     * Cleared
+     */
+    cleared?: boolean;
+};
+
+/**
+ * CmaActivate
+ */
+export type CmaActivate = {
+    /**
+     * Pack Id
+     */
+    pack_id: string | null;
+};
+
+/**
+ * CmaPack
+ */
+export type CmaPack = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Activated At
+     */
+    activated_at?: string | null;
+    summary: CmaSummary;
+    /**
+     * Content
+     */
+    content: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * CmaPackList
+ */
+export type CmaPackList = {
+    /**
+     * Packs
+     */
+    packs: Array<CmaPackRow>;
+    placeholder: CmaSummary;
+};
+
+/**
+ * CmaPackRow
+ */
+export type CmaPackRow = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Activated At
+     */
+    activated_at?: string | null;
+};
+
+/**
+ * CmaSummary
+ *
+ * A capital-market assumptions pack's figures, as projections use them.
+ */
+export type CmaSummary = {
+    /**
+     * Id
+     */
+    id?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Placeholder
+     */
+    placeholder: boolean;
+    /**
+     * Expected Real Return
+     */
+    expected_real_return: string;
+    /**
+     * Volatility
+     */
+    volatility: string;
+    /**
+     * Cash Yield
+     */
+    cash_yield: string;
+    /**
+     * Inflation
+     */
+    inflation?: string | null;
 };
 
 /**
@@ -2991,6 +3223,15 @@ export type DataExport = {
      * the rule set version that computed it, its inputs and every line.
      */
     tax_computations?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Tax Returns
+     *
+     * Every version of every return, as `tax.returnRecords.list` shows one:
+     * its status, filing, snapshot and payments.
+     */
+    tax_returns?: Array<{
         [key: string]: unknown;
     }>;
     /**
@@ -3808,6 +4049,7 @@ export type DecisionStart = {
     principles: StartPrinciples;
     cover: CoverReading | null;
     level: LevelReading | null;
+    odds?: StartOdds | null;
     /**
      * Placeholders
      */
@@ -4285,6 +4527,10 @@ export type DraftTransaction = {
      * Currency
      */
     currency?: string | null;
+    /**
+     * Base Amount
+     */
+    base_amount?: string | null;
 };
 
 /**
@@ -4499,7 +4745,7 @@ export type EntryProvenance = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
     /**
      * External Ref
      */
@@ -4709,6 +4955,10 @@ export type ExportedAccount = {
      * Tax Role
      */
     tax_role?: string | null;
+    /**
+     * Equity Role
+     */
+    equity_role?: 'retained_earnings' | null;
 };
 
 /**
@@ -4748,15 +4998,35 @@ export type ExportedJournalEntry = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
     /**
      * External Ref
      */
     external_ref: string | null;
     /**
+     * Reverses
+     */
+    reverses?: string | null;
+    /**
      * Reversed By
      */
     reversed_by: string | null;
+    /**
+     * Created By
+     */
+    created_by?: string | null;
+    /**
+     * Created Via
+     */
+    created_via?: string | null;
+    /**
+     * Seq
+     */
+    seq?: number | null;
+    /**
+     * Hash
+     */
+    hash?: string | null;
     /**
      * Postings
      */
@@ -4909,6 +5179,7 @@ export type FiAssumptions = {
     nominal_return?: FiAssumption | null;
     real_returns: FiScenarioReturns;
     nominal_returns?: FiScenarioReturns | null;
+    cma?: CmaSummary | null;
 };
 
 /**
@@ -4993,6 +5264,83 @@ export type FiNominalPoint = {
 };
 
 /**
+ * FiOdds
+ *
+ * The odds of the plan, from a seeded Monte Carlo on the baseline's
+ * monthly timeline, in today's money. Shares are fractions. Not a forecast.
+ */
+export type FiOdds = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Paths
+     */
+    paths: number;
+    /**
+     * Seed
+     */
+    seed: number;
+    /**
+     * Horizon Years
+     */
+    horizon_years: number;
+    /**
+     * Real Return
+     */
+    real_return: string;
+    /**
+     * Volatility
+     */
+    volatility: string;
+    cma: CmaSummary;
+    /**
+     * Fi Number
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    fi_number: string;
+    /**
+     * Fi Month
+     */
+    fi_month?: string | null;
+    /**
+     * Retire Month
+     */
+    retire_month?: string | null;
+    /**
+     * Success
+     */
+    success?: string | null;
+    /**
+     * Reach
+     */
+    reach: string;
+    withdrawal_rate: OddsWithdrawalRate;
+    guardrails?: OddsGuardrails | null;
+    /**
+     * Percentiles
+     */
+    percentiles: Array<OddsYear>;
+    withdrawal_tax: WithdrawalTax;
+    /**
+     * Placeholders
+     */
+    placeholders: Array<string>;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
  * FiOwnAssumption
  *
  * A planning assumption the user (or their agent) set.
@@ -5072,6 +5420,41 @@ export type FiPlaceholderValues = {
     real_return: FiPlaceholder;
     safe_withdrawal_rate: FiPlaceholder;
     surplus_invested: FiPlaceholder;
+};
+
+/**
+ * FiPlan
+ *
+ * Guaranteed income and spending phases: they reduce, and step, the FI
+ * number, and the income enters the monthly timeline.
+ */
+export type FiPlan = {
+    /**
+     * Income Streams
+     */
+    income_streams: Array<IncomeStreamOut>;
+    /**
+     * Spending Phases
+     */
+    spending_phases: Array<SpendingPhaseOut>;
+    /**
+     * Date Of Birth
+     */
+    date_of_birth?: string | null;
+};
+
+/**
+ * FiPlanIn
+ */
+export type FiPlanIn = {
+    /**
+     * Income Streams
+     */
+    income_streams?: Array<IncomeStream>;
+    /**
+     * Spending Phases
+     */
+    spending_phases?: Array<SpendingPhase>;
 };
 
 /**
@@ -5437,6 +5820,26 @@ export type ForecastDay = {
 };
 
 /**
+ * FxRevaluationPosted
+ */
+export type FxRevaluationPosted = {
+    /**
+     * Entry Id
+     */
+    entry_id: string | null;
+};
+
+/**
+ * FxRevaluationRequest
+ */
+export type FxRevaluationRequest = {
+    /**
+     * As Of
+     */
+    as_of: string;
+};
+
+/**
  * Goal
  *
  * A savings goal, its progress measured from what its accounts actually hold.
@@ -5644,6 +6047,16 @@ export type GoalsRequest = {
      * Goals
      */
     goals: Array<OnboardingGoalItem>;
+};
+
+/**
+ * GrantAccessRequest
+ */
+export type GrantAccessRequest = {
+    /**
+     * Email
+     */
+    email: string;
 };
 
 /**
@@ -6434,6 +6847,14 @@ export type IncomeStatement = {
      * Lines
      */
     lines: Array<IncomeStatementLine>;
+    /**
+     * Unrealised Fx
+     */
+    unrealised_fx?: string | null;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
 };
 
 /**
@@ -6466,6 +6887,80 @@ export type IncomeStatementLine = {
      * Is Active
      */
     is_active: boolean;
+};
+
+/**
+ * IncomeStream
+ *
+ * A guaranteed income: a pension, an annuity, a provident fund's payout.
+ */
+export type IncomeStream = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * Monthly
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    monthly: string;
+    /**
+     * Terms
+     */
+    terms?: 'real' | 'nominal';
+    /**
+     * Indexed
+     */
+    indexed?: boolean;
+    /**
+     * Lump Sum
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    lump_sum?: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+};
+
+/**
+ * IncomeStreamOut
+ */
+export type IncomeStreamOut = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * Monthly
+     */
+    monthly: string;
+    /**
+     * Terms
+     */
+    terms: 'real' | 'nominal';
+    /**
+     * Indexed
+     */
+    indexed: boolean;
+    /**
+     * Lump Sum
+     */
+    lump_sum: string;
+    /**
+     * Source
+     */
+    source?: string | null;
 };
 
 /**
@@ -6771,7 +7266,7 @@ export type JournalEntry = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal' | 'year_end_close';
     /**
      * External Ref
      */
@@ -6780,6 +7275,26 @@ export type JournalEntry = {
      * Reversed By
      */
     reversed_by: string | null;
+    /**
+     * Reverses
+     */
+    reverses?: string | null;
+    /**
+     * Created By
+     */
+    created_by?: string | null;
+    /**
+     * Created Via
+     */
+    created_via?: string | null;
+    /**
+     * Seq
+     */
+    seq?: number | null;
+    /**
+     * Hash
+     */
+    hash?: string | null;
     /**
      * Postings
      */
@@ -7577,6 +8092,88 @@ export type OAuthInfo = {
      * Mobile Redirect Uri
      */
     mobile_redirect_uri: string;
+};
+
+/**
+ * OddsGuardrails
+ */
+export type OddsGuardrails = {
+    /**
+     * Band
+     */
+    band: string;
+    /**
+     * Adjust
+     */
+    adjust: string;
+    /**
+     * Success
+     */
+    success: string;
+    /**
+     * Cut
+     */
+    cut: string;
+    /**
+     * Low Spending P10
+     */
+    low_spending_p10: string;
+};
+
+/**
+ * OddsWithdrawalRate
+ */
+export type OddsWithdrawalRate = {
+    /**
+     * Applied
+     */
+    applied: string;
+    /**
+     * Origin
+     */
+    origin: 'user' | 'placeholder';
+    /**
+     * Horizon Derived
+     */
+    horizon_derived: string;
+    /**
+     * Years
+     */
+    years: number;
+    /**
+     * Success Level
+     */
+    success_level: string;
+};
+
+/**
+ * OddsYear
+ *
+ * The asset base across paths at a whole year, in today's money.
+ */
+export type OddsYear = {
+    /**
+     * Year
+     */
+    year: number;
+    /**
+     * P10
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    p10: string;
+    /**
+     * P50
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    p50: string;
+    /**
+     * P90
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    p90: string;
 };
 
 /**
@@ -8765,6 +9362,14 @@ export type Profile = {
      * Lock Date
      */
     lock_date?: string | null;
+    /**
+     * Books Start
+     */
+    books_start?: string | null;
+    /**
+     * Document Retention Years
+     */
+    document_retention_years?: number | null;
 };
 
 /**
@@ -8811,6 +9416,14 @@ export type ProfileIdentityRequest = {
      * Base Currency
      */
     base_currency?: string | null;
+    /**
+     * Books Start
+     */
+    books_start?: string | null;
+    /**
+     * Document Retention Years
+     */
+    document_retention_years?: number | null;
 };
 
 /**
@@ -9016,6 +9629,182 @@ export type RebalancingRule = {
      * Every Months
      */
     every_months?: number | null;
+};
+
+/**
+ * ReconcilableStatement
+ */
+export type ReconcilableStatement = {
+    /**
+     * Statement Id
+     */
+    statement_id: string;
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Account Name
+     */
+    account_name: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Opening Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    opening_balance: string;
+    /**
+     * Closing Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    closing_balance: string;
+    reconciliation: Reconciliation | null;
+};
+
+/**
+ * ReconcilableStatementList
+ */
+export type ReconcilableStatementList = {
+    /**
+     * Statements
+     */
+    statements: Array<ReconcilableStatement>;
+};
+
+/**
+ * Reconciliation
+ *
+ * A completed reconciliation: recorded only at a difference of zero.
+ */
+export type Reconciliation = {
+    /**
+     * Cleared Total
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cleared_total: string;
+    /**
+     * Difference
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    difference: string;
+    /**
+     * Completed By
+     */
+    completed_by: string;
+    /**
+     * Completed At
+     */
+    completed_at: string;
+};
+
+/**
+ * ReconciliationStatus
+ */
+export type ReconciliationStatus = {
+    /**
+     * Statement Id
+     */
+    statement_id: string;
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Account Name
+     */
+    account_name: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Opening Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    opening_balance: string;
+    /**
+     * Closing Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    closing_balance: string;
+    reconciliation: Reconciliation | null;
+    /**
+     * Cleared Total
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cleared_total: string;
+    /**
+     * Difference
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    difference: string;
+    /**
+     * Postings
+     */
+    postings: Array<ReconcilingPosting>;
+};
+
+/**
+ * ReconcilingPosting
+ */
+export type ReconcilingPosting = {
+    /**
+     * Posting Id
+     */
+    posting_id: string;
+    /**
+     * Entry Id
+     */
+    entry_id: string;
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Cleared
+     */
+    cleared: boolean;
 };
 
 /**
@@ -9322,6 +10111,16 @@ export type ResumeRequest = {
 };
 
 /**
+ * RetainedEarningsRequest
+ */
+export type RetainedEarningsRequest = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+};
+
+/**
  * ReverseEntryRequest
  */
 export type ReverseEntryRequest = {
@@ -9500,7 +10299,7 @@ export type RiskFigures = {
     /**
      * Hurdle Source
      */
-    hurdle_source: 'cash_yield' | 'benchmark' | null;
+    hurdle_source: 'cash_yield' | 'benchmark' | 'cma_pack' | null;
     benchmark: BenchmarkFigures | null;
 };
 
@@ -11140,6 +11939,96 @@ export type SpendingLine = {
 };
 
 /**
+ * SpendingPhase
+ *
+ * The monthly spending to live on, in today's money, from an age on.
+ */
+export type SpendingPhase = {
+    /**
+     * From Age
+     */
+    from_age: number;
+    /**
+     * Monthly
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    monthly: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+};
+
+/**
+ * SpendingPhaseOut
+ */
+export type SpendingPhaseOut = {
+    /**
+     * From Age
+     */
+    from_age: number;
+    /**
+     * Monthly
+     */
+    monthly: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+};
+
+/**
+ * SplitPart
+ *
+ * One part of a transaction that was for several things.
+ */
+export type SplitPartInput = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    amount: string;
+    /**
+     * Category
+     */
+    category?: string;
+    /**
+     * Need
+     */
+    need?: 'essential' | 'discretionary' | 'savings' | '';
+};
+
+/**
+ * SplitPart
+ *
+ * One part of a transaction that was for several things.
+ */
+export type SplitPartOutput = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Amount
+     */
+    amount: string;
+    /**
+     * Category
+     */
+    category?: string;
+    /**
+     * Need
+     */
+    need?: 'essential' | 'discretionary' | 'savings' | '';
+};
+
+/**
  * StartAnswer
  */
 export type StartAnswer = {
@@ -11159,6 +12048,43 @@ export type StartAnswer = {
      * Note
      */
     note: string | null;
+};
+
+/**
+ * StartOdds
+ *
+ * For debt or invest: how often investing grows by more than paying
+ * down the debt saves, under the Monte Carlo. A share, not a forecast.
+ */
+export type StartOdds = {
+    /**
+     * Debt
+     */
+    debt: string;
+    /**
+     * Debt Real Rate
+     */
+    debt_real_rate: string;
+    /**
+     * Months
+     */
+    months: number;
+    /**
+     * Paths
+     */
+    paths: number;
+    /**
+     * Seed
+     */
+    seed: number;
+    /**
+     * Invest Beats Paying Down
+     */
+    invest_beats_paying_down: string;
+    /**
+     * Says
+     */
+    says: string;
 };
 
 /**
@@ -11234,6 +12160,40 @@ export type StartTemplate = {
      * Title
      */
     title: string;
+};
+
+/**
+ * StatementBalancesRequest
+ */
+export type StatementBalancesRequest = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Opening Balance
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    opening_balance: string;
+    /**
+     * Closing Balance
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    closing_balance: string;
+    /**
+     * Bank
+     */
+    bank?: string;
 };
 
 /**
@@ -11314,6 +12274,14 @@ export type StatementTransaction = {
      * Duplicate Of
      */
     duplicate_of: string | null;
+    /**
+     * Base Amount
+     */
+    base_amount?: string | null;
+    /**
+     * Splits
+     */
+    splits?: Array<SplitPartOutput>;
 };
 
 /**
@@ -12233,6 +13201,56 @@ export type TaxReturnDraft = {
 };
 
 /**
+ * TaxReturnPayment
+ */
+export type TaxReturnPayment = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Paid On
+     */
+    paid_on: string;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Reference
+     */
+    reference: string | null;
+};
+
+/**
+ * TaxReturnPaymentIn
+ */
+export type TaxReturnPaymentIn = {
+    /**
+     * Paid On
+     */
+    paid_on: string;
+    /**
+     * Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    amount: string;
+    /**
+     * Reference
+     */
+    reference?: string | null;
+};
+
+/**
  * TaxReturnPending
  */
 export type TaxReturnPending = {
@@ -12290,6 +13308,116 @@ export type TaxReturnPrepared = {
      */
     error: string;
     draft: TaxReturnDraft | null;
+};
+
+/**
+ * TaxReturnRecord
+ *
+ * One version of a year's return. Nothing about it changes once
+ * recorded: a later version supersedes it.
+ */
+export type TaxReturnRecord = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Country
+     *
+     * ISO 3166-1 alpha-2 country code
+     */
+    country: string;
+    /**
+     * Region
+     */
+    region: string | null;
+    /**
+     * Year
+     */
+    year: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Status
+     */
+    status: 'draft' | 'filed' | 'amended';
+    /**
+     * Supersedes Id
+     */
+    supersedes_id: string | null;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Reference
+     */
+    reference: string | null;
+    /**
+     * Filed On
+     */
+    filed_on: string | null;
+    /**
+     * Computation Id
+     */
+    computation_id: string;
+    /**
+     * Rule Set Version Id
+     */
+    rule_set_version_id: string;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    snapshot: TaxComputation;
+    /**
+     * Snapshot Hash
+     */
+    snapshot_hash: string;
+    /**
+     * Payments
+     */
+    payments: Array<TaxReturnPayment>;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * TaxReturnRecordIn
+ */
+export type TaxReturnRecordIn = {
+    /**
+     * Computation Id
+     */
+    computation_id: string;
+    /**
+     * Status
+     */
+    status: 'draft' | 'filed' | 'amended';
+    /**
+     * Reference
+     */
+    reference?: string | null;
+    /**
+     * Filed On
+     */
+    filed_on?: string | null;
+    /**
+     * Reason
+     */
+    reason?: string | null;
 };
 
 /**
@@ -13450,7 +14578,7 @@ export type TransactionChoice = {
     /**
      * Account Id
      */
-    account_id: string;
+    account_id?: string;
     /**
      * Category
      */
@@ -13459,6 +14587,10 @@ export type TransactionChoice = {
      * Need
      */
     need?: 'essential' | 'discretionary' | 'savings' | null;
+    /**
+     * Splits
+     */
+    splits?: Array<SplitPartInput> | null;
 };
 
 /**
@@ -13483,6 +14615,104 @@ export type TrialBalance = {
      * Decimal string in the currency's own precision; never a float.
      */
     net: string;
+};
+
+/**
+ * UnrealisedFx
+ *
+ * Foreign-currency asset and liability accounts revalued at a day's
+ * rate against their historical cost: computed, not posted, unless a
+ * revaluation was posted at a period's end (`ledger.fxRevaluation.post`).
+ */
+export type UnrealisedFx = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Total
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total: string;
+    /**
+     * Posted
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    posted: string;
+    /**
+     * Unposted
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    unposted: string;
+    /**
+     * Lines
+     */
+    lines: Array<UnrealisedFxLine>;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+};
+
+/**
+ * UnrealisedFxLine
+ */
+export type UnrealisedFxLine = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Account Currency
+     *
+     * ISO 4217 currency code
+     */
+    account_currency: string;
+    /**
+     * Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    balance: string;
+    /**
+     * Rate
+     */
+    rate: string;
+    /**
+     * Cost
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cost: string;
+    /**
+     * Value
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    value: string;
+    /**
+     * Gain
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    gain: string;
 };
 
 /**
@@ -13525,6 +14755,81 @@ export type Updated = {
      * Updated
      */
     updated: boolean;
+};
+
+/**
+ * WithdrawalTax
+ *
+ * Whether the FI number is grossed up for tax on withdrawals.
+ */
+export type WithdrawalTax = {
+    /**
+     * Status
+     */
+    status: 'computed' | 'not_computed';
+    rules?: WithdrawalTaxRules | null;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
+ * WithdrawalTaxRules
+ */
+export type WithdrawalTaxRules = {
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Year
+     */
+    year: string;
+};
+
+/**
+ * YearEndClose
+ */
+export type YearEndClose = {
+    /**
+     * Entry Id
+     */
+    entry_id: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Earnings
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    earnings: string;
+    /**
+     * Retained Earnings Account Id
+     */
+    retained_earnings_account_id: string;
+};
+
+/**
+ * YearEndCloseRequest
+ */
+export type YearEndCloseRequest = {
+    /**
+     * Period End
+     */
+    period_end: string;
 };
 
 /**
@@ -14463,6 +15768,69 @@ export type EntriesPostingsSetTagsResponses = {
 
 export type EntriesPostingsSetTagsResponse = EntriesPostingsSetTagsResponses[keyof EntriesPostingsSetTagsResponses];
 
+export type LedgerUnrealisedFxData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * As Of
+         */
+        as_of: string;
+    };
+    url: '/v1/ledger/unrealised-fx';
+};
+
+export type LedgerUnrealisedFxErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerUnrealisedFxError = LedgerUnrealisedFxErrors[keyof LedgerUnrealisedFxErrors];
+
+export type LedgerUnrealisedFxResponses = {
+    /**
+     * Successful Response
+     */
+    200: UnrealisedFx;
+};
+
+export type LedgerUnrealisedFxResponse = LedgerUnrealisedFxResponses[keyof LedgerUnrealisedFxResponses];
+
+export type LedgerFxRevaluationPostData = {
+    body: FxRevaluationRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/ledger/fx-revaluation';
+};
+
+export type LedgerFxRevaluationPostErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerFxRevaluationPostError = LedgerFxRevaluationPostErrors[keyof LedgerFxRevaluationPostErrors];
+
+export type LedgerFxRevaluationPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FxRevaluationPosted;
+};
+
+export type LedgerFxRevaluationPostResponse = LedgerFxRevaluationPostResponses[keyof LedgerFxRevaluationPostResponses];
+
 export type LedgerTrialBalanceData = {
     body?: never;
     path?: never;
@@ -14567,6 +15935,89 @@ export type LedgerLockDateSetResponses = {
 };
 
 export type LedgerLockDateSetResponse = LedgerLockDateSetResponses[keyof LedgerLockDateSetResponses];
+
+export type LedgerCloseYearData = {
+    body: YearEndCloseRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/ledger/year-end-close';
+};
+
+export type LedgerCloseYearErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerCloseYearError = LedgerCloseYearErrors[keyof LedgerCloseYearErrors];
+
+export type LedgerCloseYearResponses = {
+    /**
+     * Successful Response
+     */
+    201: YearEndClose;
+};
+
+export type LedgerCloseYearResponse = LedgerCloseYearResponses[keyof LedgerCloseYearResponses];
+
+export type LedgerRetainedEarningsSetData = {
+    body: RetainedEarningsRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/ledger/retained-earnings';
+};
+
+export type LedgerRetainedEarningsSetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerRetainedEarningsSetError = LedgerRetainedEarningsSetErrors[keyof LedgerRetainedEarningsSetErrors];
+
+export type LedgerRetainedEarningsSetResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type LedgerRetainedEarningsSetResponse = LedgerRetainedEarningsSetResponses[keyof LedgerRetainedEarningsSetResponses];
+
+export type LedgerVerifyData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/ledger/verify';
+};
+
+export type LedgerVerifyErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerVerifyError = LedgerVerifyErrors[keyof LedgerVerifyErrors];
+
+export type LedgerVerifyResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChainCheck;
+};
+
+export type LedgerVerifyResponse = LedgerVerifyResponses[keyof LedgerVerifyResponses];
 
 export type TagsListData = {
     body?: never;
@@ -14868,6 +16319,139 @@ export type TaxReturnsResumeResponses = {
 };
 
 export type TaxReturnsResumeResponse = TaxReturnsResumeResponses[keyof TaxReturnsResumeResponses];
+
+export type TaxReturnRecordsListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Year
+         */
+        year?: string | null;
+    };
+    url: '/v1/tax/return-records';
+};
+
+export type TaxReturnRecordsListErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnRecordsListError = TaxReturnRecordsListErrors[keyof TaxReturnRecordsListErrors];
+
+export type TaxReturnRecordsListResponses = {
+    /**
+     * Response Tax.Returnrecords.List
+     *
+     * Successful Response
+     */
+    200: Array<TaxReturnRecord>;
+};
+
+export type TaxReturnRecordsListResponse = TaxReturnRecordsListResponses[keyof TaxReturnRecordsListResponses];
+
+export type TaxReturnRecordsCreateData = {
+    body: TaxReturnRecordIn;
+    path?: never;
+    query?: never;
+    url: '/v1/tax/return-records';
+};
+
+export type TaxReturnRecordsCreateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnRecordsCreateError = TaxReturnRecordsCreateErrors[keyof TaxReturnRecordsCreateErrors];
+
+export type TaxReturnRecordsCreateResponses = {
+    /**
+     * Successful Response
+     */
+    201: TaxReturnRecord;
+};
+
+export type TaxReturnRecordsCreateResponse = TaxReturnRecordsCreateResponses[keyof TaxReturnRecordsCreateResponses];
+
+export type TaxReturnRecordsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Return Id
+         */
+        return_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/return-records/{return_id}';
+};
+
+export type TaxReturnRecordsGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnRecordsGetError = TaxReturnRecordsGetErrors[keyof TaxReturnRecordsGetErrors];
+
+export type TaxReturnRecordsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxReturnRecord;
+};
+
+export type TaxReturnRecordsGetResponse = TaxReturnRecordsGetResponses[keyof TaxReturnRecordsGetResponses];
+
+export type TaxReturnRecordsPaymentsCreateData = {
+    body: TaxReturnPaymentIn;
+    path: {
+        /**
+         * Return Id
+         */
+        return_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/return-records/{return_id}/payments';
+};
+
+export type TaxReturnRecordsPaymentsCreateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnRecordsPaymentsCreateError = TaxReturnRecordsPaymentsCreateErrors[keyof TaxReturnRecordsPaymentsCreateErrors];
+
+export type TaxReturnRecordsPaymentsCreateResponses = {
+    /**
+     * Successful Response
+     */
+    201: TaxReturnRecord;
+};
+
+export type TaxReturnRecordsPaymentsCreateResponse = TaxReturnRecordsPaymentsCreateResponses[keyof TaxReturnRecordsPaymentsCreateResponses];
 
 export type TaxSchemaData = {
     body?: never;
@@ -16873,6 +18457,240 @@ export type GoalsAllocationsSetResponses = {
 
 export type GoalsAllocationsSetResponse = GoalsAllocationsSetResponses[keyof GoalsAllocationsSetResponses];
 
+export type FiOddsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Retire Month
+         */
+        retire_month?: string | null;
+        /**
+         * Horizon Years
+         */
+        horizon_years?: number;
+        /**
+         * Paths
+         */
+        paths?: number;
+        /**
+         * Seed
+         */
+        seed?: number;
+        /**
+         * Success Level
+         */
+        success_level?: string;
+        /**
+         * Guardrail Band
+         */
+        guardrail_band?: string | null;
+        /**
+         * Guardrail Adjust
+         */
+        guardrail_adjust?: string;
+    };
+    url: '/v1/fi/odds';
+};
+
+export type FiOddsErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiOddsError = FiOddsErrors[keyof FiOddsErrors];
+
+export type FiOddsResponses = {
+    /**
+     * Successful Response
+     */
+    200: FiOdds;
+};
+
+export type FiOddsResponse = FiOddsResponses[keyof FiOddsResponses];
+
+export type FiPlanGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/fi/plan';
+};
+
+export type FiPlanGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiPlanGetError = FiPlanGetErrors[keyof FiPlanGetErrors];
+
+export type FiPlanGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FiPlan;
+};
+
+export type FiPlanGetResponse = FiPlanGetResponses[keyof FiPlanGetResponses];
+
+export type FiPlanSetData = {
+    body: FiPlanIn;
+    path?: never;
+    query?: never;
+    url: '/v1/fi/plan';
+};
+
+export type FiPlanSetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiPlanSetError = FiPlanSetErrors[keyof FiPlanSetErrors];
+
+export type FiPlanSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FiPlan;
+};
+
+export type FiPlanSetResponse = FiPlanSetResponses[keyof FiPlanSetResponses];
+
+export type FiCmaListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/fi/cma-packs';
+};
+
+export type FiCmaListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiCmaListError = FiCmaListErrors[keyof FiCmaListErrors];
+
+export type FiCmaListResponses = {
+    /**
+     * Successful Response
+     */
+    200: CmaPackList;
+};
+
+export type FiCmaListResponse = FiCmaListResponses[keyof FiCmaListResponses];
+
+export type FiCmaImportData = {
+    /**
+     * Body
+     */
+    body: {
+        [key: string]: unknown;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/fi/cma-packs';
+};
+
+export type FiCmaImportErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiCmaImportError = FiCmaImportErrors[keyof FiCmaImportErrors];
+
+export type FiCmaImportResponses = {
+    /**
+     * Successful Response
+     */
+    201: CmaPack;
+};
+
+export type FiCmaImportResponse = FiCmaImportResponses[keyof FiCmaImportResponses];
+
+export type FiCmaGetData = {
+    body?: never;
+    path: {
+        /**
+         * Pack Id
+         */
+        pack_id: string;
+    };
+    query?: never;
+    url: '/v1/fi/cma-packs/{pack_id}';
+};
+
+export type FiCmaGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiCmaGetError = FiCmaGetErrors[keyof FiCmaGetErrors];
+
+export type FiCmaGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CmaPack;
+};
+
+export type FiCmaGetResponse = FiCmaGetResponses[keyof FiCmaGetResponses];
+
+export type FiCmaActivateData = {
+    body: CmaActivate;
+    path?: never;
+    query?: never;
+    url: '/v1/fi/cma-packs/active';
+};
+
+export type FiCmaActivateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiCmaActivateError = FiCmaActivateErrors[keyof FiCmaActivateErrors];
+
+export type FiCmaActivateResponses = {
+    /**
+     * Successful Response
+     */
+    200: CmaPackList;
+};
+
+export type FiCmaActivateResponse = FiCmaActivateResponses[keyof FiCmaActivateResponses];
+
 export type AdvisorDailyBriefingGetData = {
     body?: never;
     path?: never;
@@ -18785,11 +20603,20 @@ export type InsurancePoliciesUpdateResponse = InsurancePoliciesUpdateResponses[k
 export type ReportsBalanceSheetData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * As Of
+         */
+        as_of?: string | null;
+    };
     url: '/v1/reports/balance-sheet';
 };
 
 export type ReportsBalanceSheetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
     /**
      * An error, as RFC 9457 problem details
      */
@@ -18888,6 +20715,162 @@ export type ReportsExportCsvResponses = {
      */
     200: unknown;
 };
+
+export type ReconciliationStatementsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/reconciliation/statements';
+};
+
+export type ReconciliationStatementsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReconciliationStatementsListError = ReconciliationStatementsListErrors[keyof ReconciliationStatementsListErrors];
+
+export type ReconciliationStatementsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReconcilableStatementList;
+};
+
+export type ReconciliationStatementsListResponse = ReconciliationStatementsListResponses[keyof ReconciliationStatementsListResponses];
+
+export type ReconciliationStatementsAddData = {
+    body: StatementBalancesRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/reconciliation/statements';
+};
+
+export type ReconciliationStatementsAddErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReconciliationStatementsAddError = ReconciliationStatementsAddErrors[keyof ReconciliationStatementsAddErrors];
+
+export type ReconciliationStatementsAddResponses = {
+    /**
+     * Successful Response
+     */
+    201: ReconciliationStatus;
+};
+
+export type ReconciliationStatementsAddResponse = ReconciliationStatementsAddResponses[keyof ReconciliationStatementsAddResponses];
+
+export type ReconciliationStatementsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Statement Id
+         */
+        statement_id: string;
+    };
+    query?: never;
+    url: '/v1/reconciliation/statements/{statement_id}';
+};
+
+export type ReconciliationStatementsGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReconciliationStatementsGetError = ReconciliationStatementsGetErrors[keyof ReconciliationStatementsGetErrors];
+
+export type ReconciliationStatementsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReconciliationStatus;
+};
+
+export type ReconciliationStatementsGetResponse = ReconciliationStatementsGetResponses[keyof ReconciliationStatementsGetResponses];
+
+export type ReconciliationStatementsClearData = {
+    body: ClearRequest;
+    path: {
+        /**
+         * Statement Id
+         */
+        statement_id: string;
+    };
+    query?: never;
+    url: '/v1/reconciliation/statements/{statement_id}/clear';
+};
+
+export type ReconciliationStatementsClearErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReconciliationStatementsClearError = ReconciliationStatementsClearErrors[keyof ReconciliationStatementsClearErrors];
+
+export type ReconciliationStatementsClearResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReconciliationStatus;
+};
+
+export type ReconciliationStatementsClearResponse = ReconciliationStatementsClearResponses[keyof ReconciliationStatementsClearResponses];
+
+export type ReconciliationStatementsCompleteData = {
+    body?: never;
+    path: {
+        /**
+         * Statement Id
+         */
+        statement_id: string;
+    };
+    query?: never;
+    url: '/v1/reconciliation/statements/{statement_id}/complete';
+};
+
+export type ReconciliationStatementsCompleteErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReconciliationStatementsCompleteError = ReconciliationStatementsCompleteErrors[keyof ReconciliationStatementsCompleteErrors];
+
+export type ReconciliationStatementsCompleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReconciliationStatus;
+};
+
+export type ReconciliationStatementsCompleteResponse = ReconciliationStatementsCompleteResponses[keyof ReconciliationStatementsCompleteResponses];
 
 export type LlmKeysListData = {
     body?: never;
@@ -20250,6 +22233,68 @@ export type ScenariosCompareResponses = {
 
 export type ScenariosCompareResponse = ScenariosCompareResponses[keyof ScenariosCompareResponses];
 
+export type ScenariosOddsData = {
+    body: Scenario;
+    path?: never;
+    query?: {
+        /**
+         * Retire Month
+         */
+        retire_month?: string | null;
+        /**
+         * Horizon Years
+         */
+        horizon_years?: number;
+        /**
+         * Paths
+         */
+        paths?: number;
+        /**
+         * Seed
+         */
+        seed?: number;
+        /**
+         * Success Level
+         */
+        success_level?: string;
+        /**
+         * Guardrail Band
+         */
+        guardrail_band?: string | null;
+        /**
+         * Guardrail Adjust
+         */
+        guardrail_adjust?: string;
+    };
+    url: '/v1/scenarios/odds';
+};
+
+export type ScenariosOddsErrors = {
+    /**
+     * An account, a debt or a holding a change names is not one of yours
+     */
+    404: Problem;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ScenariosOddsError = ScenariosOddsErrors[keyof ScenariosOddsErrors];
+
+export type ScenariosOddsResponses = {
+    /**
+     * Successful Response
+     */
+    200: FiOdds;
+};
+
+export type ScenariosOddsResponse = ScenariosOddsResponses[keyof ScenariosOddsResponses];
+
 export type OauthAuthorizationServerMetadataData = {
     body?: never;
     path?: never;
@@ -21286,6 +23331,102 @@ export type NotificationsCronSendDueResponses = {
 };
 
 export type NotificationsCronSendDueResponse = NotificationsCronSendDueResponses[keyof NotificationsCronSendDueResponses];
+
+export type AccessListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/access-grants';
+};
+
+export type AccessListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AccessListError = AccessListErrors[keyof AccessListErrors];
+
+export type AccessListResponses = {
+    /**
+     * Successful Response
+     */
+    200: AccessGrants;
+};
+
+export type AccessListResponse = AccessListResponses[keyof AccessListResponses];
+
+export type AccessGrantData = {
+    body: GrantAccessRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/access-grants';
+};
+
+export type AccessGrantErrors = {
+    /**
+     * Not your own sign-in, or `/problems/step-up-required`
+     */
+    403: Problem;
+    /**
+     * No member of this server signs in with that email
+     */
+    404: Problem;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AccessGrantError = AccessGrantErrors[keyof AccessGrantErrors];
+
+export type AccessGrantResponses = {
+    /**
+     * Successful Response
+     */
+    201: AccessGrant;
+};
+
+export type AccessGrantResponse = AccessGrantResponses[keyof AccessGrantResponses];
+
+export type AccessRevokeData = {
+    body?: never;
+    path: {
+        /**
+         * Grant Id
+         */
+        grant_id: string;
+    };
+    query?: never;
+    url: '/v1/access-grants/{grant_id}';
+};
+
+export type AccessRevokeErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AccessRevokeError = AccessRevokeErrors[keyof AccessRevokeErrors];
+
+export type AccessRevokeResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type AccessRevokeResponse = AccessRevokeResponses[keyof AccessRevokeResponses];
 
 export type MetaHealthData = {
     body?: never;

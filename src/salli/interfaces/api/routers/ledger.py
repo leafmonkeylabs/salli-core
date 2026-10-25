@@ -53,6 +53,75 @@ class IncomeStatement(BaseModel):
     net_income: Amount
     #: Every account with activity, income first, then by code.
     lines: list[IncomeStatementLine]
+    #: The change in unrealised exchange gains not posted, over the period
+    #: (computed, not in the totals); null when a rate is missing.
+    unrealised_fx: Amount | None = None
+    #: What the figures leave out: days before the books start, missing rates.
+    notes: list[str] = []
+
+
+class UnrealisedFxLine(BaseModel):
+    account_id: str
+    code: str
+    name: str
+    #: The account's own currency; `balance` is in it.
+    account_currency: CurrencyCode
+    balance: Amount
+    #: The as-of day's rate into the base currency.
+    rate: Decimal
+    #: What the balance cost: the base amounts its postings were booked at.
+    cost: Amount
+    #: The balance at the as-of rate.
+    value: Amount
+    #: value − cost: a gain, or a loss when negative.
+    gain: Amount
+
+
+class UnrealisedFx(BaseModel):
+    """Foreign-currency asset and liability accounts revalued at a day's
+    rate against their historical cost: computed, not posted, unless a
+    revaluation was posted at a period's end (`ledger.fxRevaluation.post`)."""
+
+    as_of: str
+    #: The base currency; every figure but a line's `balance` is in it.
+    currency: CurrencyCode
+    #: The gain across the accounts (a loss negative).
+    total: Amount
+    #: What revaluations posted up to `as_of` booked of it.
+    posted: Amount
+    #: total − posted.
+    unposted: Amount
+    lines: list[UnrealisedFxLine]
+    #: Accounts left out for want of a rate.
+    notes: list[str]
+
+
+class FxRevaluationRequest(BaseModel):
+    #: A month's last day, before today.
+    as_of: dt.date
+
+
+class FxRevaluationPosted(BaseModel):
+    #: The entry posted; null when nothing was left to post.
+    entry_id: str | None
+
+
+@router.get("/unrealised-fx")
+async def unrealised_fx(user_id: CurrentUser, svc: AppServices, as_of: dt.date) -> UnrealisedFx:
+    """Unrealised exchange gains and losses as of a day: computed, nothing
+    is posted."""
+    return UnrealisedFx.model_validate(await svc.ledger.unrealised_fx(user_id, as_of.isoformat()))
+
+
+@router.post("/fx-revaluation")
+async def post_fx_revaluation(
+    body: FxRevaluationRequest, user_id: CurrentUser, svc: AppServices
+) -> FxRevaluationPosted:
+    """Post the unrealised exchange gain or loss not yet booked at a
+    period's end: to the `unrealised_fx` income account against the
+    `fx_revaluation` equity adjustment, dated that day. Only when asked."""
+    entry_id = await svc.ledger.post_fx_revaluation(user_id, body.as_of.isoformat())
+    return FxRevaluationPosted(entry_id=entry_id)
 
 
 @router.get("/trial-balance")
@@ -118,6 +187,11 @@ async def income_statement(
         return sum((Decimal(line.amount) for line in lines if line.type == kind), Decimal(0))
 
     income, expenses = total("income"), total("expense")
+    before = (dt.date.fromisoformat(from_date) - dt.timedelta(days=1)).isoformat()
+    opening = await svc.ledger.unrealised_fx(user_id, before)
+    closing = await svc.ledger.unrealised_fx(user_id, to_date)
+    rate_notes = list(dict.fromkeys([*opening["notes"], *closing["notes"]]))
+    change = Decimal(closing["unposted"]) - Decimal(opening["unposted"])
     return IncomeStatement(
         from_date=from_date,
         to_date=to_date,
@@ -128,6 +202,8 @@ async def income_statement(
         total_expenses=str(quantize(expenses, currency)),
         net_income=str(quantize(income - expenses, currency)),
         lines=lines,
+        unrealised_fx=None if rate_notes else str(quantize(change, currency)),
+        notes=[*await svc.ledger.books_note(user_id, from_date), *rate_notes],
     )
 
 
@@ -143,8 +219,9 @@ async def set_lock_date(
 ) -> LockDate:
     """Close the books up to and including a day before today, or open them
     (null). Moving the day earlier opens what was closed, so only the person's
-    own sign-in may, with a recent password where their client asks for one.
-    Every change is written to the audit log."""
+    own sign-in may, with a recent password where their client asks for one,
+    and never past a tax year whose latest return is filed (a 409) until an
+    amendment of it is recorded. Every change is written to the audit log."""
     current = await svc.ledger.lock_date(user_id)
     wanted = body.lock_date.isoformat() if body.lock_date else None
     if current is not None and (wanted is None or wanted < current):
@@ -162,3 +239,72 @@ async def set_lock_date(
         user_id, wanted, client_id=principal.client_id, via=principal.method
     )
     return LockDate(lock_date=body.lock_date)
+
+
+class YearEndCloseRequest(BaseModel):
+    #: The last day of the year being closed; the closing entry is dated it.
+    period_end: dt.date
+
+
+class YearEndClose(BaseModel):
+    #: The closing entry (source `year_end_close`).
+    entry_id: str
+    period_end: str
+    currency: CurrencyCode
+    #: Income less expenses moved to retained earnings (negative: a loss).
+    earnings: Amount
+    retained_earnings_account_id: str
+
+
+@router.post("/year-end-close", status_code=201)
+async def close_year(
+    body: YearEndCloseRequest, user_id: CurrentUser, svc: AppServices
+) -> YearEndClose:
+    """Close the income and expense accounts into retained earnings: one
+    entry on `period_end` bringing each to zero against the equity account
+    whose role is `retained_earnings`. Lock the books afterwards."""
+    return YearEndClose.model_validate(
+        await svc.ledger.close_year(user_id, body.period_end.isoformat())
+    )
+
+
+class RetainedEarningsRequest(BaseModel):
+    #: An equity account of yours.
+    account_id: str
+
+
+@router.put("/retained-earnings", status_code=204)
+async def set_retained_earnings(
+    body: RetainedEarningsRequest, user_id: CurrentUser, svc: AppServices
+) -> None:
+    """Make an equity account the one a year-end close moves earnings to
+    (its `equity_role` becomes `retained_earnings`; any other loses it)."""
+    try:
+        await svc.ledger.set_retained_earnings(user_id, body.account_id)
+    except KeyError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Account not found") from None
+
+
+class ChainBreak(BaseModel):
+    #: The first entry that doesn't check out.
+    seq: int
+    entry_id: str
+    #: `missing`: an entry before it is gone; `link`: it doesn't name the
+    #: one before it; `content`: it changed after it was posted.
+    reason: Literal["missing", "link", "content"]
+
+
+class ChainCheck(BaseModel):
+    #: True when every entry is as it was posted.
+    ok: bool
+    #: How many entries checked out, from the first.
+    checked: int
+    first_break: ChainBreak | None
+
+
+@router.get("/verify")
+async def verify_ledger(user_id: CurrentUser, svc: AppServices) -> ChainCheck:
+    """Check the ledger's hash chain from its first entry: each entry holds
+    the hash of the one before and its own over what it says, so a changed,
+    removed or reordered entry shows as the first break."""
+    return ChainCheck.model_validate(await svc.ledger.verify_chain(user_id))

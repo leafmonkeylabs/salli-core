@@ -44,10 +44,15 @@ class LedgerRepository(ABC):
         """Return a single StoredJournalEntry by ID, or None."""
         ...
 
-    @abstractmethod
-    async def set_reversed_by(self, entry_id: str, reversing_id: str) -> None:
-        """Mark an entry as reversed by another entry."""
-        ...
+    async def verify_chain(self, user_id: str) -> dict[str, Any]:
+        """The user's hash chain checked from its first entry
+        (`domain.accounting.chain.verify`)."""
+        raise NotImplementedError
+
+    async def set_retained_earnings(self, user_id: str, account_id: str) -> None:
+        """Make this (equity) account the user's one `retained_earnings`
+        account, taking the role from any other."""
+        raise NotImplementedError
 
     async def posting_totals(
         self, user_id: str, account_ids: Collection[str], to_date: str | None = None
@@ -152,6 +157,33 @@ class LedgerRepository(ABC):
         ...
 
 
+class TaxReturnRepository(ABC):
+    """A user's tax returns, each version a row, and the payments made
+    against them, as plain dicts. Rows are only added."""
+
+    @abstractmethod
+    async def add(self, user_id: str, record: dict[str, Any]) -> dict[str, Any]: ...
+
+    @abstractmethod
+    async def get(self, user_id: str, return_id: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def list(self, user_id: str, year: str | None = None) -> list[dict[str, Any]]:
+        """Newest year first, each year's versions newest first."""
+        ...
+
+    @abstractmethod
+    async def latest_of_each(self, user_id: str) -> list[dict[str, Any]]:
+        """The latest version of each jurisdiction and year's return."""
+        ...
+
+    @abstractmethod
+    async def add_payment(self, user_id: str, record: dict[str, Any]) -> dict[str, Any]: ...
+
+    @abstractmethod
+    async def payments(self, user_id: str) -> list[dict[str, Any]]: ...
+
+
 class TaxComputationRepository(ABC):
     """A user's stored tax computations, as plain dicts. Rows are only added;
     each read comes back with the rule set version's `rule_set_id` and
@@ -197,6 +229,34 @@ class RuleSetExists(ValueError):
             f"A tax rule set for this jurisdiction and year already exists: {rule_set_id}"
         )
         self.rule_set_id = rule_set_id
+
+
+class CmaPackRepository(ABC):
+    """A user's capital-market assumptions packs (`domain/fi/cma.py`). A
+    pack's document never changes once added; one at most is active."""
+
+    @abstractmethod
+    async def add(
+        self, user_id: str, *, name: str, version: str, content: Any, content_hash: str
+    ) -> dict[str, Any]:
+        """Store a pack (inactive) and return it; the stored one when the
+        user already has a pack with this content hash."""
+
+    @abstractmethod
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        """The user's packs, newest first, without their documents."""
+
+    @abstractmethod
+    async def get(self, user_id: str, pack_id: str) -> dict[str, Any] | None:
+        """One of the user's packs with its document; None if not theirs."""
+
+    @abstractmethod
+    async def activate(self, user_id: str, pack_id: str | None) -> None:
+        """Make `pack_id` the user's active pack (None: none is)."""
+
+    @abstractmethod
+    async def active(self, user_id: str) -> dict[str, Any] | None:
+        """The user's active pack with its document, or None."""
 
 
 class TaxRuleSetRepository(ABC):
@@ -421,6 +481,46 @@ class DecisionRepository(ABC):
         ...
 
 
+class ReconciliationRepository(ABC):
+    """Statements with the bank's balances, the cleared flag on postings, and
+    completed reconciliations. Amounts in minor units of the account's
+    currency."""
+
+    @abstractmethod
+    async def add_statement(self, user_id: str, record: dict[str, Any]) -> str:
+        """A statement typed in from the bank's: account_id, period_start,
+        period_end, opening_balance_minor, closing_balance_minor, bank."""
+        ...
+
+    @abstractmethod
+    async def statements(
+        self, user_id: str, statement_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """The user's statements that carry the bank's balances (and an
+        account), newest period first, each with its `reconciliation` (None
+        until completed); only `statement_id` when given."""
+        ...
+
+    @abstractmethod
+    async def postings(
+        self, user_id: str, account_id: str, from_date: str, to_date: str
+    ) -> list[dict[str, Any]]:
+        """The postings on the account dated in the period, with their entry's
+        date and description and their `cleared` flag."""
+        ...
+
+    @abstractmethod
+    async def set_cleared(self, user_id: str, posting_ids: list[str], cleared: bool) -> None:
+        """Set the cleared flag on the user's own postings named."""
+        ...
+
+    @abstractmethod
+    async def complete(self, user_id: str, record: dict[str, Any]) -> None:
+        """Record a completed reconciliation: statement_id,
+        cleared_total_minor, difference_minor (0), completed_by."""
+        ...
+
+
 class StatementRepository(ABC):
     """Imported statements and their parsed transactions. A parsed transaction
     read back carries its statement's `account_id` ("" when it has none)."""
@@ -437,10 +537,13 @@ class StatementRepository(ABC):
         storage_key: str = "",
         account_id: str | None = None,
         kind: str = "import",
+        balances_minor: tuple[int, int] | None = None,
     ) -> None:
         """Store the statement and its transactions, and fill in each
         transaction's new `id` and `statement_id`. `kind` is "import" (a file
-        or a feed) or "drafts" (a batch of drafted transactions)."""
+        or a feed) or "drafts" (a batch of drafted transactions).
+        `balances_minor`: the bank's opening and closing balance, for
+        reconciling."""
         ...
 
     @abstractmethod
@@ -908,6 +1011,17 @@ class AgentDocumentRepository(ABC):
         ...
 
     @abstractmethod
+    async def cited_by_entry(self, user_id: str, doc_id: str) -> bool:
+        """Whether one of the user's journal entries cites the document."""
+        ...
+
+    @abstractmethod
+    async def filed_return_citing(self, user_id: str, doc_id: str) -> date | None:
+        """The latest filing date of a filed tax return whose period holds an
+        entry citing the document, or None."""
+        ...
+
+    @abstractmethod
     async def get_by_slug(self, user_id: str, namespace: str, slug: str) -> dict[str, Any] | None:
         """Return a document by its user+namespace+slug key."""
         ...
@@ -982,6 +1096,11 @@ class UserProfileRepository(ABC):
     ) -> None:
         """Write the tax residency (None clears it) and the tax ids exactly as
         given. `ProfileMissing` if there is no profile."""
+        raise NotImplementedError
+
+    async def set_fi_plan(self, user_id: str, stored: dict[str, Any]) -> None:
+        """Replace the user's FI plan with `stored`, as `FiPlan.as_stored()`
+        writes it. `ProfileMissing` if there is no profile."""
         raise NotImplementedError
 
     async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
@@ -1766,6 +1885,29 @@ class RuleRepository(ABC):
     @abstractmethod
     async def record_hits(self, user_id: str, counts: dict[str, int], at: datetime) -> None:
         """Add to each rule's hit count, and stamp when it last decided something."""
+        ...
+
+
+class AccessGrantRepository(ABC):
+    """Read-only access one member gives another to their books."""
+
+    @abstractmethod
+    async def create(self, grantor_id: str, grantee_id: str) -> dict[str, Any]:
+        """A live grant: {id, grantor_id, grantee_id, created_at}; the live
+        one already there for the pair, if any."""
+        ...
+
+    @abstractmethod
+    async def list_for(self, user_id: str) -> list[dict[str, Any]]:
+        """The live grants the user gave or holds, newest first."""
+        ...
+
+    @abstractmethod
+    async def is_live(self, grantor_id: str, grantee_id: str) -> bool: ...
+
+    @abstractmethod
+    async def revoke(self, user_id: str, grant_id: str) -> dict[str, Any] | None:
+        """End a live grant the user gave or holds; it, or None."""
         ...
 
 

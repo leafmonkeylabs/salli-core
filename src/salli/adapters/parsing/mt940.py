@@ -34,7 +34,7 @@ from salli.adapters.parsing.support import (
 )
 
 _FIELD = re.compile(r"^:(\d{2}[A-Z]?|NS):", re.M)
-_BALANCE = re.compile(r"[CD]\d{6}([A-Z]{3})")
+_BALANCE = re.compile(r"([CD])\d{6}([A-Z]{3})(\d+(?:,\d*)?)?")
 _TRANSACTION = re.compile(
     r"(?P<value>\d{6})(?P<entry>\d{4})?"
     r"(?P<mark>RC|RD|C|D)[A-Z]?"
@@ -92,13 +92,26 @@ def extract_from_mt940(data: bytes) -> Extraction:
                 result.accounts.append(account)
         elif tag in ("60F", "60M"):
             match = _BALANCE.match(lines[0].strip()) if lines else None
-            currency = match.group(1) if match else None
+            currency = match.group(2) if match else None
+            if tag == "60F" and match:
+                _balance(result, account, "opening", match)
+        elif tag == "62F":
+            match = _BALANCE.match(lines[0].strip()) if lines else None
+            if match:
+                _balance(result, account, "closing", match)
         elif tag == "61":
             seen += 1
             pending = (seen, lines, currency, account)
     if pending is not None:
         _add(*pending, "", result)
     return result
+
+
+def _balance(result: Extraction, account: str, kind: str, match: re.Match[str]) -> None:
+    """A :60F: (opening) or :62F: (closing) balance: C is in credit."""
+    if match.group(3):
+        amount = Decimal(match.group(3).replace(",", "."))
+        result.note_balance(account, kind, amount if match.group(1) == "C" else -amount)
 
 
 def _content(raw: str) -> list[str]:

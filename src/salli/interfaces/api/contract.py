@@ -49,6 +49,10 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/auth/totp"): "auth.totp.begin",
     ("POST", "/auth/totp/confirm"): "auth.totp.confirm",
     ("DELETE", "/auth/totp"): "auth.totp.disable",
+    # read-only access to another member's books
+    ("GET", "/access-grants"): "access.list",
+    ("POST", "/access-grants"): "access.grant",
+    ("DELETE", "/access-grants/{grant_id}"): "access.revoke",
     # accounts
     ("GET", "/accounts/"): "accounts.list",
     ("POST", "/accounts/"): "accounts.create",
@@ -70,6 +74,18 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/ledger/trial-balance"): "ledger.trialBalance",
     ("GET", "/ledger/income-statement"): "ledger.incomeStatement",
     ("PUT", "/ledger/lock-date"): "ledger.lockDate.set",
+    ("GET", "/ledger/unrealised-fx"): "ledger.unrealisedFx",
+    ("POST", "/ledger/fx-revaluation"): "ledger.fxRevaluation.post",
+    ("GET", "/reconciliation/statements"): "reconciliation.statements.list",
+    ("POST", "/reconciliation/statements"): "reconciliation.statements.add",
+    ("GET", "/reconciliation/statements/{statement_id}"): "reconciliation.statements.get",
+    ("POST", "/reconciliation/statements/{statement_id}/clear"): "reconciliation.statements.clear",
+    ("POST", "/reconciliation/statements/{statement_id}/complete"): (
+        "reconciliation.statements.complete"
+    ),
+    ("POST", "/ledger/year-end-close"): "ledger.closeYear",
+    ("PUT", "/ledger/retained-earnings"): "ledger.retainedEarnings.set",
+    ("GET", "/ledger/verify"): "ledger.verify",
     # tax
     ("POST", "/tax/compute"): "tax.compute",
     ("GET", "/tax/latest"): "tax.latest",
@@ -77,6 +93,10 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/tax/explain"): "tax.explain",
     ("POST", "/tax/returns/prepare"): "tax.returns.prepare",
     ("POST", "/tax/returns/resume"): "tax.returns.resume",
+    ("GET", "/tax/return-records"): "tax.returnRecords.list",
+    ("POST", "/tax/return-records"): "tax.returnRecords.create",
+    ("GET", "/tax/return-records/{return_id}"): "tax.returnRecords.get",
+    ("POST", "/tax/return-records/{return_id}/payments"): "tax.returnRecords.payments.create",
     ("GET", "/tax/returns/{thread_id}"): "tax.returns.get",
     # tax rule sets: the user's own rules (docs/taxrules.md)
     ("GET", "/tax/schema"): "tax.schema",
@@ -150,6 +170,13 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/fi/surplus"): "fi.surplus",
     ("GET", "/fi/assumptions"): "fi.assumptions",
     ("PATCH", "/fi/assumptions"): "fi.assumptions.set",
+    ("GET", "/fi/odds"): "fi.odds",
+    ("GET", "/fi/plan"): "fi.plan.get",
+    ("PUT", "/fi/plan"): "fi.plan.set",
+    ("GET", "/fi/cma-packs"): "fi.cma.list",
+    ("POST", "/fi/cma-packs"): "fi.cma.import",
+    ("GET", "/fi/cma-packs/{pack_id}"): "fi.cma.get",
+    ("PUT", "/fi/cma-packs/active"): "fi.cma.activate",
     ("GET", "/fi/goals"): "goals.list",
     ("POST", "/fi/goals"): "goals.create",
     ("PATCH", "/fi/goals/{goal_id}"): "goals.update",
@@ -283,6 +310,7 @@ OPERATION_IDS: dict[Route, str] = {
     # scenarios: what-ifs on the baseline (domain/scenarios); they store nothing
     ("POST", "/scenarios/run"): "scenarios.run",
     ("POST", "/scenarios/compare"): "scenarios.compare",
+    ("POST", "/scenarios/odds"): "scenarios.odds",
     # principles: the user's own rules of thumb, checked against options
     ("GET", "/principles"): "principles.list",
     ("POST", "/principles"): "principles.create",

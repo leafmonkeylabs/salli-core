@@ -106,6 +106,16 @@ describe('salli status', () => {
           "total_liabilities": "1200.00",
           "total_equity": "0.00",
           "net_worth": "14034.50",
+          "as_of": "2026-10-25",
+          "unrealised_fx": {
+            "as_of": "2026-10-25",
+            "currency": "USD",
+            "total": "0.00",
+            "posted": "0.00",
+            "unposted": "0.00",
+            "lines": [],
+            "notes": []
+          },
           "notes": []
         },
         "income_statement": {
@@ -800,5 +810,44 @@ describe('salli ledger lock | unlock', () => {
     const result = await run(['ledger', 'lock', 'last year']);
     expect(result.code).toBe(2);
     expect(mock.requestsTo('PUT', '/v1/ledger/lock-date')).toHaveLength(0);
+  });
+});
+
+describe('salli reconcile', () => {
+  const statement = (cleared: boolean) => ({
+    statement_id: 'st-1',
+    account_id: uid(2),
+    account_name: 'Checking',
+    currency: 'USD',
+    period_start: '2026-10-01',
+    period_end: '2026-10-31',
+    opening_balance: '100.00',
+    closing_balance: '60.00',
+    reconciliation: null,
+    cleared_total: cleared ? '60.00' : '100.00',
+    difference: cleared ? '0.00' : '-40.00',
+    postings: [
+      { posting_id: 'p-abcdef12', entry_id: 'e1', entry_date: '2026-10-03', description: 'Market', amount: '-40.00', cleared },
+    ],
+  });
+
+  it('clears a posting by the start of its id and shows the difference', async () => {
+    mock.on('GET', '/v1/reconciliation/statements/{id}', () => ({ status: 200, body: statement(false) }));
+    mock.on('POST', '/v1/reconciliation/statements/{id}/clear', () => ({ status: 200, body: statement(true) }));
+    const result = await run(['reconcile', 'clear', 'st-1', 'p-abc']);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toMatch(/Difference +0\.00/);
+    expect(mock.requestsTo('POST', '/v1/reconciliation/statements/st-1/clear').map((r) => r.json)).toEqual([
+      { posting_ids: ['p-abcdef12'], cleared: true },
+    ]);
+  });
+
+  it('sends a statement typed in from the bank’s', async () => {
+    mock.on('POST', '/v1/reconciliation/statements', () => ({ status: 201, body: statement(false) }));
+    const result = await run(['reconcile', 'add', 'Checking', '--from', '2026-10-01', '--to', '2026-10-31', '--opening', '100', '--closing', '60']);
+    expect(result.code).toBe(0);
+    expect(mock.requestsTo('POST', '/v1/reconciliation/statements').map((r) => r.json)).toEqual([
+      { account_id: uid(2), period_start: '2026-10-01', period_end: '2026-10-31', opening_balance: '100', closing_balance: '60' },
+    ]);
   });
 });

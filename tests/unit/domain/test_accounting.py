@@ -216,3 +216,47 @@ def test_account_running_balance_final_value_matches_account_balance():
     history = account_running_balance([e1], "bank")
     bank_postings = [p for p in e1.postings if p.account_id == "bank"]
     assert history[-1][1] == account_balance(bank_postings)
+
+
+def test_fx_rounding_takes_up_a_base_unit_and_no_more():
+    from salli.domain.accounting.ledger import fx_rounding
+    from salli.domain.accounting.models import base_minor_net
+
+    # 0.005 each side rounds up twice in the base currency: one cent out.
+    postings = [
+        Posting(
+            account_id="a",
+            direction=Direction.DEBIT,
+            amount=Decimal("1.00"),
+            currency="EUR",
+            fx_rate=Decimal("1.005"),
+        ),
+        Posting(
+            account_id="b",
+            direction=Direction.DEBIT,
+            amount=Decimal("1.00"),
+            currency="EUR",
+            fx_rate=Decimal("1.005"),
+        ),
+        Posting(
+            account_id="c",
+            direction=Direction.CREDIT,
+            amount=Decimal("2.01"),
+            currency="NZD",
+        ),
+    ]
+    assert base_minor_net(postings, "NZD") == 1
+    rounding = fx_rounding(postings, "NZD", "r")
+    assert rounding is not None and rounding.amount == Decimal("0.01")
+    assert rounding.direction is Direction.CREDIT
+    assert base_minor_net([*postings, rounding], "NZD") == 0
+    JournalEntry(
+        entry_date="2031-01-01",
+        description="x",
+        source="manual",
+        postings=[*postings, rounding],
+        base_currency="NZD",
+    )
+    # A real difference is not rounding.
+    far = [*postings[:2], postings[2].model_copy(update={"amount": Decimal("1.50")})]
+    assert fx_rounding(far, "NZD", "r") is None

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from salli.adapters.db.models import (
+    AccessGrantORM,
     AccountORM,
     AdvisoryReportORM,
     AgentDocumentORM,
@@ -28,6 +29,7 @@ from salli.adapters.db.models import (
     BankConnectionORM,
     BudgetORM,
     CategorizationRuleORM,
+    CmaPackORM,
     DebtORM,
     DecisionNoteORM,
     DecisionORM,
@@ -61,16 +63,20 @@ from salli.adapters.db.models import (
     PostingORM,
     PostingTagORM,
     PrincipleORM,
+    ReconciliationORM,
     RecurringSubscriptionORM,
     ReminderORM,
     StatementORM,
     TagORM,
     TaxComputationORM,
+    TaxReturnORM,
+    TaxReturnPaymentORM,
     TaxRuleSetORM,
     TaxRuleSetVersionORM,
     UserLlmCredentialORM,
     UserProfileORM,
 )
+from salli.application.entry_author import current_author
 from salli.application.ports import (
     AccountCodeTaken,
     AccountNotFound,
@@ -110,6 +116,7 @@ from salli.application.ports import (
     StatementRepository,
     UserProfileRepository,
 )
+from salli.domain.accounting import chain
 from salli.domain.accounting.models import (
     Account,
     Direction,
@@ -171,8 +178,40 @@ def _entry_from_orm(row: JournalEntryORM) -> StoredJournalEntry:
         description=row.description,
         source=row.source,  # type: ignore[arg-type]
         external_ref=row.external_ref,
-        reversed_by=row.reversed_by,
+        reverses=row.reverses_id,
+        reversed_by=row.reversed_by,  # type: ignore[attr-defined]
+        created_by=row.created_by,
+        created_via=row.created_via,
+        seq=row.seq,
+        hash=row.hash,
         postings=[_posting_from_orm(p) for p in row.postings],
+    )
+
+
+def _chain_content(row: JournalEntryORM) -> dict[str, Any]:
+    """An entry as stored now, as the hash chain covers it."""
+    return chain.content(
+        seq=row.seq,
+        prev_hash=row.prev_hash,
+        entry_id=row.id,
+        user_id=row.user_id,
+        entry_date=row.entry_date,
+        description=row.description,
+        source=row.source,
+        external_ref=row.external_ref,
+        reverses=row.reverses_id,
+        created_by=row.created_by,
+        created_via=row.created_via,
+        postings=[
+            {
+                "account_id": p.account_id,
+                "direction": p.direction,
+                "amount_minor": p.amount_minor,
+                "currency": p.currency,
+                "fx_rate": chain.rate_text(Decimal(str(p.fx_rate))),
+            }
+            for p in row.postings
+        ],
     )
 
 
@@ -200,6 +239,7 @@ def _account_from_orm(row: AccountORM) -> Account:
         is_active=row.is_active,
         tax_role=row.tax_role,  # type: ignore[arg-type]
         asset_role=row.asset_role,  # type: ignore[arg-type]
+        equity_role=row.equity_role,  # type: ignore[arg-type]
     )
 
 
@@ -346,6 +386,23 @@ class SQLLedgerRepository(LedgerRepository):
         if named - owned:
             raise AccountNotFound(named - owned)
 
+        # The user's chain is extended one entry at a time: the lock holds
+        # until this transaction ends, so two entries never claim one place.
+        await self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": "ledger:" + user_id}
+        )
+        last = (
+            await self._session.execute(
+                select(JournalEntryORM.seq, JournalEntryORM.hash)
+                .where(JournalEntryORM.user_id == user_id)
+                .order_by(JournalEntryORM.seq.desc())
+                .limit(1)
+            )
+        ).first()
+        seq, prev_hash = (last[0] + 1, last[1]) if last else (1, None)
+        author = current_author()
+        created_by = author.user_id or user_id
+        created_via = "import" if entry.source in ("statement", "sms") else author.via
         orm_entry = JournalEntryORM(
             id=entry_id,
             user_id=user_id,
@@ -353,6 +410,36 @@ class SQLLedgerRepository(LedgerRepository):
             description=entry.description,
             source=entry.source,
             external_ref=entry.external_ref,
+            reverses_id=entry.reverses,
+            created_by=created_by,
+            created_via=created_via,
+            seq=seq,
+            prev_hash=prev_hash,
+        )
+        orm_entry.hash = chain.entry_hash(
+            chain.content(
+                seq=seq,
+                prev_hash=prev_hash,
+                entry_id=entry_id,
+                user_id=user_id,
+                entry_date=entry.entry_date,
+                description=entry.description,
+                source=entry.source,
+                external_ref=entry.external_ref,
+                reverses=entry.reverses,
+                created_by=created_by,
+                created_via=created_via,
+                postings=[
+                    {
+                        "account_id": p.account_id,
+                        "direction": p.direction.value,
+                        "amount_minor": to_minor(p.amount, p.currency),
+                        "currency": p.currency,
+                        "fx_rate": chain.rate_text(p.fx_rate),
+                    }
+                    for p in entry.postings
+                ],
+            )
         )
 
         wanted = {(kind, slug) for p in entry.postings for kind, slug in p.tags.items()}
@@ -515,8 +602,8 @@ class SQLLedgerRepository(LedgerRepository):
     async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
         # A reversed entry and its reversal net to nothing: neither says when
         # the record of money in and out began.
-        reversals = select(JournalEntryORM.reversed_by).where(
-            JournalEntryORM.user_id == user_id, JournalEntryORM.reversed_by.is_not(None)
+        reversals = select(JournalEntryORM.reverses_id).where(
+            JournalEntryORM.user_id == user_id, JournalEntryORM.reverses_id.is_not(None)
         )
         stmt = (
             select(func.min(JournalEntryORM.entry_date))
@@ -526,7 +613,7 @@ class SQLLedgerRepository(LedgerRepository):
                 JournalEntryORM.user_id == user_id,
                 AccountORM.user_id == user_id,
                 AccountORM.type.in_(("income", "expense")),
-                JournalEntryORM.reversed_by.is_(None),
+                JournalEntryORM.reverses_id.is_(None),
                 JournalEntryORM.id.not_in(reversals),
             )
         )
@@ -578,12 +665,16 @@ class SQLLedgerRepository(LedgerRepository):
         row = result.scalar_one_or_none()
         return _entry_from_orm(row) if row else None
 
-    async def set_reversed_by(self, entry_id: str, reversing_id: str) -> None:
-        stmt = select(JournalEntryORM).where(JournalEntryORM.id == entry_id)
-        result = await self._session.execute(stmt)
-        row = result.scalar_one_or_none()
-        if row:
-            row.reversed_by = reversing_id
+    async def verify_chain(self, user_id: str) -> dict[str, Any]:
+        result = await self._session.execute(
+            select(JournalEntryORM)
+            .where(JournalEntryORM.user_id == user_id)
+            .options(selectinload(JournalEntryORM.postings))
+            .order_by(JournalEntryORM.seq)
+        )
+        return chain.verify(
+            chain.Link(_chain_content(row), row.hash) for row in result.scalars().all()
+        )
 
     async def update_account(
         self,
@@ -607,6 +698,20 @@ class SQLLedgerRepository(LedgerRepository):
             row.currency = currency
             row.tax_role = tax_role
             row.asset_role = asset_role
+
+    async def set_retained_earnings(self, user_id: str, account_id: str) -> None:
+        await self._session.execute(
+            update(AccountORM)
+            .where(AccountORM.user_id == user_id, AccountORM.id != account_id)
+            .where(AccountORM.equity_role == "retained_earnings")
+            .values(equity_role=None)
+        )
+        await self._session.flush()
+        await self._session.execute(
+            update(AccountORM)
+            .where(AccountORM.user_id == user_id, AccountORM.id == account_id)
+            .values(equity_role="retained_earnings")
+        )
 
     async def deactivate_account(self, user_id: str, account_id: str) -> None:
         stmt = select(AccountORM).where(AccountORM.id == account_id, AccountORM.user_id == user_id)
@@ -673,6 +778,7 @@ class SQLStatementRepository(StatementRepository):
         storage_key: str = "",
         account_id: str | None = None,
         kind: str = "import",
+        balances_minor: tuple[int, int] | None = None,
     ) -> None:
         # The label fits its column, whoever made it: a bank feed's
         # "institution · account name" can run past it.
@@ -686,6 +792,8 @@ class SQLStatementRepository(StatementRepository):
             kind=kind,
             period_start=period_start,
             period_end=period_end,
+            opening_balance_minor=balances_minor[0] if balances_minor else None,
+            closing_balance_minor=balances_minor[1] if balances_minor else None,
             # Nothing to review (empty, or every row an exact duplicate): done.
             status=(
                 "pending"
@@ -760,6 +868,7 @@ class SQLStatementRepository(StatementRepository):
                     "rule_id": txn.rule_id,
                     "duplicate_of": txn.duplicate_of,
                     "ref_kind": raw.ref_kind,
+                    "base_amount": None if raw.base_amount is None else str(raw.base_amount),
                     "ref_source": raw.ref_source,
                     "source_account": raw.source_account,
                 },
@@ -975,6 +1084,7 @@ def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> 
         ref_kind=j.get("ref_kind", "id"),
         ref_source=j.get("ref_source", ""),
         source_account=j.get("source_account", ""),
+        base_amount=Decimal(j["base_amount"]) if j.get("base_amount") else None,
     )
     return ParsedTransaction(
         raw=raw,
@@ -992,6 +1102,7 @@ def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> 
         id=row.id,
         statement_id=row.statement_id,
         account_id=account_id or "",
+        splits=list(j.get("splits") or []),
     )
 
 
@@ -1165,6 +1276,7 @@ def _doc_to_dict(row: AgentDocumentORM) -> dict[str, Any]:
         "namespace": row.namespace,
         "slug": row.slug,
         "description": row.description,
+        "retain_until": row.retain_until.isoformat() if row.retain_until else None,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
@@ -1189,11 +1301,42 @@ class SQLAgentDocumentRepository(AgentDocumentRepository):
             namespace=doc.get("namespace", "documents"),
             slug=doc.get("slug"),
             description=doc.get("description"),
+            retain_until=doc.get("retain_until"),
             created_at=now,
             updated_at=now,
         )
         self._session.add(row)
         return doc_id
+
+    async def cited_by_entry(self, user_id: str, doc_id: str) -> bool:
+        """Whether one of the user's journal entries cites the document (a
+        manual entry's receipt, its external_ref)."""
+        return (
+            await self._session.scalar(
+                select(JournalEntryORM.id)
+                .where(JournalEntryORM.user_id == user_id, JournalEntryORM.external_ref == doc_id)
+                .limit(1)
+            )
+        ) is not None
+
+    async def filed_return_citing(self, user_id: str, doc_id: str) -> date | None:
+        """The latest filing date of a filed tax return whose period holds an
+        entry citing the document; None when there is none."""
+        day = func.to_char
+        return await self._session.scalar(
+            select(func.max(TaxReturnORM.filed_on)).where(
+                TaxReturnORM.user_id == user_id,
+                TaxReturnORM.status == "filed",
+                select(JournalEntryORM.id)
+                .where(
+                    JournalEntryORM.user_id == user_id,
+                    JournalEntryORM.external_ref == doc_id,
+                    JournalEntryORM.entry_date >= day(TaxReturnORM.period_start, "YYYY-MM-DD"),
+                    JournalEntryORM.entry_date <= day(TaxReturnORM.period_end, "YYYY-MM-DD"),
+                )
+                .exists(),
+            )
+        )
 
     async def get(self, user_id: str, doc_id: str) -> dict[str, Any] | None:
         stmt = select(AgentDocumentORM).where(
@@ -1389,8 +1532,11 @@ class SQLUserProfileRepository(UserProfileRepository):
             "tax_residency": row.tax_residency,
             "tax_ids": list(row.tax_ids or []),
             "fi_assumptions": dict(row.fi_assumptions or {}),
+            "fi_plan": dict(row.fi_plan or {}),
             "time_zone": row.time_zone,
             "lock_date": row.lock_date.isoformat() if row.lock_date else None,
+            "books_start": row.books_start.isoformat() if row.books_start else None,
+            "document_retention_years": row.document_retention_years,
         }
 
     async def set_lock_date(self, user_id: str, lock_date: str | None) -> None:
@@ -1399,6 +1545,14 @@ class SQLUserProfileRepository(UserProfileRepository):
         if row is None:
             raise ProfileMissing(user_id)
         row.lock_date = date.fromisoformat(lock_date) if lock_date else None
+        await self._s.flush()
+
+    async def set_fi_plan(self, user_id: str, stored: dict[str, Any]) -> None:
+        result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
+        row = result.scalar_one_or_none()
+        if row is None:
+            raise ProfileMissing(user_id)
+        row.fi_plan = stored
         await self._s.flush()
 
     async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
@@ -2901,6 +3055,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # the same way (already emptied above, so that cascade is a no-op —
         # harmless). Both must still go before accounts.
         await _delete(JournalEntryORM, JournalEntryORM.user_id)
+        await _delete(ReconciliationORM, ReconciliationORM.user_id)
         await _delete(StatementORM, StatementORM.user_id)
         await _delete(AccountORM, AccountORM.user_id)
 
@@ -2933,11 +3088,15 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(HoldingPriceORM, HoldingPriceORM.user_id)
         await _delete(PolicyORM, PolicyORM.user_id)
         await _delete(InsuranceTargetORM, InsuranceTargetORM.user_id)
+        # Returns point at computations, payments at returns.
+        await _delete(TaxReturnPaymentORM, TaxReturnPaymentORM.user_id)
+        await _delete(TaxReturnORM, TaxReturnORM.user_id)
         await _delete(TaxComputationORM, TaxComputationORM.user_id)
         # After tax_computations, which may point at a version. A set is
         # deleted before its versions (its active version points back at it),
         # which cascade from it; deleting them by owner after is then a no-op,
         # kept so nothing depends on the cascade alone.
+        await _delete(CmaPackORM, CmaPackORM.user_id)
         await _delete(TaxRuleSetORM, TaxRuleSetORM.user_id)
         await _delete(TaxRuleSetVersionORM, TaxRuleSetVersionORM.user_id)
         await _delete(AuditLogORM, AuditLogORM.user_id)
@@ -2948,6 +3107,13 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(OAuthAuthorizationCodeORM, OAuthAuthorizationCodeORM.user_id)
         await _delete(OAuthDeviceCodeORM, OAuthDeviceCodeORM.user_id)
         await _delete(PersonalAccessTokenORM, PersonalAccessTokenORM.user_id)
+        # Access to their books they gave, and to others' they held.
+        result = await self._s.execute(
+            delete(AccessGrantORM).where(
+                or_(AccessGrantORM.grantor_id == user_id, AccessGrantORM.grantee_id == user_id)
+            )
+        )
+        counts["access_grants"] = result.rowcount or 0  # type: ignore[attr-defined]
         # Their sessions, then their login: no one signs in as them again.
         await _delete(LoginSessionORM, LoginSessionORM.user_id)
         await _delete(LoginORM, LoginORM.user_id)

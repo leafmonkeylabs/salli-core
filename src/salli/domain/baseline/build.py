@@ -225,6 +225,10 @@ def _tax(
     )
 
 
+#: What an entry keeps that no figure reads.
+_UNFIGURED = {"reverses", "created_by", "created_via", "seq", "hash"}
+
+
 def fingerprint(inputs: BaselineInputs) -> str:
     """A content hash of everything the baseline is built from, in a
     canonical order (accounts, entries, debts and subscriptions by id;
@@ -233,10 +237,19 @@ def fingerprint(inputs: BaselineInputs) -> str:
         {
             "as_of": inputs.as_of,
             "currency": inputs.currency,
-            "accounts": sorted(inputs.accounts, key=lambda a: a.id),
+            # Without what doesn't move a figure (who posted an entry, its
+            # place in the chain), and without an equity role not set, so
+            # a baseline fingerprints as it did before they were kept.
+            "accounts": [
+                a.model_dump(exclude=None if a.equity_role else {"equity_role"})
+                for a in sorted(inputs.accounts, key=lambda a: a.id)
+            ],
             "totals": sorted(inputs.totals, key=lambda t: (t[0], t[1])),
             "rates": dict(inputs.rates),
-            "entries": sorted(inputs.entries, key=lambda e: (e.entry_date, e.id)),
+            "entries": [
+                e.model_dump(exclude=_UNFIGURED)
+                for e in sorted(inputs.entries, key=lambda e: (e.entry_date, e.id))
+            ],
             "first_flow": inputs.first_flow,
             "debts": sorted(inputs.debts, key=lambda d: d.id),
             "subscriptions": sorted(
@@ -247,6 +260,9 @@ def fingerprint(inputs: BaselineInputs) -> str:
             # Only when goals claim cash, so a baseline without any
             # fingerprints as it did before.
             **({"goal_claims": dict(inputs.goal_claims)} if inputs.goal_claims else {}),
+            # Only when set, so a baseline without either fingerprints as before.
+            **({"cma": inputs.cma.content_hash} if inputs.cma is not None else {}),
+            **({"plan": inputs.plan} if not inputs.plan.empty else {}),
             "rule_sets": sorted(inputs.rule_sets, key=lambda r: (r.rule_set_id, r.version)),
             # Only when there are rules to compute tax with, so a baseline
             # without any fingerprints as it did before scenarios computed tax.
@@ -342,7 +358,8 @@ def build(inputs: BaselineInputs) -> Baseline:
         rates=rates,
         flows=flows,
         debts=tuple(debts),
-        assumptions=resolve(inputs.own_assumptions),
+        assumptions=resolve(inputs.own_assumptions, inputs.cma),
+        plan=inputs.plan,
         recurring=tuple(found),
         covered_by=tuple(covering),
         charges=tuple(charges),

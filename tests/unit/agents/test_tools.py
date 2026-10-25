@@ -152,7 +152,7 @@ async def test_the_computation_is_lines_with_their_expressions_and_sources():
     assert result["rule_set_version"] == 2
     assert [ln["key"] for ln in result["lines"]][-1] == "balance"
     tax = next(ln for ln in result["lines"] if ln["key"] == "tax")
-    assert tax["expr"].startswith("line.tax.band_1.tax")
+    assert tax["expr"]["untrusted_text"].startswith("line.tax.band_1.tax")
     assert result["inputs"][0] == {
         "role": "income",
         "label": "Income",

@@ -14,7 +14,9 @@ from typing import Any, Literal
 from salli.domain.accounting.ledger import owned_and_owed
 from salli.domain.accounting.models import Account, AssetRole, StoredJournalEntry
 from salli.domain.fi.assumptions import FiAssumptions, OwnAssumptions
-from salli.domain.portfolio.lots import Transaction
+from salli.domain.fi.cma import CmaPack
+from salli.domain.fi.plan import NO_PLAN, FiPlan
+from salli.domain.portfolio.lots import CostMethod, Transaction
 from salli.domain.portfolio.valuation import Close
 from salli.domain.reports.forecast import DeclaredCharge
 from salli.domain.reports.insights import Recurring
@@ -288,6 +290,8 @@ class HoldingInputs:
     closes: Sequence[Close] = ()
     declared_value: Decimal = Decimal(0)
     is_active: bool = True
+    #: How its sales are costed (its own `cost_method`, else fifo).
+    cost_method: CostMethod = "fifo"
 
 
 @dataclass(frozen=True)
@@ -327,6 +331,7 @@ class BaselineHolding:
     #: holding without transactions; None when it can't be known.
     value_base: Decimal | None
     is_active: bool = True
+    cost_method: CostMethod = "fifo"
 
 
 @dataclass(frozen=True)
@@ -366,6 +371,10 @@ class BaselineInputs:
     #: The user's holdings (`HoldingInputs`); `rates` holds the as-of rate
     #: of each currency they are in other than the base.
     holdings: Sequence[HoldingInputs] = ()
+    #: The user's active capital-market assumptions, or None.
+    cma: CmaPack | None = None
+    #: Their guaranteed income and spending phases.
+    plan: FiPlan = NO_PLAN
 
 
 @dataclass(frozen=True)
@@ -409,6 +418,8 @@ class Baseline:
     #: The user's holdings as of the as-of date: never counted (the ledger's
     #: investment accounts are), only what a scenario's holding changes read.
     holdings: tuple[BaselineHolding, ...] = ()
+    #: Guaranteed income and spending phases (`domain/fi/plan.py`).
+    plan: FiPlan = NO_PLAN
 
     # ── Totals, in the base currency ─────────────────────────────────────────
 

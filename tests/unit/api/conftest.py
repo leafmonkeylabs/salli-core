@@ -52,6 +52,16 @@ def mock_services():
     svc.ledger = AsyncMock()
     # Routers that report amounts say which currency they are in.
     svc.ledger.base_currency.return_value = "LKR"
+    svc.ledger.books_note.return_value = []
+    svc.ledger.unrealised_fx.side_effect = lambda _user, as_of: {
+        "as_of": as_of,
+        "currency": "LKR",
+        "total": "0.00",
+        "posted": "0.00",
+        "unposted": "0.00",
+        "lines": [],
+        "notes": [],
+    }
     svc.tax = AsyncMock()
     svc.agent = AsyncMock()
     svc.fi = AsyncMock()
@@ -144,6 +154,7 @@ def make_account(
     a.is_active = True
     a.tax_role = tax_role
     a.asset_role = "cash"
+    a.equity_role = None
     return a
 
 
@@ -155,6 +166,7 @@ def make_entry():
     e.source = "manual"
     e.external_ref = None
     e.reversed_by = None
+    e.reverses = e.created_by = e.created_via = e.seq = e.hash = None
     p = MagicMock()
     p.id = "posting-1"
     p.tags = {}

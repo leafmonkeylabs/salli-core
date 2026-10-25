@@ -34,6 +34,12 @@ class Documents:
 class UoW:
     def __init__(self) -> None:
         self.agent_documents = Documents()
+        self.user_profiles = Profiles()
+
+
+class Profiles:
+    async def get(self, user_id: str) -> dict[str, Any]:
+        return {}
 
 
 def _service(storage: Any) -> tuple[DocumentService, UoW]:

@@ -77,6 +77,19 @@ def as_of_month(b: Baseline, s: schema.Scenario) -> tuple[D, D, D]:
     )
 
 
+def test_a_sale_at_average_cost_when_the_holding_says_so():
+    """A second buy of 10 at 200.00 on 2031-03-01, and the holding costed at
+    average: 20 units costing 1,005.00 + 2,000.00 = 3,005.00, 150.25 each.
+    Selling 4 at 150.00 costs 4 × 150.25 = 601.00: a loss of 600.00 − 601.00
+    = −1.00 (first in, first out would say a gain of 198.00)."""
+    ledger = books(rules=False)
+    ledger.trade("fund", "buy", "2031-03-01", "10", "200", id_="lot-mar")
+    ledger.uow.holdings.rows["fund"]["cost_method"] = "average"
+    trade = engine.run(ledger.baseline(AS_OF), scenario(sell(quantity="4"))).changes[0].holding
+    assert trade is not None
+    assert (trade.cost, trade.gain) == (D("601"), D("-1"))
+
+
 def test_a_sale_first_in_first_out_with_fees():
     """Sell 4 units on the as-of date at 150.00 with 2.00 of fees, first in,
     first out: proceeds 4 × 150.00 = 600.00; the lot's cost 1,005.00 × 4/10

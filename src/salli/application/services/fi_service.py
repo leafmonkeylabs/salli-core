@@ -37,7 +37,8 @@ from salli.domain.baseline import Baseline
 from salli.domain.baseline import fi as fi_timeline
 from salli.domain.currency import quantize
 from salli.domain.debt.engine import month_after
-from salli.domain.fi import engine
+from salli.domain.fi import cma, engine, montecarlo
+from salli.domain.fi import plan as fi_plan
 from salli.domain.fi.allocation import Claim, GoalFunding, compute_goal_funding
 from salli.domain.fi.assumptions import (
     NAMES,
@@ -298,6 +299,7 @@ class FiService:
             pack,
             swr=applied.safe_withdrawal_rate.value,
             projected_fi_months=outlook.months,
+            fi_number=outlook.fi_number,
         )
         result = _score_to_dict(score, baseline.as_of)
         # Under two full months of income and spending the engine grades it
@@ -474,7 +476,7 @@ class FiService:
 
         Each scenario is the baseline's monthly timeline with its
         investments, the share of each month's surplus the user invests
-        among them, at that real return (cash earns nothing, debts follow
+        among them, at that real return (cash earns the CMA cash yield or nothing, debts follow
         their schedules), and the month FI is reached is read from the same
         timeline, so the chart and the month always agree."""
         baseline, _, applied, _ = await self._inputs(user_id, as_of)
@@ -487,7 +489,9 @@ class FiService:
             for key, rate in rates.items()
         }
         months = {
-            key: fi_timeline.months_to_fi(timeline.points, fi_number)
+            key: fi_timeline.months_to_fi(
+                timeline.points, fi_timeline.fi_numbers(baseline, timeline.points)
+            )
             for key, timeline in runs.items()
         }
 
@@ -541,6 +545,112 @@ class FiService:
             # any is a placeholder.
             "assumptions": assumptions_dict(applied),
         }
+
+    # ── The odds (Monte Carlo) ────────────────────────────────────────────────
+
+    async def odds(
+        self,
+        user_id: str,
+        *,
+        retire_month: str | None = None,
+        horizon_years: int = 50,
+        paths: int = montecarlo.DEFAULT_PATHS,
+        seed: int = montecarlo.DEFAULT_SEED,
+        success_level: Decimal = montecarlo.DEFAULT_SUCCESS,
+        guardrails: montecarlo.Guardrails | None = None,
+        as_of: datetime.date | None = None,
+    ) -> dict[str, Any]:
+        """The odds of the user's plan from a seeded Monte Carlo on their
+        baseline's monthly timeline (`domain/fi/montecarlo.py`). Reads only."""
+        baseline = await self._baseline(user_id, as_of)
+        return montecarlo.plan_odds(
+            baseline,
+            retire_month=retire_month,
+            horizon_years=horizon_years,
+            paths=paths,
+            seed=seed,
+            success_level=success_level,
+            guardrails=guardrails,
+        )
+
+    # ── The FI plan: guaranteed income and spending phases ────────────────────
+
+    async def plan(self, user_id: str) -> dict[str, Any]:
+        """The user's guaranteed income streams and spending phases, and the
+        date of birth the phases go by."""
+        async with self._uow_factory() as uow:
+            profile = await uow.user_profiles.get(user_id) or {}
+        stored = fi_plan.lenient(profile.get("fi_plan"), None)
+        born = profile.get("date_of_birth")
+        return {
+            **stored.as_stored(),
+            "date_of_birth": str(born) if born else None,
+        }
+
+    async def set_plan(self, user_id: str, data: Mapping[str, Any]) -> dict[str, Any]:
+        """Replace the plan with `data` (checked; a ValueError says what is
+        wrong, and nothing is written)."""
+        checked = fi_plan.parse(data)
+        async with self._uow_factory() as uow:
+            if await uow.user_profiles.get(user_id) is None:
+                raise ProfileMissing(user_id)
+            await uow.user_profiles.set_fi_plan(user_id, checked.as_stored())
+        return await self.plan(user_id)
+
+    # ── Capital-market assumptions ────────────────────────────────────────────
+
+    @staticmethod
+    def _pack_view(row: Mapping[str, Any], content: bool = True) -> dict[str, Any]:
+        view: dict[str, Any] = {
+            "id": row["id"],
+            "name": row["name"],
+            "version": row["version"],
+            "content_hash": row["content_hash"],
+            "is_active": row["is_active"],
+            "created_at": str(row["created_at"]),
+            "activated_at": None if row.get("activated_at") is None else str(row["activated_at"]),
+        }
+        if content:
+            view["summary"] = cma.summary(cma.parse(row["content"]))
+            view["content"] = row["content"]
+        return view
+
+    async def cma_packs(self, user_id: str) -> dict[str, Any]:
+        """The user's packs, and the placeholder used while none is active."""
+        async with self._uow_factory() as uow:
+            rows = await uow.cma_packs.list(user_id)
+        return {
+            "packs": [self._pack_view(r, content=False) for r in rows],
+            "placeholder": cma.summary(cma.PLACEHOLDER),
+        }
+
+    async def cma_pack(self, user_id: str, pack_id: str) -> dict[str, Any] | None:
+        async with self._uow_factory() as uow:
+            row = await uow.cma_packs.get(user_id, pack_id)
+        return None if row is None else self._pack_view(row)
+
+    async def import_cma_pack(self, user_id: str, document: Any) -> dict[str, Any]:
+        """Store a `salli.cma/1` pack, inactive (a ValueError when it isn't
+        valid). The same document twice is the same pack."""
+        pack = cma.parse(document)
+        async with self._uow_factory() as uow:
+            row = await uow.cma_packs.add(
+                user_id,
+                name=pack.name,
+                version=pack.version,
+                content=document,
+                content_hash=cma.content_hash(document),
+            )
+        return self._pack_view(row)
+
+    async def activate_cma_pack(self, user_id: str, pack_id: str | None) -> dict[str, Any]:
+        """Make one of the user's packs the one projections read (None: the
+        placeholder again). A pack that isn't theirs is a LookupError."""
+        async with self._uow_factory() as uow:
+            if pack_id is not None and await uow.cma_packs.get(user_id, pack_id) is None:
+                raise LookupError(pack_id)
+            await uow.cma_packs.activate(user_id, pack_id)
+        return await self.cma_packs(user_id)
 
     # ── Surplus Breakdown ────────────────────────────────────────────────────────
 

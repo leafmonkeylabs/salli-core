@@ -36,6 +36,7 @@ from salli.application.market_data import StoredPriceHistory, symbol_key
 from salli.application.ownership import require_own_accounts
 from salli.application.ports import FxRatePort, FxUnavailableError
 from salli.domain.currency import normalize_currency, quantize, quantum
+from salli.domain.fi import cma
 from salli.domain.money import from_minor, to_minor
 from salli.domain.portfolio import engine, performance, risk
 from salli.domain.portfolio.lots import (
@@ -254,6 +255,29 @@ def history(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
     """Rows in the order they were recorded, as domain transactions; their
     position is the tie-break between transactions of one kind on one date."""
     return [_transaction(row, currency, seq) for seq, row in enumerate(rows)]
+
+
+async def realised_gains(
+    uow: Any, user_id: str, start: date, end: date
+) -> list[tuple[str, Decimal]]:
+    """Each sale of the user's holdings dated `start` to `end` (both
+    included), and the gain it realised in the base currency (proceeds less
+    fees less the consumed lots' cost, each at its day's rate): (date, gain),
+    in date order, each holding replayed by its cost method (its own, else its
+    rules', else fifo). What a rule set's `realised_gain` role is filled from."""
+    rules = await _rule_set_method(uow, user_id, end)
+    holdings = await uow.holdings.list(user_id, active_only=False)
+    rows = await uow.holding_transactions.list(user_id)
+    gains: list[tuple[str, Decimal]] = []
+    for holding in holdings:
+        mine = [r for r in rows if r["holding_id"] == holding["id"]]
+        if not mine:
+            continue
+        method = _cost_method(holding.get("cost_method")) or rules or "fifo"
+        for sale in replay(history(mine, holding["currency"]), method=method).sales:
+            if start <= sale.on <= end:
+                gains.append((sale.on.isoformat(), sale.gain_base))
+    return sorted(gains)
 
 
 def _check(
@@ -1136,7 +1160,7 @@ class PortfolioService:
         defaults to today (or the latest transaction or price, if later).
         `risk` holds the risk figures (domain/portfolio/risk.py), from
         monthly returns, against `cash_yield` or the closes recorded for the
-        `benchmark` symbol.
+        `benchmark` symbol; with neither, the active CMA pack's cash yield.
 
         Every holding counts, inactive ones too: a sale's gain belongs to its
         tax year however the holding is filed now. A holding declared by
@@ -1155,6 +1179,11 @@ class PortfolioService:
                 await uow.holding_prices.list(user_id, symbol_key(benchmark), None, None)
                 if benchmark
                 else []
+            )
+            pack = (
+                await uow.cma_packs.active(user_id)
+                if cash_yield is None and not benchmark
+                else None
             )
 
         measured = [t for t in tracked if t.tracked]
@@ -1212,6 +1241,9 @@ class PortfolioService:
             hurdle, hurdle_source = cash_yield, "cash_yield"
         elif bench_figures is not None and bench_figures.yearly_return is not None:
             hurdle, hurdle_source = bench_figures.yearly_return, "benchmark"
+        elif pack is not None:
+            assumed = cma.stored(pack["content"], pack["id"], pack["content_hash"])
+            hurdle, hurdle_source = assumed.cash_yield.value, "cma_pack"
         else:
             hurdle, hurdle_source = None, None
         own = risk.figures(monthly, hurdle)

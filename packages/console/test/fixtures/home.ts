@@ -76,12 +76,40 @@ export const BALANCE_SHEET: BalanceSheet = {
       "code": "3000",
       "name": "Opening equity",
       "balance": "334000.00"
+    },
+    {
+      "account_id": null,
+      "code": "",
+      "name": "Current-year earnings",
+      "balance": "10026.47"
     }
   ],
   "total_assets": "354493.15",
   "total_liabilities": "18591.68",
-  "total_equity": "334000.00",
+  "total_equity": "344026.47",
   "net_worth": "335901.47",
+  "as_of": "2026-10-11",
+  "unrealised_fx": {
+    "as_of": "2026-10-11",
+    "currency": "EUR",
+    "total": "-125.00",
+    "posted": "0.00",
+    "unposted": "-125.00",
+    "lines": [
+      {
+        "account_id": "usd",
+        "code": "1200",
+        "name": "Dollar account",
+        "account_currency": "USD",
+        "balance": "2500.00",
+        "rate": "0.86",
+        "cost": "2275.00",
+        "value": "2150.00",
+        "gain": "-125.00"
+      }
+    ],
+    "notes": []
+  },
   "notes": []
 };
 
@@ -135,6 +163,10 @@ export const INCOME_STATEMENT: IncomeStatement = {
       "amount": "12.99",
       "is_active": true
     }
+  ],
+  "unrealised_fx": null,
+  "notes": [
+    "No USD→EUR rate for 2026-09-30: accounts in USD are left out."
   ]
 };
 

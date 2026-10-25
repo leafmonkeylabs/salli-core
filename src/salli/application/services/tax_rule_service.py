@@ -58,6 +58,7 @@ from salli.application.ports import (
     FxUnavailableError,
     RuleSetExists,
 )
+from salli.application.services.portfolio_service import realised_gains
 from salli.application.tax_deadlines import sync_deadlines
 from salli.domain.accounting.models import Account
 from salli.domain.taxrules.arith import normalized_str
@@ -73,6 +74,7 @@ from salli.domain.taxrules.engine import (
 )
 from salli.domain.taxrules.engine import evaluate as evaluate_rules
 from salli.domain.taxrules.inputs import (
+    RolePosting,
     RoleTotals,
     dates_needing_rates,
     role_postings,
@@ -130,6 +132,12 @@ class RuleSetInputError(TaxRuleError, ValueError):
     def __init__(self, message: str, problems: list[Problem] | tuple[Problem, ...] = ()) -> None:
         super().__init__(message)
         self.problems = tuple(problems)
+
+
+#: The role a rule set declares to tax the gains the user's holdings
+#: realise: filled from each sale's lots (`portfolio_service.realised_gains`),
+#: in the base currency at each sale's rate.
+REALISED_GAIN = "realised_gain"
 
 
 class RuleSetStateError(TaxRuleError, ValueError):
@@ -895,9 +903,17 @@ class TaxRuleService:
             entries = await uow.ledger.get_entries(
                 user_id, from_date=doc.year.start.isoformat(), to_date=doc.year.end.isoformat()
             )
+            roles = [r.key for r in doc.roles]
+            # The gains the user's holdings realised, unless an account of
+            # theirs already carries the role (then the ledger says it).
+            gains = (
+                await realised_gains(uow, user_id, doc.year.start, doc.year.end)
+                if REALISED_GAIN in roles and not any(a.tax_role == REALISED_GAIN for a in accounts)
+                else []
+            )
 
-        roles = [r.key for r in doc.roles]
         postings = role_postings(entries, accounts, roles, doc.year.start, doc.year.end)
+        postings += [RolePosting(REALISED_GAIN, day, base, gain, gain) for day, gain in gains]
         rates: dict[str, Any] = {}
         sources: list[dict[str, str | None]] = []
         for day in dates_needing_rates(postings, base, doc.currency):

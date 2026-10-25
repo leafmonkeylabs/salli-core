@@ -64,10 +64,14 @@ def pick(value: Any, path: list[Any]) -> Any:
     for step in path:
         if isinstance(step, dict):
             [(field, wanted)] = step.items()
-            value = next(item for item in value if item.get(field) == wanted)
+            value = next(item for item in value if _text(item.get(field)) == wanted)
         else:
             value = value[step]
-    # Outside text (a payee, a description) comes fenced: the key is its text.
+    return _text(value)
+
+
+def _text(value: Any) -> Any:
+    """Outside text (a payee, a label) comes fenced: the key is its text."""
     if isinstance(value, dict) and "untrusted_text" in value:
         return value["untrusted_text"]
     return value

@@ -48,6 +48,8 @@ def _profile_row() -> dict[str, Any]:
         "tax_ids": [],
         "time_zone": "Europe/Lisbon",
         "lock_date": "2025-12-31",
+        "books_start": None,
+        "document_retention_years": None,
     }
 
 
@@ -296,6 +298,7 @@ def _portability_service(exporters=()) -> DataPortabilityService:
         )
     ]
     tax.list_computations.return_value = [computation_view()]
+    tax.list_returns.return_value = []
     budget.list_budgets.return_value = [
         {
             "id": "b-1",

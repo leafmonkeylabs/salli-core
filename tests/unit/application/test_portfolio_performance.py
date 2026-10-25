@@ -223,7 +223,7 @@ def test_a_rate_of_any_size_is_shown_to_six_places():
 async def test_risk_figures_month_by_month_against_a_benchmark_or_a_cash_yield():
     from decimal import Decimal
 
-    svc, _, _ = _service()
+    svc, uow, _ = _service()
     h = await _holding(svc, "FND")
     await _add(svc, h, kind="buy", date="2026-01-01", quantity="100", price="10")
     for day, close in (("2026-01-31", "11"), ("2026-02-28", "9.9"), ("2026-03-31", "10.89")):
@@ -251,6 +251,21 @@ async def test_risk_figures_month_by_month_against_a_benchmark_or_a_cash_yield()
     assert (with_cash["risk"]["hurdle"], with_cash["risk"]["hurdle_source"]) == (
         "0.030000",
         "cash_yield",
+    )
+    # With neither, the active CMA pack's cash yield.
+    from salli.domain.fi import cma
+    from tests.unit.domain.test_fi_odds import pack
+
+    doc = pack()
+    row = await uow.cma_packs.add(
+        USER, name="XA", version="1", content=doc, content_hash=cma.content_hash(doc)
+    )
+    await uow.cma_packs.activate(USER, row["id"])
+    from_pack = await svc.get_performance(USER, "2026-01-01", "2026-03-31")
+    assert from_pack is not None
+    assert (from_pack["risk"]["hurdle"], from_pack["risk"]["hurdle_source"]) == (
+        "0.010000",
+        "cma_pack",
     )
     no_series = await svc.get_performance(USER, "2026-01-01", "2026-03-31", benchmark="NONE")
     assert no_series is not None and no_series["risk"]["benchmark"] is None

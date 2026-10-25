@@ -41,6 +41,8 @@ from salli.domain.baseline import (
 )
 from salli.domain.baseline.models import RuleSetRef
 from salli.domain.currency import quantize
+from salli.domain.fi import cma
+from salli.domain.fi import plan as fi_plan
 from salli.domain.fi.assumptions import (
     OwnAssumptions,
     assumptions_dict,
@@ -160,6 +162,7 @@ def holding_inputs(
                 closes=tuple(sorted(closes, key=lambda c: c.on)),
                 declared_value=from_minor(h.get("current_value_minor") or 0, base),
                 is_active=bool(h.get("is_active", True)),
+                cost_method="average" if h.get("cost_method") == "average" else "fifo",
             )
         )
     return out
@@ -223,6 +226,17 @@ def no_tax_rules(residency: str | None, sets: Iterable[dict[str, Any]]) -> str:
     return f"You have no tax rules for {place}. " + ADD_RULES
 
 
+def _born(profile: Mapping[str, Any]) -> dt.date | None:
+    """The date of birth on a profile, if it has a readable one."""
+    raw = profile.get("date_of_birth")
+    if isinstance(raw, dt.date):
+        return raw
+    try:
+        return dt.date.fromisoformat(str(raw)) if raw else None
+    except ValueError:
+        return None
+
+
 def _money(value: Decimal | None, currency: str) -> str | None:
     return None if value is None else str(quantize(value, currency, strict=False))
 
@@ -262,6 +276,7 @@ class BaselineService:
             subscriptions = await uow.recurring_subscriptions.list(user_id, active_only=True)
             fed = await statement_accounts(uow, user_id)
             active_rules = await uow.tax_rule_sets.active_versions(user_id)
+            active_pack = await uow.cma_packs.active(user_id)
             residency: str | None = profile.get("tax_residency") or None
             rules = tax_rules(active_rules, residency, as_of)
             sets: list[dict[str, Any]] = [] if rules else await uow.tax_rule_sets.list_sets(user_id)
@@ -309,6 +324,12 @@ class BaselineService:
                 rule_sets=covering_rule_sets(active_rules, residency, as_of),
                 tax=tax,
                 holdings=holdings,
+                cma=None
+                if active_pack is None
+                else cma.stored(
+                    active_pack["content"], active_pack["id"], active_pack["content_hash"]
+                ),
+                plan=fi_plan.lenient(profile.get("fi_plan"), _born(profile)),
             )
         )
 

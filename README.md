@@ -84,6 +84,7 @@ checked before Salli uses them.
 
   Each computation records the exact rules behind it
   ([docs/taxrules.md](docs/taxrules.md)).
+  Sri Lanka is the first market with a ready-made pack: [markets/lk](markets/lk/README.md).
 - **The AI you already pay for.** Connect Claude, Claude Code or ChatGPT over
   MCP, and your subscription does the thinking while Salli supplies the numbers
   ([docs/ai-clients.md](docs/ai-clients.md)). Salli's own AI features run on

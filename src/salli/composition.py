@@ -20,6 +20,7 @@ from salli.application.ports import (
     StoragePort,
     UsageMeter,
 )
+from salli.application.services.access_grant_service import AccessGrantService
 from salli.application.services.advisor_service import AdvisorService
 from salli.application.services.agent_service import AgentService
 from salli.application.services.bank_connection_service import BankConnectionService, RowImporter
@@ -45,6 +46,7 @@ from salli.application.services.parsing_service import ParsingService
 from salli.application.services.personal_access_token_service import PersonalAccessTokenService
 from salli.application.services.portfolio_service import PortfolioService
 from salli.application.services.principle_service import PrincipleService
+from salli.application.services.reconciliation_service import ReconciliationService
 from salli.application.services.reminder_service import ReminderService
 from salli.application.services.report_service import ReportService
 from salli.application.services.rules_service import RulesService
@@ -91,12 +93,14 @@ class Services:
     subscription: SubscriptionService
     insurance: InsuranceService
     reports: ReportService
+    reconciliation: ReconciliationService
     data_portability: DataPortabilityService
     mcp_oauth: McpOAuthService
     llm_credentials: LlmCredentialService
     # A user's ChatGPT plan, signed in to and kept renewed.
     chatgpt: ChatGPTConnectionService
     tokens: PersonalAccessTokenService
+    access: AccessGrantService
     # Salli's own accounts: passwords, sign-in and sessions.
     logins: LoginService
     rules: RulesService
@@ -325,11 +329,13 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         subscription=subscription,
         insurance=insurance,
         reports=reports,
+        reconciliation=ReconciliationService(uow_factory),
         data_portability=data_portability,
         mcp_oauth=mcp_oauth,
         llm_credentials=llm_credentials,
         chatgpt=chatgpt,
         tokens=PersonalAccessTokenService(uow_factory),
+        access=AccessGrantService(uow_factory),
         logins=_build_logins(settings, uow_factory),
         rules=rules,
         insights=insights,

@@ -45,7 +45,9 @@ export const UPLOADED: StatementUpload = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "fuzzy_match",
-      "duplicate_of": "e067"
+      "duplicate_of": "e067",
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "0000232e-5a11-4000-8000-000000009006",
@@ -64,7 +66,9 @@ export const UPLOADED: StatementUpload = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "0000232f-5a11-4000-8000-000000009007",
@@ -83,7 +87,9 @@ export const UPLOADED: StatementUpload = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "00002330-5a11-4000-8000-000000009008",
@@ -102,7 +108,9 @@ export const UPLOADED: StatementUpload = {
       "description_override": null,
       "confidence": 1.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "00002331-5a11-4000-8000-000000009009",
@@ -121,7 +129,9 @@ export const UPLOADED: StatementUpload = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     }
   ]
 };
@@ -163,7 +173,9 @@ export const PENDING: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "fuzzy_match",
-      "duplicate_of": "e067"
+      "duplicate_of": "e067",
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "0000232e-5a11-4000-8000-000000009006",
@@ -182,7 +194,9 @@ export const PENDING: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "0000232f-5a11-4000-8000-000000009007",
@@ -201,7 +215,9 @@ export const PENDING: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "00002330-5a11-4000-8000-000000009008",
@@ -220,7 +236,9 @@ export const PENDING: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 1.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "00002331-5a11-4000-8000-000000009009",
@@ -239,7 +257,9 @@ export const PENDING: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     }
   ]
 };
@@ -585,7 +605,9 @@ export const PENDING_CHOSEN: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "fuzzy_match",
-      "duplicate_of": "e067"
+      "duplicate_of": "e067",
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "0000232e-5a11-4000-8000-000000009006",
@@ -604,7 +626,9 @@ export const PENDING_CHOSEN: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "0000232f-5a11-4000-8000-000000009007",
@@ -623,7 +647,9 @@ export const PENDING_CHOSEN: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 1.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "00002330-5a11-4000-8000-000000009008",
@@ -642,7 +668,9 @@ export const PENDING_CHOSEN: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 1.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "00002331-5a11-4000-8000-000000009009",
@@ -661,7 +689,9 @@ export const PENDING_CHOSEN: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     }
   ]
 };
@@ -697,7 +727,9 @@ export const PENDING_POSTED: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "fuzzy_match",
-      "duplicate_of": "e067"
+      "duplicate_of": "e067",
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "0000232e-5a11-4000-8000-000000009006",
@@ -716,7 +748,9 @@ export const PENDING_POSTED: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     },
     {
       "id": "00002331-5a11-4000-8000-000000009009",
@@ -735,7 +769,9 @@ export const PENDING_POSTED: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     }
   ]
 };
@@ -767,7 +803,9 @@ export const PENDING_DISCARDED: PendingStatementTransactions = {
       "description_override": null,
       "confidence": 0.0,
       "dedup_status": "pending",
-      "duplicate_of": null
+      "duplicate_of": null,
+      "base_amount": null,
+      "splits": []
     }
   ]
 };
