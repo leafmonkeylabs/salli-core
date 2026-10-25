@@ -634,8 +634,8 @@ a client for itself, which doesn't; `salli doctor` says so.
 `explain_tax_line` (the user's tax from their active rules, read-only);
 `get_tax_rule_schema`, `list_tax_rule_sets`, `get_tax_rule_set`,
 `draft_tax_rule_set`, `validate_tax_rule_set`, `propose_tax_rule_set`,
-`diff_tax_rule_set_versions`, `evaluate_tax_rule_set` and
-`suggested_tax_accounts`; and the `research_tax_rules(country, year)` prompt.
+`diff_tax_rule_set_versions`, `evaluate_tax_rule_set`,
+`suggested_tax_accounts` and `apply_suggested_tax_accounts`; and the `research_tax_rules(country, year)` prompt.
 No activate tool. Salli's own agents have `get_tax_computation` and
 `explain_tax_line` too, and are told the user's residency and which rules are
 active, never a figure: those reach the user only through the engine.

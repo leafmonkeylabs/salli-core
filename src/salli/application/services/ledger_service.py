@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import uuid
 from collections.abc import Callable
 from decimal import Decimal
@@ -22,8 +23,24 @@ from salli.domain.accounting.models import (
     TaxRole,
 )
 from salli.domain.currency import normalize_currency, quantize
+from salli.domain.money import to_minor
 from salli.domain.subscription import engine as subscription_engine
 from salli.domain.subscription.models import Subscription
+
+
+def _cursor_of(entry_date: str, entry_id: str) -> str:
+    """Where a page of a search ended, opaque to the caller."""
+    return base64.urlsafe_b64encode(f"{entry_date}|{entry_id}".encode()).decode()
+
+
+def _cursor_position(cursor: str) -> tuple[str, str]:
+    try:
+        entry_date, _, entry_id = base64.urlsafe_b64decode(cursor.encode()).decode().partition("|")
+    except (ValueError, UnicodeError):
+        entry_date = entry_id = ""
+    if not entry_date or not entry_id:
+        raise ValueError("That cursor is not one a search gave: start again without it")
+    return entry_date, entry_id
 
 
 class UnknownTaxRoleError(ValueError):
@@ -196,6 +213,78 @@ class LedgerService:
     ) -> list[StoredJournalEntry]:
         async with self._uow_factory() as uow:
             return await uow.ledger.get_entries(user_id, from_date, to_date)
+
+    async def add_entry_once(
+        self,
+        user_id: str,
+        entry_date: str,
+        description: str,
+        postings_data: list[dict[str, Any]],
+        client_ref: str,
+    ) -> tuple[str, bool]:
+        """A manual entry booked once for the caller's `client_ref` (kept as
+        its external_ref): the entry already booked with it, and False, when
+        it is sent again; else the new entry's id, and True."""
+        async with self._uow_factory() as uow:
+            booked = await uow.ledger.manual_entry_by_ref(user_id, client_ref)
+        if booked is not None:
+            return booked.id, False
+        entry_id = await self.add_entry(
+            user_id, entry_date, description, "manual", postings_data, external_ref=client_ref
+        )
+        return entry_id, True
+
+    async def search_entries(
+        self,
+        user_id: str,
+        *,
+        text: str | None = None,
+        account_id: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        min_amount: Decimal | None = None,
+        max_amount: Decimal | None = None,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        """Entries by text in their description, account, dates and amount
+        (in the base currency, on any posting, or on `account_id`'s), newest
+        first, a page at a time: `next_cursor` fetches the next page (None
+        on the last). `matches` and `totals` cover every match, not only the
+        page: per account type and currency, the net of the postings counted
+        (debits less credits), so spending shows positive on expense
+        accounts and income negative on income accounts. ValueError for a
+        cursor this search did not give."""
+        base = await self.base_currency(user_id)
+        after = _cursor_position(cursor) if cursor else None
+        async with self._uow_factory() as uow:
+            entries, matches, totals = await uow.ledger.search_entries(
+                user_id,
+                text=text,
+                account_id=account_id,
+                from_date=from_date,
+                to_date=to_date,
+                min_base_minor=None if min_amount is None else to_minor(min_amount, base),
+                max_base_minor=None if max_amount is None else to_minor(max_amount, base),
+                after=after,
+                limit=limit + 1,
+            )
+        page = entries[:limit]
+        last = page[-1] if len(entries) > limit else None
+        return {
+            "entries": page,
+            "matches": matches,
+            "totals": [
+                {
+                    "account_type": type_,
+                    "currency": currency,
+                    "net": str(quantize(net, currency, strict=False)),
+                }
+                for type_, currency, net in totals
+            ],
+            "amounts_in": base,
+            "next_cursor": None if last is None else _cursor_of(last.entry_date, last.id),
+        }
 
     async def get_entry(self, user_id: str, entry_id: str) -> StoredJournalEntry | None:
         async with self._uow_factory() as uow:

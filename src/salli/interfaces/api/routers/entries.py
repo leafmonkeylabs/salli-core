@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from salli.domain.accounting.models import Posting as DomainPosting
@@ -225,6 +225,60 @@ async def list_entries(
 ) -> list[JournalEntry]:
     entries = await svc.ledger.get_entries(user_id, from_date, to_date)
     return [_entry(e) for e in entries]
+
+
+class EntryTotal(BaseModel):
+    account_type: Literal["asset", "liability", "equity", "income", "expense"]
+    currency: CurrencyCode
+    #: Debits less credits of the postings counted, over every match.
+    net: Amount
+
+
+class EntrySearch(BaseModel):
+    #: This page, newest first.
+    entries: list[JournalEntry]
+    #: How many entries match in all.
+    matches: int
+    #: Over every match, not only this page: per account type and currency,
+    #: the net of the postings counted (on `account_id`'s, when given).
+    #: Spending is positive on expense accounts, income negative on income ones.
+    totals: list[EntryTotal]
+    #: The currency `min_amount` and `max_amount` are in: the base currency.
+    amounts_in: CurrencyCode
+    #: Pass as `cursor` for the next page; null on the last.
+    next_cursor: str | None
+
+
+@router.get("/search")
+async def search_entries(
+    user_id: CurrentUser,
+    svc: AppServices,
+    text: str | None = Query(None, description="In the description, any case"),
+    account_id: str | None = Query(None, description="Only entries with a posting on it"),
+    from_date: str | None = None,
+    to_date: str | None = None,
+    min_amount: DecimalString | None = Query(None, description="A posting at least this"),
+    max_amount: DecimalString | None = Query(None, description="A posting at most this"),
+    limit: int = Query(50, ge=1, le=200),
+    cursor: str | None = Query(None, description="`next_cursor` from the page before"),
+) -> EntrySearch:
+    """Entries by text, account, dates and amount (in the base currency),
+    newest first, with totals over every match."""
+    try:
+        found = await svc.ledger.search_entries(
+            user_id,
+            text=text,
+            account_id=account_id,
+            from_date=from_date,
+            to_date=to_date,
+            min_amount=None if min_amount is None else Decimal(min_amount),
+            max_amount=None if max_amount is None else Decimal(max_amount),
+            limit=limit,
+            cursor=cursor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return EntrySearch.model_validate({**found, "entries": [_entry(e) for e in found["entries"]]})
 
 
 @router.get("/{entry_id}")

@@ -12,7 +12,7 @@ import { createXai } from '@ai-sdk/xai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { stepCountIs, streamText, type LanguageModel, type ModelMessage } from 'ai';
 import { fetch as expoFetch } from 'expo/fetch';
-import { BRIEF, modelsOf, onlyReads, providerOf, type Model, type ProviderId } from '../lib/ai';
+import { BRIEF, modelsOf, providerOf, readsOf, type Model, type ProviderId } from '../lib/ai';
 
 // Streaming needs Expo's fetch: React Native's own reads a response whole.
 const streamingFetch = expoFetch as unknown as typeof globalThis.fetch;
@@ -80,20 +80,23 @@ export async function runTurn(options: {
       .join('\n')
       .trim();
     if (!instructions) throw new Error('This server has no instructions for an AI conversation yet: it needs Salli 0.5 or later.');
-    const tools = await mcp.tools();
+    // Which tools only read, as the server's own list says (readOnlyHint).
+    const listed = await mcp.listTools();
+    const reads = readsOf(listed.tools);
+    const tools = mcp.toolsFromDefinitions(listed);
     const result = streamText({
       model: options.model,
       system: `${instructions}\n\n${BRIEF}`,
       messages: options.messages,
       tools,
-      toolApproval: ({ toolCall }) => (onlyReads(toolCall.toolName) ? undefined : 'user-approval'),
+      toolApproval: ({ toolCall }) => (reads.has(toolCall.toolName) ? undefined : 'user-approval'),
       stopWhen: stepCountIs(12),
       ...(options.signal ? { abortSignal: options.signal } : {}),
     });
     const approvals: Approval[] = [];
     for await (const part of result.fullStream) {
       if (part.type === 'text-delta') options.onEvent({ type: 'text', text: part.text });
-      else if (part.type === 'tool-call' && onlyReads(part.toolName)) options.onEvent({ type: 'read', tool: part.toolName });
+      else if (part.type === 'tool-call' && reads.has(part.toolName)) options.onEvent({ type: 'read', tool: part.toolName });
       else if (part.type === 'tool-approval-request') {
         approvals.push({
           approvalId: part.approvalId,

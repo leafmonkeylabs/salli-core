@@ -4342,6 +4342,56 @@ export type EntryProvenance = {
 };
 
 /**
+ * EntrySearch
+ */
+export type EntrySearch = {
+    /**
+     * Entries
+     */
+    entries: Array<JournalEntry>;
+    /**
+     * Matches
+     */
+    matches: number;
+    /**
+     * Totals
+     */
+    totals: Array<EntryTotal>;
+    /**
+     * Amounts In
+     *
+     * ISO 4217 currency code
+     */
+    amounts_in: string;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * EntryTotal
+ */
+export type EntryTotal = {
+    /**
+     * Account Type
+     */
+    account_type: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Net
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net: string;
+};
+
+/**
  * ExchangeRate
  *
  * A published rate the cash total is in the base currency at: the one
@@ -13379,6 +13429,78 @@ export type EntriesCreateResponses = {
 };
 
 export type EntriesCreateResponse = EntriesCreateResponses[keyof EntriesCreateResponses];
+
+export type EntriesSearchData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Text
+         *
+         * In the description, any case
+         */
+        text?: string | null;
+        /**
+         * Account Id
+         *
+         * Only entries with a posting on it
+         */
+        account_id?: string | null;
+        /**
+         * From Date
+         */
+        from_date?: string | null;
+        /**
+         * To Date
+         */
+        to_date?: string | null;
+        /**
+         * Min Amount
+         *
+         * A posting at least this
+         */
+        min_amount?: string | null;
+        /**
+         * Max Amount
+         *
+         * A posting at most this
+         */
+        max_amount?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Cursor
+         *
+         * `next_cursor` from the page before
+         */
+        cursor?: string | null;
+    };
+    url: '/v1/entries/search';
+};
+
+export type EntriesSearchErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type EntriesSearchError = EntriesSearchErrors[keyof EntriesSearchErrors];
+
+export type EntriesSearchResponses = {
+    /**
+     * Successful Response
+     */
+    200: EntrySearch;
+};
+
+export type EntriesSearchResponse = EntriesSearchResponses[keyof EntriesSearchResponses];
 
 export type EntriesGetData = {
     body?: never;

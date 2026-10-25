@@ -505,6 +505,20 @@ describe('salli entries', () => {
     expect(JSON.parse(result.stdout).map((e: { description: string }) => e.description)).toEqual(['Weekly groceries']);
   });
 
+  it('searches on the server and prints its totals, never its own', async () => {
+    const result = await run(['entries', 'search', 'rent', '--account', 'checking', '--from', '2026-10-01', '--min', '10', '--limit', '1']);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Rent for October');
+    expect(result.stdout).toContain('1 in all.');
+    expect(result.stdout).toContain('expense    USD 412.35');
+    const query = mock.requestsTo('GET', '/v1/entries/search')[0]?.query;
+    expect(Object.fromEntries(query ?? [])).toMatchObject({ text: 'rent', from_date: '2026-10-01', min_amount: '10', limit: '1' });
+    expect(query?.get('account_id')).toBeTruthy();
+
+    const json = JSON.parse((await run(['entries', 'search', 'o', '--limit', '1', '--json'])).stdout);
+    expect(json.next_cursor).toBe('next-page');
+  });
+
   it('shows an entry with its postings, tags and provenance', async () => {
     const result = await run(['entries', 'show', uid(203).slice(0, 8)]);
     expect(result.code).toBe(0);

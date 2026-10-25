@@ -56,6 +56,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/accounts/{account_id}/reactivate"): "accounts.reactivate",
     # entries, ledger, tags
     ("GET", "/entries/"): "entries.list",
+    ("GET", "/entries/search"): "entries.search",
     ("POST", "/entries/"): "entries.create",
     ("POST", "/entries/parse"): "entries.parse",
     ("GET", "/entries/{entry_id}"): "entries.get",
