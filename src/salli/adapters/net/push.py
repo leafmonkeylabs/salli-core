@@ -5,10 +5,11 @@ so core never holds their keys. One POST per alert, a JSON list of Expo
 messages, one per device the person registered; a 2xx answer is SENT.
 
 The relay must be HTTPS (plain HTTP only to this machine, in development),
-and each POST carries `Authorization: Bearer t=<unix seconds>,v1=<hex>`,
-where v1 is HMAC-SHA256 under SALLI_PUSH_RELAY_SECRET of `<t>.<body>`: the
-relay recomputes it over the raw body and refuses a stale `t`
-(docs/self-host.md#push-alerts).
+and each POST carries `Authorization: Bearer t=<unix seconds>,id=<id>,v1=<hex>`,
+where id is the alert's (also each message's `data.id`) and v1 is
+HMAC-SHA256 under SALLI_PUSH_RELAY_SECRET of `<t>.<id>.<body>`: the relay
+recomputes it over the raw body, refuses a `t` more than five minutes off and
+an id it has already accepted (docs/self-host.md#push-alerts).
 """
 
 from __future__ import annotations
@@ -40,10 +41,11 @@ def relay_problem(url: str, secret: str, environment: str) -> str | None:
     return None
 
 
-def relay_authorization(secret: str, body: bytes, at: int) -> str:
-    """The bearer the relay checks: when, and an HMAC of when and the body."""
-    mac = hmac.new(secret.encode(), f"{at}.".encode() + body, hashlib.sha256).hexdigest()
-    return f"Bearer t={at},v1={mac}"
+def relay_authorization(secret: str, body: bytes, at: int, id_: str) -> str:
+    """The bearer the relay checks: when, the alert's id (its nonce), and an
+    HMAC of both and the body."""
+    mac = hmac.new(secret.encode(), f"{at}.{id_}.".encode() + body, hashlib.sha256).hexdigest()
+    return f"Bearer t={at},id={id_},v1={mac}"
 
 
 class RelayPushNotifier(Notifier):
@@ -79,7 +81,9 @@ class RelayPushNotifier(Notifier):
         body = json.dumps(messages).encode()
         headers = {
             "Content-Type": "application/json",
-            "Authorization": relay_authorization(self._secret, body, int(time.time())),
+            "Authorization": relay_authorization(
+                self._secret, body, int(time.time()), notification.id
+            ),
         }
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:

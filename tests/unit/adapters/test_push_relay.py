@@ -63,5 +63,7 @@ async def test_each_post_carries_a_bearer_signed_over_its_body(monkeypatch):
     (request,) = seen
     scheme, value = request.headers["authorization"].split(" ", 1)
     fields = dict(part.split("=", 1) for part in value.split(","))
-    expected = hmac.new(b"k", f"{fields['t']}.".encode() + request.content, hashlib.sha256)
+    assert fields["id"] == "n1"  # the nonce, signed
+    signed = f"{fields['t']}.{fields['id']}.".encode() + request.content
+    expected = hmac.new(b"k", signed, hashlib.sha256)
     assert scheme == "Bearer" and hmac.compare_digest(fields["v1"], expected.hexdigest())

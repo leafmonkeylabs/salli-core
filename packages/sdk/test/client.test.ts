@@ -46,6 +46,13 @@ describe('createClient', () => {
     expect(server.requests[0]?.headers['user-agent']).toBe('salli-test/1');
   });
 
+  it('sends an idempotency key as its header', async () => {
+    server = await startServer((req, res) => sendJson(res, 200, [account]));
+    const salli = createClient({ server: server.url, auth: 'tok-1' });
+    await salli.call(accountsList, { idempotencyKey: 'k-1' });
+    expect(server.requests[0]?.headers['idempotency-key']).toBe('k-1');
+  });
+
   it('fills path parameters and sends JSON bodies', async () => {
     server = await startServer((req, res) =>
       req.method === 'GET' ? sendJson(res, 200, account) : sendJson(res, 201, { id: 'entry-1' }),

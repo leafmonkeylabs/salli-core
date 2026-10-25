@@ -234,6 +234,7 @@ is needed to start.
 | `MCP_ACCESS_TOKEN_TTL_SECONDS` | `3600` | How long an OAuth access token lasts (the CLI's, an AI client's). |
 | `MCP_REFRESH_TOKEN_TTL_SECONDS` | `1209600` | How long a refresh token lasts (14 days). Each refresh issues a new one; a sign-in lasts while it keeps refreshing, except the console's (above) and an AI client's (below). |
 | `MCP_GRANT_LIFETIME_DAYS` | `90` | How long an AI client's connection lasts after the person approved it, however often it refreshes (1 to 365); then the person connects it again. Salli's own CLI and app are not affected. |
+| `SALLI_APP_SIGN_IN_DAYS` | `90` | How long a sign-in of Salli's CLI or phone app lasts after its password was checked, however often it refreshes (1 to 365); then the person signs in again. |
 | `MCP_AUTH_CODE_TTL_SECONDS`, `MCP_ART_TTL_SECONDS` | `120`, `1800` | How long an authorisation code, and a pending approval, last. |
 | `SALLI_EXTENSIONS` | none | Extensions to load, comma-separated. They must be installed in the image. |
 | `SALLI_USER_ID` | the owner | Whom a `salli-server` command that acts on one user acts as. |
@@ -430,11 +431,19 @@ a name or anything from the ledger.
 messages: each alert is one POST of a JSON list of `{to, title, body,
 data}`, one per device, and any 2xx answer counts as sent. The relay must
 be `https://`, and each POST carries `Authorization: Bearer
-t=<unix seconds>,v1=<hex>`, where `v1` is HMAC-SHA256, keyed with
-`SALLI_PUSH_RELAY_SECRET`, of `<t>.` followed by the raw request body. A
-relay recomputes it over the body as received, compares in constant time,
-and refuses a `t` more than five minutes from its clock, so a captured post
-can't be replayed or altered. Device tokens are
+t=<unix seconds>,id=<id>,v1=<hex>`, where `id` is the alert's own (the same
+as each message's `data.id`) and `v1` is HMAC-SHA256, keyed with
+`SALLI_PUSH_RELAY_SECRET`, of `<t>.<id>.` followed by the raw request body.
+A relay operator must:
+
+- recompute `v1` over the body as received and compare in constant time;
+- refuse a `t` more than five minutes (±300 seconds) from its own clock;
+- refuse an `id` it has already accepted within that window (keep the ids
+  it answered 2xx for at least ten minutes; a refused post may come again
+  with the same id, as Salli retries a failed one).
+
+So a captured post can't be altered, replayed later, or replayed within the
+window. Device tokens are
 sealed with `BYOK_ENCRYPTION_KEYS` and found by their SHA-256 hash; without
 a relay and a key, registering a device answers 503 and nothing is sent.
 

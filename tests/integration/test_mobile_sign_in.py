@@ -10,7 +10,8 @@ browser sheet drives it.
   set up in the app: a page that asks to connect it, by name, and an AI
   connection like any other; never by device code;
 - it holds `tax:activate` only within five minutes of the password, as the
-  console does, and its sign-in has no absolute end;
+  console does, and its sign-in ends 90 days after the password
+  (SALLI_APP_SIGN_IN_DAYS);
 - `GET /v1/auth/sign-ins` lists it as `mobile`, and `/v1/meta` names it.
 """
 
@@ -204,16 +205,22 @@ async def test_the_app_holds_tax_activate_only_soon_after_the_password(salli, ag
     assert (await _me(salli, tokens["access_token"])).json()["permissions"] == permissions
 
 
-async def test_the_app_s_sign_in_is_listed_and_has_no_absolute_end(salli):
+async def test_the_app_s_sign_in_is_listed_and_ends_in_90_days(salli):
     tokens = await _sign_in(salli)
     rows = (await salli.get("/v1/auth/sign-ins", headers=_bearer(tokens["access_token"]))).json()
     assert [(r["kind"], r["client_name"], r["current"]) for r in rows] == [
         ("mobile", "Salli app", True)
     ]
-    # No absolute end, as the console's 12 hours: only its refresh token's,
-    # which moves on with every refresh.
     ends = datetime.fromisoformat(rows[0]["expires_at"])
     assert ends - datetime.now(UTC) > timedelta(days=13)
+    async with salli.engine.begin() as conn:
+        grant_ends = (
+            await conn.execute(
+                text("SELECT expires_at - authenticated_at FROM oauth_grants WHERE client_id = :c"),
+                {"c": MOBILE_CLIENT_ID},
+            )
+        ).scalar_one()
+    assert grant_ends == timedelta(days=90)
     async with salli.engine.begin() as conn:
         seeded = (
             await conn.execute(

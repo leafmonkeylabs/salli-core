@@ -5084,6 +5084,30 @@
         "summary": "Export My Data",
         "description": "Everything Salli has stored about this user, as one JSON document. A\nsign-in whose client wants a recent password (the console's and the\napp's) needs one entered in the last five minutes.",
         "operationId": "account.export",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "salli-two-step",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Salli-Two-Step"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -5096,7 +5120,7 @@
             }
           },
           "403": {
-            "description": "`/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password)",
+            "description": "`/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password); or the authenticator code in `Salli-Two-Step` is missing or wrong (needed when two-step sign-in is on, and the owner needs two-step on)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5105,55 +5129,8 @@
               }
             }
           },
-          "default": {
-            "description": "An error, as RFC 9457 problem details",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/v1/onboarding/account": {
-      "delete": {
-        "tags": [
-          "onboarding"
-        ],
-        "summary": "Delete My Account",
-        "description": "Permanently delete every row belonging to this user. Irreversible.\nRequires confirm_email to match the authenticated account's email —\na deliberate friction point against an accidental or spoofed call —\nand, where the client wants one (the console's and the app's), a\npassword entered in the last five minutes.",
-        "operationId": "account.delete",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DeleteAccountRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AccountDeletion"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "`/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password)",
+          "429": {
+            "description": "Too many wrong codes; `Retry-After` says when to try again",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5182,12 +5159,103 @@
               }
             }
           }
-        },
+        }
+      }
+    },
+    "/v1/onboarding/account": {
+      "delete": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Delete My Account",
+        "description": "Permanently delete every row belonging to this user. Irreversible.\nRequires confirm_email to match the authenticated account's email —\na deliberate friction point against an accidental or spoofed call —\nand, where the client wants one (the console's and the app's), a\npassword entered in the last five minutes.",
+        "operationId": "account.delete",
         "security": [
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "salli-two-step",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Salli-Two-Step"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletion"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password); or the authenticator code in `Salli-Two-Step` is missing or wrong (needed when two-step sign-in is on, and the owner needs two-step on)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many wrong codes; `Retry-After` says when to try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/statements/upload": {
