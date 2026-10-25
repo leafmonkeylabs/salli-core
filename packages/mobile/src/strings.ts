@@ -158,10 +158,10 @@ export const strings = {
     total: 'Total',
     sourceChip: { manual: 'By hand', statement: 'From a statement', sms: 'From a text', system: 'By Salli', reversal: 'A reversal' } as Record<string, string>,
     reverse: 'Reverse this entry',
-    reverseHelp: 'A posted entry is never edited. Reversing books the opposite entry today and marks this one reversed.',
+    reverseHelp: 'A posted entry is never edited. Reversing books the opposite entry on the same day (today, if that day is closed) and marks this one reversed.',
     confirmTitle: (what: string) => `Reverse ${what}?`,
     confirmBody:
-      'Salli books this opposite entry today and marks the original reversed. Nothing is edited or deleted, and a reversed entry can’t be reversed again.',
+      'Salli books this opposite entry on the same day (today, if that day is closed) and marks the original reversed. Nothing is edited or deleted, and a reversed entry can’t be reversed again.',
     reversalOf: (description: string) => `Reversal of ${description}`,
     reason: 'Why reverse it',
     confirm: 'Book the reversal',

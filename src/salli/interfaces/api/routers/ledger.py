@@ -132,8 +132,8 @@ async def income_statement(
 
 
 class LockDate(BaseModel):
-    #: The books are closed up to and including this day: nothing is posted
-    #: or reversed on or before it. Null: none are closed.
+    #: The books are closed up to and including this day: nothing is posted,
+    #: reversed, changed or retagged on or before it. Null: none are closed.
     lock_date: dt.date | None
 
 
@@ -143,7 +143,8 @@ async def set_lock_date(
 ) -> LockDate:
     """Close the books up to and including a day before today, or open them
     (null). Moving the day earlier opens what was closed, so only the person's
-    own sign-in may, with a recent password where their client asks for one."""
+    own sign-in may, with a recent password where their client asks for one.
+    Every change is written to the audit log."""
     current = await svc.ledger.lock_date(user_id)
     wanted = body.lock_date.isoformat() if body.lock_date else None
     if current is not None and (wanted is None or wanted < current):
@@ -157,5 +158,7 @@ async def set_lock_date(
             raise StepUpRequired(
                 "Opening closed books", int(principal.fresh_within.total_seconds())
             )
-    await svc.ledger.set_lock_date(user_id, wanted)
+    await svc.ledger.set_lock_date(
+        user_id, wanted, client_id=principal.client_id, via=principal.method
+    )
     return LockDate(lock_date=body.lock_date)

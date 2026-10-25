@@ -24,13 +24,14 @@ class BooksLocked(ValueError):
     """An entry dated on or before the user's lock date. The books are closed
     up to and including that day, so a correction is posted after it."""
 
-    def __init__(self, entry_date: str, lock_date: str) -> None:
+    def __init__(self, entry_date: str, lock_date: str, detail: str | None = None) -> None:
         self.entry_date = entry_date
         self.lock_date = lock_date
         super().__init__(
-            f"The books are closed up to and including {lock_date}, so nothing can be "
-            f"posted on {entry_date}. Post the correction on a later day, or move the "
-            "lock date earlier."
+            detail
+            or f"The books are closed up to and including {lock_date}, so nothing can be "
+            f"posted or changed on {entry_date}. Post the correction on a later day, or "
+            "move the lock date earlier."
         )
 
 

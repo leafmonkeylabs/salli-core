@@ -81,6 +81,8 @@ class Principal:
     granted: frozenset[str] = frozenset()
     #: For a Salli `session`: which one (so it can sign itself out).
     session_id: str | None = None
+    #: For `oauth`: the client's id, recorded in the audit log.
+    client_id: str | None = None
     #: For `oauth`: the grant (sign-in) the token belongs to.
     grant_id: str | None = None
     #: For `oauth`: how long ago the password behind it was checked, when
@@ -199,6 +201,7 @@ async def get_principal(
             "oauth",
             first_party_client=bool(record.get("client_first_party")),
             client_name=record.get("client_name"),
+            client_id=record.get("client_id"),
             grant_id=record.get("grant_id"),
             sign_in_age=(
                 datetime.now(UTC) - authenticated_at if authenticated_at is not None else None

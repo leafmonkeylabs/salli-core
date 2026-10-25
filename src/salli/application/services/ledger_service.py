@@ -16,6 +16,7 @@ from salli.domain.accounting.models import (
     Account,
     AccountType,
     AssetRole,
+    BooksLocked,
     Direction,
     JournalEntry,
     Posting,
@@ -109,7 +110,8 @@ class LedgerService:
         # Rates for postings in a currency other than the owner's base one
         # that arrive without their own (see application/fx.py).
         self._fx = fx
-        # The day a reversal is dated, and after which no lock date may fall.
+        # The day a reversal in closed books is dated, and after which no
+        # lock date may fall.
         self._today = today
 
     async def base_currency(self, user_id: str) -> str:
@@ -126,16 +128,44 @@ class LedgerService:
         async with self._uow_factory() as uow:
             return await self._lock_date(uow, user_id)
 
-    async def set_lock_date(self, user_id: str, lock_date: str | None) -> str | None:
+    async def set_lock_date(
+        self,
+        user_id: str,
+        lock_date: str | None,
+        *,
+        client_id: str | None = None,
+        via: str | None = None,
+    ) -> str | None:
         """Close the books up to and including `lock_date`, or open them all
-        (None). Nothing is then posted or reversed on or before it, here or by
-        any other path (core_0025's trigger). It must be before today, whose
-        entries are still being made, so a reversal (dated today) is never
-        refused by it. Who may move it earlier is the API's to decide."""
+        (None). Nothing is then posted, reversed, changed or deleted on or
+        before it, here or by any other path (core_0025's and core_0030's
+        triggers). It must be before today, whose entries are still being
+        made. Who may move it earlier is the API's to decide; every change
+        (set, later, earlier, clear) is written to the audit log, with the
+        client and how its caller signed in (`via`)."""
         if lock_date is not None and dt.date.fromisoformat(lock_date) >= self._today():
             raise ValueError("The books can be closed only up to yesterday.")
         async with self._uow_factory() as uow:
+            before = await self._lock_date(uow, user_id)
+            if before == lock_date:
+                return lock_date
             await uow.user_profiles.set_lock_date(user_id, lock_date)
+            change = (
+                "clear"
+                if lock_date is None
+                else "set"
+                if before is None
+                else "later"
+                if lock_date > before
+                else "earlier"
+            )
+            await uow.audit_log.log(
+                user_id,
+                "set_lock_date",
+                {"change": change, "from": before, "to": lock_date, "via": via},
+                "succeeded",
+                client_id=client_id,
+            )
         return lock_date
 
     async def allowed_tax_roles(self, user_id: str) -> tuple[str, ...]:
@@ -455,6 +485,21 @@ class LedgerService:
             account = await uow.ledger.get_account(user_id, account_id)
             if account is None:
                 raise KeyError(account_id)
+            locked = await self._lock_date(uow, user_id)
+            if (
+                locked is not None
+                and (type != account.type or tax_role != account.tax_role)
+                and await uow.ledger.posting_totals(user_id, [account_id], to_date=locked)
+            ):
+                # Its type and tax role decide what its postings count as,
+                # so they would change the closed books' statements and tax.
+                raise BooksLocked(
+                    locked,
+                    locked,
+                    f"The books are closed up to and including {locked}, and this account "
+                    "has entries there, so its type and tax role can't change. Open a new "
+                    "account for what comes next, or move the lock date earlier.",
+                )
             role = asset_role_for(type, asset_role, account.asset_role)
             if tax_role is not None and tax_role != account.tax_role:
                 await self._check_tax_role(uow, user_id, tax_role)
@@ -488,8 +533,12 @@ class LedgerService:
             return await uow.ledger.list_tags(user_id, kind)
 
     async def set_posting_tags(self, user_id: str, posting_id: str, tags: dict[str, str]) -> None:
-        """Retag a posting. The money is immutable; how it is classified is not."""
+        """Retag a posting. The money is immutable; how it is classified is
+        not, outside the closed books."""
         async with self._uow_factory() as uow:
+            entry_date = await uow.ledger.posting_entry_date(user_id, posting_id)
+            if entry_date is not None:
+                refuse_if_locked(entry_date, await self._lock_date(uow, user_id))
             await uow.ledger.set_posting_tags(user_id, posting_id, tags)
 
     async def deactivate_account(self, user_id: str, account_id: str) -> None:
@@ -566,13 +615,13 @@ class LedgerService:
     async def reverse_entry(self, user_id: str, entry_id: str, reason: str) -> str:
         """Create a reversing journal entry and mark the original as reversed.
 
-        The reversal is dated today, never the original's day: a correction
-        belongs to the period it is made in, and the original's may be closed.
-        Its description keeps the original's and says why (`reason`)."""
+        The reversal is dated the original's day while that day's books are
+        open, so a corrected month reads as corrected; when they are closed
+        (on or before the lock date), it is dated today. Its description keeps
+        the original's and says why (`reason`)."""
         reason = reason.strip()
         if not reason:
             raise ValueError("Say why the entry is reversed: a reversal needs a reason.")
-        today = self._today().isoformat()
         async with self._uow_factory() as uow:
             original = await uow.ledger.get_entry_by_id(user_id, entry_id)
             if original is None:
@@ -598,13 +647,16 @@ class LedgerService:
                 )
                 for p in original.postings
             ]
+            locked = await self._lock_date(uow, user_id)
+            closed = locked is not None and original.entry_date <= locked
+            on = self._today().isoformat() if closed else original.entry_date
             reversing = JournalEntry(
-                entry_date=today,
+                entry_date=on,
                 description=f"Reversal of {original.description}: {reason}",
                 source="reversal",
                 postings=reversed_postings,
             )
-            refuse_if_locked(today, await self._lock_date(uow, user_id))
+            refuse_if_locked(on, locked)
             reversing_id = await uow.ledger.save_entry(user_id, reversing)
             await uow.ledger.set_reversed_by(entry_id, reversing_id)
         return reversing_id

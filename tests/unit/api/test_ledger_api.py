@@ -217,7 +217,9 @@ async def test_the_books_are_closed_up_to_a_day(client, mock_services):
     mock_services.ledger.lock_date.return_value = "2025-06-30"
     r = await client.put("/v1/ledger/lock-date", json={"lock_date": "2025-12-31"}, headers=AUTH)
     assert (r.status_code, r.json()) == (200, {"lock_date": "2025-12-31"})
-    mock_services.ledger.set_lock_date.assert_awaited_once_with("test-user-1", "2025-12-31")
+    mock_services.ledger.set_lock_date.assert_awaited_once_with(
+        "test-user-1", "2025-12-31", client_id=None, via="dev"
+    )
 
 
 @pytest.mark.asyncio
@@ -226,6 +228,7 @@ async def test_closing_later_needs_no_fresh_password_but_opening_does(app, clien
     _signed_in(
         app,
         first_party_client=True,
+        client_id="salli-console",
         sign_in_age=timedelta(minutes=10),
         fresh_within=timedelta(minutes=5),
     )
@@ -236,7 +239,9 @@ async def test_closing_later_needs_no_fresh_password_but_opening_does(app, clien
         r = await client.put("/v1/ledger/lock-date", json=body, headers=AUTH)
         assert r.status_code == 403
         assert r.json()["type"] == "/problems/step-up-required"
-    mock_services.ledger.set_lock_date.assert_awaited_once_with("test-user-1", "2026-03-31")
+    mock_services.ledger.set_lock_date.assert_awaited_once_with(
+        "test-user-1", "2026-03-31", client_id="salli-console", via="oauth"
+    )
 
 
 @pytest.mark.asyncio

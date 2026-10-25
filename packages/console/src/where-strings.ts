@@ -182,12 +182,12 @@ export const whereStrings = {
     reverses: 'Reverses',
     openIt: (description: string, date: string) => `${description}, ${date}`,
     neverEdited:
-      'Posted entries are never edited. To correct this one, reverse it: Salli posts a new entry today with every line the other way round, and both stay in the ledger.',
+      'Posted entries are never edited. To correct this one, reverse it: Salli posts a new entry on the same day (today, if that day is closed) with every line the other way round, and both stay in the ledger.',
     reverse: 'Reverse this entry',
     reversing: 'Reversing…',
     confirmTitle: 'Reverse this entry?',
     confirmBody: (description: string) =>
-      `Salli will post a reversal of “${description}” today, with every line of this entry the other way round. This entry stays in the ledger, marked reversed. Neither can be edited or deleted afterwards.`,
+      `Salli will post a reversal of “${description}” on its own day (today, if that day is closed), with every line of this entry the other way round. This entry stays in the ledger, marked reversed. Neither can be edited or deleted afterwards.`,
     reason: 'Why reverse it',
     reasonHelp: 'A few words. The reversal keeps them in its description.',
     confirm: 'Reverse it',

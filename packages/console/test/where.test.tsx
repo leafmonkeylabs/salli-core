@@ -214,7 +214,7 @@ describe('adding an entry and reversing it', () => {
     expect(within(standing).getByText(/Posted entries are never edited/)).toBeTruthy();
     await click(await within(standing).findByRole('button', { name: 'Reverse this entry' }));
     const ask = screen.getByRole('alertdialog', { name: 'Reverse this entry?' });
-    expect(within(ask).getByText(/Salli will post a reversal of “Lunch with a friend” today/)).toBeTruthy();
+    expect(within(ask).getByText(/Salli will post a reversal of “Lunch with a friend” on its own day/)).toBeTruthy();
     // Not without a reason.
     expect(within(ask).getByRole('button', { name: 'Reverse it' }).hasAttribute('disabled')).toBe(true);
     type(within(ask).getByRole('textbox', { name: /^Why reverse it/ }), 'Paid twice');

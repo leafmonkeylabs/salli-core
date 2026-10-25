@@ -118,7 +118,7 @@ export function registerLedger(program: Command, app: App): void {
   ledger
     .command('lock')
     .argument('<date>', 'The last day to close (YYYY-MM-DD), before today')
-    .description('Close the books up to and including a day: nothing is posted or reversed on or before it')
+    .description('Close the books up to and including a day: nothing on or before it is posted, reversed, changed or retagged')
     .action(async (date) => {
       const api = await app.api();
       const lock = await api.call(ledgerLockDateSet, { body: { lock_date: parseDate(date, app.runtime.now(), '<date>') } });

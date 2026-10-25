@@ -80,6 +80,10 @@ class LedgerRepository(ABC):
         given) as (account type, currency, amount), summed by the store."""
         raise NotImplementedError
 
+    async def posting_entry_date(self, user_id: str, posting_id: str) -> str | None:
+        """The date of the user's entry this posting belongs to, or None."""
+        raise NotImplementedError
+
     async def manual_entry_by_ref(self, user_id: str, external_ref: str) -> Any | None:
         """The user's manual entry with this `external_ref`, or None."""
         raise NotImplementedError
