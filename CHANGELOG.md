@@ -119,6 +119,11 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
+- Prompt injection is fenced: statement and bank descriptions, payees,
+  documents and saved memories reach a model only inside an
+  `untrusted_text` field, and every prompt says never to follow
+  instructions there. The in-app agents' web search now asks the person
+  first, and never carries their figures or payees.
 - **Closed books keep their accounts' type and tax role in the database.**
   A trigger (migration `core_0032_account_freeze`) refuses changing either on
   an account with any posting on or before the lock date, even postings that
@@ -155,6 +160,10 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 #### Changed
 
+- MCP `search_entries` and `list_pending_transactions` return `description`,
+  `get_recurring_payments` `payee` and `examples`, the documents tools
+  `content` and `description`, and the memory tools `value` as
+  `{"untrusted_text": ...}` instead of a bare string.
 - **Closed years keep their tax figure.** Computing or preparing a return
   for a tax year that ends on or before the lock date no longer stores a new
   computation: it is refused with a 409 `/problems/books-locked`. A preview

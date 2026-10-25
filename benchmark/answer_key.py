@@ -67,6 +67,9 @@ def pick(value: Any, path: list[Any]) -> Any:
             value = next(item for item in value if item.get(field) == wanted)
         else:
             value = value[step]
+    # Outside text (a payee, a description) comes fenced: the key is its text.
+    if isinstance(value, dict) and "untrusted_text" in value:
+        return value["untrusted_text"]
     return value
 
 
