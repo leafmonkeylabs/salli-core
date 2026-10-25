@@ -37,6 +37,13 @@ def _debt_view(d: dict[str, Any], currency: str) -> dict[str, Any]:
     }
 
 
+def _by_rate(d: dict[str, Any]) -> tuple[bool, Decimal, Decimal, str]:
+    """Interest rate, highest first (ties by balance, highest first, then
+    name); a debt without a rate last. A fact about each debt, not advice."""
+    apr = d["apr"]
+    return (not apr, -Decimal(apr or 0), -Decimal(d["principal"]), d["name"])
+
+
 async def check_debt_account(
     uow: Any, user_id: str, account_id: str, debt_id: str | None = None
 ) -> None:
@@ -98,7 +105,7 @@ class DebtService:
         async with self._uow_factory() as uow:
             currency = await uow.user_profiles.base_currency(user_id)
             debts = await uow.debts.list(user_id, active_only)
-        return [_debt_view(d, currency) for d in debts]
+        return sorted((_debt_view(d, currency) for d in debts), key=_by_rate)
 
     async def totals(self, user_id: str, as_of: dt.date | None = None) -> dict[str, str]:
         """What the active debts owe together, as the baseline reads each one

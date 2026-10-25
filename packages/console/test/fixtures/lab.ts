@@ -5747,6 +5747,7 @@ export const DEBTS: DebtList = {
       "updated_at": "2026-04-01T00:00:00+00:00"
     }
   ],
+  "order": "rate_desc",
   "total_balance": "17900.00",
   "total_minimum_payments": "470.00"
 };
