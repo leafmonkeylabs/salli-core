@@ -280,6 +280,15 @@ class SQLLedgerRepository(LedgerRepository):
         result = await self._session.execute(stmt.order_by(TagORM.kind, TagORM.name))
         return [_tag_from_orm(r) for r in result.scalars().all()]
 
+    async def posting_entry_date(self, user_id: str, posting_id: str) -> str | None:
+        return (
+            await self._session.execute(
+                select(JournalEntryORM.entry_date)
+                .join(PostingORM, PostingORM.entry_id == JournalEntryORM.id)
+                .where(PostingORM.id == posting_id, JournalEntryORM.user_id == user_id)
+            )
+        ).scalar_one_or_none()
+
     async def set_posting_tags(self, user_id: str, posting_id: str, tags: dict[str, str]) -> None:
         """Replace a posting's tags.
 

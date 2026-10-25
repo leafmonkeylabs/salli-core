@@ -36,7 +36,7 @@ export default function Entry() {
   const names = new Map((accounts.data ?? []).map((a) => [a.id, a.name]));
   const statement = provenance.data?.statement;
 
-  // The reversal as Salli will book it: each line on the other side, today, with why.
+  // The reversal as Salli will book it: each line on the other side, on its day (today if closed), with why.
   const [asking, setAsking] = useState(false);
   const [reason, setReason] = useState('');
 

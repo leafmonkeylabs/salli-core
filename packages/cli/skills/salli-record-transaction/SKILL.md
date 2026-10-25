@@ -45,6 +45,6 @@ fix the amounts. An amount in another currency needs `--currency` (and
     salli entries show <id> --json          # check what was posted
     salli entries reverse <id> --reason "<why, in their words>" --yes --json
 
-The reversal cancels it with an opposite entry, dated today. Then post the
-correct entry. Tell the user both happened. If either is refused because the
+The reversal cancels it with an opposite entry on the same day (today, if
+that day's books are closed). Then post the correct entry on the right day. Tell the user both happened. If either is refused because the
 books are closed (`books-locked`), say so: opening them is the user's alone.

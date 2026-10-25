@@ -292,8 +292,8 @@ export const entriesProvenance = <ThrowOnError extends boolean = false>(options:
 /**
  * Reverse Entry
  *
- * Cancel an entry with its opposite, dated today (409 when today's books
- * are closed).
+ * Cancel an entry with its opposite, dated the entry's own day, or today
+ * when that day's books are closed.
  */
 export const entriesReverse = <ThrowOnError extends boolean = false>(options: Options<EntriesReverseData, ThrowOnError>): RequestResult<EntriesReverseResponses, EntriesReverseErrors, ThrowOnError> => (options.client ?? client).post<EntriesReverseResponses, EntriesReverseErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -308,7 +308,8 @@ export const entriesReverse = <ThrowOnError extends boolean = false>(options: Op
 /**
  * Set Posting Tags
  *
- * Replace a posting's tags. Retagging never touches the posted amounts.
+ * Replace a posting's tags. Retagging never touches the posted amounts;
+ * a posting in the closed books keeps its tags (409).
  */
 export const entriesPostingsSetTags = <ThrowOnError extends boolean = false>(options: Options<EntriesPostingsSetTagsData, ThrowOnError>): RequestResult<EntriesPostingsSetTagsResponses, EntriesPostingsSetTagsErrors, ThrowOnError> => (options.client ?? client).put<EntriesPostingsSetTagsResponses, EntriesPostingsSetTagsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -344,6 +345,7 @@ export const ledgerIncomeStatement = <ThrowOnError extends boolean = false>(opti
  * Close the books up to and including a day before today, or open them
  * (null). Moving the day earlier opens what was closed, so only the person's
  * own sign-in may, with a recent password where their client asks for one.
+ * Every change is written to the audit log.
  */
 export const ledgerLockDateSet = <ThrowOnError extends boolean = false>(options: Options<LedgerLockDateSetData, ThrowOnError>): RequestResult<LedgerLockDateSetResponses, LedgerLockDateSetErrors, ThrowOnError> => (options.client ?? client).put<LedgerLockDateSetResponses, LedgerLockDateSetErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

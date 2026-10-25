@@ -409,8 +409,8 @@ accounts whose `tax_role` is that role's key, dated within `year.start` to
   accounts, credits on income, liability and equity ones), so income and tax
   withheld come out positive;
 - signed, so a reversing entry cancels the entry it reverses (a reversal is
-  dated the day it is made, so one made after the year has ended counts in
-  the year it is made, and a closed year's totals never change);
+  dated the entry's own day while that day's books are open, and the day it
+  is made once they are closed, so a closed year's totals never change);
 - never clamped: a negative total is used as it is, with a warning;
 - in the rule set's currency: the base-currency amounts when they are the
   same, otherwise a posting already in the rule set's currency at its own

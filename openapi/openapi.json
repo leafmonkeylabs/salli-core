@@ -1472,7 +1472,7 @@
           "entries"
         ],
         "summary": "Reverse Entry",
-        "description": "Cancel an entry with its opposite, dated today (409 when today's books\nare closed).",
+        "description": "Cancel an entry with its opposite, dated the entry's own day, or today\nwhen that day's books are closed.",
         "operationId": "entries.reverse",
         "security": [
           {
@@ -1540,7 +1540,7 @@
           "entries"
         ],
         "summary": "Set Posting Tags",
-        "description": "Replace a posting's tags. Retagging never touches the posted amounts.",
+        "description": "Replace a posting's tags. Retagging never touches the posted amounts;\na posting in the closed books keeps its tags (409).",
         "operationId": "entries.postings.setTags",
         "security": [
           {
@@ -1747,7 +1747,7 @@
           "ledger"
         ],
         "summary": "Set Lock Date",
-        "description": "Close the books up to and including a day before today, or open them\n(null). Moving the day earlier opens what was closed, so only the person's\nown sign-in may, with a recent password where their client asks for one.",
+        "description": "Close the books up to and including a day before today, or open them\n(null). Moving the day earlier opens what was closed, so only the person's\nown sign-in may, with a recent password where their client asks for one.\nEvery change is written to the audit log.",
         "operationId": "ledger.lockDate.set",
         "requestBody": {
           "content": {

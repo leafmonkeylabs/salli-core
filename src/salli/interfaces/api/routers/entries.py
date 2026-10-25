@@ -310,8 +310,8 @@ class ReverseEntryRequest(BaseModel):
 async def reverse_entry(
     entry_id: str, body: ReverseEntryRequest, user_id: CurrentUser, svc: AppServices
 ) -> Ref:
-    """Cancel an entry with its opposite, dated today (409 when today's books
-    are closed)."""
+    """Cancel an entry with its opposite, dated the entry's own day, or today
+    when that day's books are closed."""
     try:
         reversing_id = await svc.ledger.reverse_entry(user_id, entry_id, body.reason)
     except BooksLocked:
@@ -336,8 +336,11 @@ class SetPostingTagsRequest(BaseModel):
 async def set_posting_tags(
     posting_id: str, body: SetPostingTagsRequest, user_id: CurrentUser, svc: AppServices
 ):
-    """Replace a posting's tags. Retagging never touches the posted amounts."""
+    """Replace a posting's tags. Retagging never touches the posted amounts;
+    a posting in the closed books keeps its tags (409)."""
     try:
         await svc.ledger.set_posting_tags(user_id, posting_id, body.tags)
+    except BooksLocked:
+        raise
     except ValueError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
