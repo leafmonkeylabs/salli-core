@@ -23,6 +23,19 @@ from salli.interfaces.api.deps import AppServices, CronSecret, CurrentUser
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
+PushItem = Literal["reminder_due", "cash_below_zero_ahead", "budget_over"]
+#: A local time, "22:00".
+Clock = Annotated[str, Field(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")]
+
+
+class QuietHours(BaseModel):
+    """When no push alert goes, in the person's time zone; it may run past
+    midnight. What waits through them goes after."""
+
+    start: Clock
+    end: Clock
+
+
 class NotificationPreferences(BaseModel):
     """A person's digest: off until they turn it on."""
 
@@ -34,6 +47,10 @@ class NotificationPreferences(BaseModel):
     hour: int
     #: What it may hold. By default everything but `transactions_to_review`.
     items: list[ItemKind]
+    #: The push alerts this person's phones take; all three by default.
+    push_items: list[PushItem]
+    #: Null: push alerts go at any hour.
+    quiet_hours: QuietHours | None
     #: An IANA time zone ("Europe/Lisbon"); turning digests on needs one.
     time_zone: str | None
     #: When the next digest's hour begins, in the person's time zone (ISO
@@ -53,6 +70,10 @@ class NotificationPreferencesUpdate(BaseModel):
     hour: Annotated[int, Field(ge=0, le=23)] | None = None
     #: Replaces the chosen items; at least one.
     items: list[ItemKind] | None = None
+    #: Replaces the push alerts chosen; an empty list takes none.
+    push_items: list[PushItem] | None = None
+    #: An explicit null clears them.
+    quiet_hours: QuietHours | None = None
     #: An IANA time zone name; an explicit null clears it (refused while
     #: digests are on).
     time_zone: Annotated[str, Field(min_length=1, max_length=64)] | None = None
@@ -146,11 +167,13 @@ async def get_preferences(user_id: CurrentUser, svc: AppServices) -> Notificatio
 async def update_preferences(
     body: NotificationPreferencesUpdate, user_id: CurrentUser, svc: AppServices
 ) -> NotificationPreferences:
-    """Turn your digest on or off, or change when it goes and what it holds.
-    Turning it on needs a time zone."""
+    """Turn your digest on or off, or change when it goes and what it holds;
+    choose the push alerts your phones take and their quiet hours. Turning
+    the digest on needs a time zone."""
     changes: dict[str, Any] = body.model_dump(exclude_none=True)
-    if "time_zone" in body.model_fields_set and body.time_zone is None:
-        changes["time_zone"] = None
+    for field in ("time_zone", "quiet_hours"):
+        if field in body.model_fields_set and getattr(body, field) is None:
+            changes[field] = None
     try:
         saved = await svc.notifications.set_preferences(user_id, changes)
     except PreferencesError as exc:

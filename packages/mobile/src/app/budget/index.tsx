@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRead } from '../../api';
 import { Body, Button, Card, CardHead, Waiting } from '../../kit';
 import { monthBars, shareOf } from '../../lib/chart';
-import { displayMonth, monthNameOf } from '../../lib/display';
+import { displayMonth, monthNameOf, wholeDigits } from '../../lib/display';
 import { Picker } from '../../picker';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
@@ -66,13 +66,14 @@ export default function Budget() {
       {trend.data && trend.data.months.length ? (
         <Card>
           <CardHead label={t.trend(String(trend.data.months.length))} />
-          <View accessible accessibilityLabel={t.trendLabel(trend.data.months.map(displayMonth).join(', '))} style={styles.bars}>
+          <View accessible accessibilityLabel={t.trendLabel(trend.data.months.map((m, i) => `${displayMonth(m)} ${wholeDigits(trend.data?.totals[i] ?? '0', trend.data?.currency ?? '')}`).join(', '))} style={styles.bars}>
             {monthBars(trend.data.categories, trend.data.months.length).map((h, i, all) => (
               <View key={trend.data.months[i]} style={styles.barCol}>
+                <Text style={[styles.barFigure, { color: theme.muted }]}>{wholeDigits(trend.data.totals[i] ?? '0', trend.data.currency)}</Text>
                 <View
                   style={{
                     width: 24,
-                    height: Math.max(2, h * 72),
+                    height: Math.max(2, h * 64),
                     backgroundColor: i === all.length - 1 ? theme.muted : theme.chart,
                   }}
                 />
@@ -164,4 +165,5 @@ const styles = StyleSheet.create({
   legendMark: { width: 2, height: 12 },
   bars: { flexDirection: 'row', alignItems: 'flex-end', height: 104, gap: 6 },
   barCol: { flex: 1, alignItems: 'center', gap: 4 },
+  barFigure: { fontFamily: font.regular, fontSize: 11, fontVariant: ['tabular-nums'] },
 });

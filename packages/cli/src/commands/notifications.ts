@@ -24,6 +24,7 @@ import { resolveById } from '../util/resolve';
 import { countArg } from './shared';
 
 type ItemKind = NotificationPreferences['items'][number];
+type PushItem = NotificationPreferences['push_items'][number];
 type Weekday = NotificationPreferences['weekday'];
 
 /** Every kind of item a digest can hold, in the order it lists them, with how people read it. */
@@ -36,6 +37,22 @@ export const DIGEST_ITEMS: Readonly<Record<ItemKind, string>> = {
   budget_over: 'budgets over their limit',
 };
 const KINDS = Object.keys(DIGEST_ITEMS) as ItemKind[];
+const PUSH_KINDS: readonly PushItem[] = ['reminder_due', 'cash_below_zero_ahead', 'budget_over'];
+
+function pushArg(value: string): PushItem[] {
+  if (value.trim() === 'none') return [];
+  const chosen = value.split(',').map((p) => p.trim()).filter(Boolean) as PushItem[];
+  const unknown = chosen.find((k) => !PUSH_KINDS.includes(k));
+  if (unknown) throw new UsageError(`--push takes none or ${PUSH_KINDS.join(', ')} (got "${unknown}").`);
+  return PUSH_KINDS.filter((k) => chosen.includes(k));
+}
+
+function quietArg(value: string): { start: string; end: string } | null {
+  if (value.trim() === 'off') return null;
+  const match = /^(\d{2}:\d{2})-(\d{2}:\d{2})$/.exec(value.trim());
+  if (!match) throw new UsageError(`--quiet takes HH:MM-HH:MM, like 22:00-08:00, or off (got "${value}").`);
+  return { start: match[1] as string, end: match[2] as string };
+}
 const WEEKDAYS: readonly Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 function itemsArg(value: string, previous: ItemKind[] = []): ItemKind[] {
@@ -89,6 +106,8 @@ function showPreferences(app: App, p: NotificationPreferences): void {
       ['Digest', p.enabled ? `on, ${when(p)}` : 'off'],
       ['Next', p.next_at ? wallClock(p.next_at) : undefined],
       ['Holds', p.items.map((k) => DIGEST_ITEMS[k]).join(', ')],
+      ['Push alerts', p.push_items.length ? p.push_items.map((k) => DIGEST_ITEMS[k]).join(', ') : 'none'],
+      ['Quiet hours', p.quiet_hours ? `${p.quiet_hours.start} to ${p.quiet_hours.end}` : 'none'],
       ['Time zone', p.time_zone ? singleLine(p.time_zone) : 'not set'],
     ]),
   );
@@ -115,6 +134,7 @@ Examples:
   $ salli notifications set --on --time-zone Europe/Lisbon
   $ salli notifications set --monthly --day friday --hour 18
   $ salli notifications set --items decision_review_due,filing_deadline
+  $ salli notifications set --push budget_over,reminder_due --quiet 22:00-08:00
   $ salli notifications preview
   $ salli notifications set --off`,
     );
@@ -140,6 +160,8 @@ Examples:
     .option('--hour <0-23>', 'The local hour it goes (default 9)', hourArg)
     .option('--time-zone <zone>', 'Your IANA time zone, like Europe/Lisbon; "local" for this computer\'s')
     .option('--items <kinds>', `What it holds, comma-separated: ${KINDS.join(', ')}`, itemsArg)
+    .option('--push <kinds>', `The push alerts your phones take, comma-separated (or none): ${PUSH_KINDS.join(', ')}`, pushArg)
+    .option('--quiet <from-to>', 'Hours with no push alert, in your time zone, like 22:00-08:00; off for none', quietArg)
     .action(async (opts) => {
       const body: NotificationPreferencesUpdate = {};
       if (opts.on) body.enabled = true;
@@ -149,13 +171,15 @@ Examples:
       if (opts.day !== undefined) body.weekday = opts.day;
       if (opts.hour !== undefined) body.hour = opts.hour;
       if (opts.items !== undefined) body.items = opts.items;
+      if (opts.push !== undefined) body.push_items = opts.push;
+      if (opts.quiet !== undefined) body.quiet_hours = opts.quiet;
       if (opts.timeZone !== undefined) {
         const zone = opts.timeZone.trim() === 'local' ? localTimeZone() : opts.timeZone.trim();
         if (!zone) throw new UsageError('This computer has no IANA time zone to use.', 'Name yours: --time-zone Europe/Lisbon');
         body.time_zone = zone;
       }
       if (!Object.keys(body).length) {
-        throw new UsageError('Nothing to change.', 'Try --on --time-zone <zone>, --off, --monthly, --day, --hour or --items.');
+        throw new UsageError('Nothing to change.', 'Try --on --time-zone <zone>, --off, --monthly, --day, --hour, --items, --push or --quiet.');
       }
       const api = await app.api();
       if (body.enabled && body.time_zone === undefined) {
