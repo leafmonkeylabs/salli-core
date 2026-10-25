@@ -221,7 +221,9 @@
       "key": "donation_relief",
       "label": "Qualifying payment: donations to approved charities",
       "expr": "min(role.donations, 75000, line.assessable / 4)",
-      "source": "guide"
+      "source": "guide",
+      "provisional": true,
+      "note": "The IRD guide gives the cap as a quarter of assessable income (a third of taxable income) or Rs. 75,000; this uses a quarter of assessable income. Not yet checked against the Act."
     },
     {
       "key": "taxable",
@@ -244,20 +246,26 @@
     "round": {
       "mode": "nearest",
       "unit": "0.01"
-    }
+    },
+    "provisional": true,
+    "note": "The IRD's own rounding was not found; the result is rounded to the cent."
   },
   "deadlines": [
     {
       "key": "final_payment",
       "label": "Final payment of the balance (inferred, see README)",
       "date": "2025-09-30",
-      "source": "guide"
+      "source": "guide",
+      "provisional": true,
+      "note": "Inferred from the 2026 tax calendar's pattern; the 2025 calendar wasn't retrievable."
     },
     {
       "key": "return",
       "label": "Return of income due (inferred, see README)",
       "date": "2025-11-30",
-      "source": "guide"
+      "source": "guide",
+      "provisional": true,
+      "note": "Inferred from the 2026 tax calendar's pattern; the 2025 calendar wasn't retrievable."
     }
   ],
   "suggested_accounts": [

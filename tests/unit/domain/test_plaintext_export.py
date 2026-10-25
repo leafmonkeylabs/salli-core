@@ -13,7 +13,7 @@ from beancount import loader
 from beancount.core.data import Transaction
 
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
-from salli.domain.export.plaintext import account_names, beancount, hledger
+from salli.domain.export.plaintext import Assertion, account_names, beancount, hledger
 
 
 def _account(id_, code, name, type_, currency="LKR", parent=None, active=True) -> Account:
@@ -179,8 +179,51 @@ def test_hledger_journal():
     assert "account Assets:BankAccountLKR  ; type:A" in text
     assert "account Expenses:Old Expenses" not in text  # names never contain spaces
     assert "account Expenses:OldExpenses  ; type:X, salli-status:inactive" in text
-    assert '2026-09-25 * Salary "September" ACME  ; salli-id:e2, source:statement' in text
+    assert '2026-09-25 ! Salary "September" ACME  ; salli-id:e2, source:statement' in text
     assert "    Assets:Dollaraccount" not in text
     assert "    Assets:DollarAccount  100.00 USD @ 302.5 LKR" in text
     assert "    Expenses:GroceriesFood  4500.00 LKR  ; category:groceries, need:essential" in text
     assert "    Liabilities:CreditCard  -4500.00 LKR" in text
+
+
+def test_cleared_flags_reversal_links_roles_and_reconciled_balances():
+    accounts = [a.model_copy() for a in ACCOUNTS]
+    accounts[0] = accounts[0].model_copy(update={"asset_role": "cash"})
+    accounts[5] = accounts[5].model_copy(update={"tax_role": "employment"})
+    entries = [e.model_copy(deep=True) for e in ENTRIES]
+    entries[1].postings[0].id = "p-salary-bank"
+    entries.append(
+        _entry(
+            "e8",
+            "2026-10-05",
+            "Reversal of Dup",
+            ("bank", D, "5", "LKR", "1", {}),
+            ("dup", C, "5", "LKR", "1", {}),
+            source="reversal",
+            reverses="e7",
+        )
+    )
+    held = Assertion("bank", "2026-09-30", Decimal("350000.50"), "LKR", "s1")
+    off = Assertion("bank", "2026-10-31", Decimal("1"), "LKR", "s2")
+    cleared = {"p-salary-bank"}
+
+    text = beancount(accounts, entries, "LKR", cleared, [held, off])
+    loaded, errors, _ = loader.load_string(text)
+    assert errors == [], errors
+    assert '2026-09-25 * "Salary' in text
+    assert "  * Assets:BankAccountLKR  250000.50 LKR" in text
+    assert '2026-09-28 ! "Groceries"' in text
+    assert '  reverses: "e7"' in text
+    assert '  asset-role: "cash"' in text and '  tax-role: "employment"' in text
+    assert "2026-10-01 balance Assets:BankAccountLKR  350000.50 LKR" in text
+    assert "; not asserted, the ledger differs: 2026-11-01 balance" in text
+
+    journal = hledger(accounts, entries, "LKR", cleared, [held, off])
+    assert "2026-09-25 * Salary" in journal and "2026-09-28 ! Groceries" in journal
+    assert "    * Assets:BankAccountLKR  250000.50 LKR" in journal
+    assert "source:reversal, reverses:e7" in journal
+    assert "type:A, asset-role:cash" in journal
+    assert "    Assets:BankAccountLKR  0 LKR = 350000.50 LKR" in journal
+    assert (
+        "; not asserted, the ledger differs:     Assets:BankAccountLKR  0 LKR = 1.00 LKR" in journal
+    )

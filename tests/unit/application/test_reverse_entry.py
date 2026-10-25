@@ -67,12 +67,25 @@ class FakeLedgerRepo:
         self.tags[posting_id] = tags
 
 
+class FakeReconciliations:
+    def __init__(self) -> None:
+        self.done: list[dict] = []
+        self.cleared: set[str] = set()
+
+    async def statements(self, user_id, statement_id=None):
+        return self.done
+
+    async def postings(self, user_id, account_id, from_date, to_date):
+        return [{"posting_id": p, "cleared": True} for p in self.cleared]
+
+
 class FakeUoW:
-    def __init__(self, ledger, profiles, audit_log):
+    def __init__(self, ledger, profiles, audit_log, reconciliations):
         self.ledger = ledger
         self.user_profiles = profiles
         self.audit_log = audit_log
         self.tax_returns = FakeTaxReturns()
+        self.reconciliations = reconciliations
 
     async def __aenter__(self):
         return self
@@ -85,13 +98,15 @@ def _service():
     repo = FakeLedgerRepo()
     profiles = FakeProfiles()
     audit = FakeAuditLog()
+    reconciliations = FakeReconciliations()
 
     @asynccontextmanager
     async def factory():
-        yield FakeUoW(repo, profiles, audit)
+        yield FakeUoW(repo, profiles, audit, reconciliations)
 
     svc = LedgerService(factory, today=lambda: TODAY)
     svc.audit = audit  # type: ignore[attr-defined]
+    svc.reconciliations = reconciliations  # type: ignore[attr-defined]
     return svc, repo
 
 
@@ -285,3 +300,29 @@ async def test_every_lock_date_change_is_audited():
         {"change": "clear", "from": "2026-03-31", "to": None, "via": "session"},
     ]
     assert [r["client_id"] for r in rows] == ["salli-console", None, None, None]
+
+
+@pytest.mark.asyncio
+async def test_a_reconciled_day_is_reversed_today():
+    svc, repo = _service()
+    entry_id = await _post_tagged_expense(svc)
+    svc.reconciliations.done = [
+        {
+            "account_id": "bank",
+            "period_start": "2026-08-01",
+            "period_end": "2026-08-31",
+            "reconciliation": {"completed_by": "user"},
+        }
+    ]
+    reversing_id = await svc.reverse_entry("u1", entry_id, "Wrong amount")
+    assert repo.entries[reversing_id].entry_date == TODAY.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_a_cleared_posting_is_reversed_today():
+    svc, repo = _service()
+    entry_id = await _post_tagged_expense(svc)
+    repo.entries[entry_id].postings[1].id = "p-bank"
+    svc.reconciliations.cleared = {"p-bank"}
+    reversing_id = await svc.reverse_entry("u1", entry_id, "Wrong amount")
+    assert repo.entries[reversing_id].entry_date == TODAY.isoformat()

@@ -1472,7 +1472,7 @@
           "entries"
         ],
         "summary": "Reverse Entry",
-        "description": "Cancel an entry with its opposite, dated the entry's own day, or today\nwhen that day's books are closed.",
+        "description": "Cancel an entry with its opposite, dated the entry's own day, or today\nwhen that day's books are closed or the bank's statement reconciled it.",
         "operationId": "entries.reverse",
         "security": [
           {
@@ -2027,7 +2027,7 @@
           "ledger"
         ],
         "summary": "Verify Ledger",
-        "description": "Check the ledger's hash chain from its first entry: each entry holds\nthe hash of the one before and its own over what it says, so a changed,\nremoved or reordered entry shows as the first break.",
+        "description": "Check the ledger's hash chain from its first entry: each entry holds\nthe hash of the one before and its own over what it says, so a changed,\nremoved or reordered entry shows as the first break, with the filed tax\nyears it falls in.",
         "operationId": "ledger.verify",
         "responses": {
           "200": {
@@ -19199,6 +19199,14 @@
               "content"
             ],
             "title": "Reason"
+          },
+          "filed_years": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Filed Years",
+            "default": []
           }
         },
         "type": "object",
@@ -38350,6 +38358,17 @@
             "type": "array",
             "title": "Roles"
           },
+          "posting_ids": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Posting Ids",
+            "default": {}
+          },
           "answers": {
             "additionalProperties": {
               "anyOf": [
@@ -38411,6 +38430,14 @@
             },
             "type": "array",
             "title": "Warnings"
+          },
+          "provisional": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleProvisional"
+            },
+            "type": "array",
+            "title": "Provisional",
+            "default": []
           },
           "provenance": {
             "type": "string",
@@ -39365,6 +39392,17 @@
             "type": "string",
             "title": "Snapshot Hash"
           },
+          "chain_head_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chain Head Hash"
+          },
           "payments": {
             "items": {
               "$ref": "#/components/schemas/TaxReturnPayment"
@@ -39993,6 +40031,14 @@
             "type": "array",
             "title": "Warnings"
           },
+          "provisional": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleProvisional"
+            },
+            "type": "array",
+            "title": "Provisional",
+            "default": []
+          },
           "provenance": {
             "type": "string",
             "title": "Provenance"
@@ -40359,6 +40405,25 @@
           "message"
         ],
         "title": "TaxRuleProblem"
+      },
+      "TaxRuleProvisional": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "note"
+        ],
+        "title": "TaxRuleProvisional",
+        "description": "A value of the rules not yet confirmed from a primary source."
       },
       "TaxRuleRate": {
         "properties": {

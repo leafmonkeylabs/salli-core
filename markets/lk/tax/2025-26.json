@@ -229,7 +229,9 @@
       "key": "donation_relief",
       "label": "Qualifying payment: donations to approved charities",
       "expr": "min(role.donations, 75000, line.assessable / 4)",
-      "source": "guide"
+      "source": "guide",
+      "provisional": true,
+      "note": "The IRD guide gives the cap as a quarter of assessable income (a third of taxable income) or Rs. 75,000; this uses a quarter of assessable income. Not yet checked against the Act."
     },
     {
       "key": "taxable",
@@ -252,20 +254,26 @@
     "round": {
       "mode": "nearest",
       "unit": "0.01"
-    }
+    },
+    "provisional": true,
+    "note": "The IRD's own rounding was not found; the result is rounded to the cent."
   },
   "deadlines": [
     {
       "key": "instalment_1",
       "label": "1st instalment (inferred from the calendar's pattern, see README)",
       "date": "2025-08-15",
-      "source": "calendar_2026"
+      "source": "calendar_2026",
+      "provisional": true,
+      "note": "Inferred from the 2026 tax calendar's pattern; the 2025 calendar wasn't retrievable."
     },
     {
       "key": "instalment_2",
       "label": "2nd instalment (inferred from the calendar's pattern, see README)",
       "date": "2025-11-15",
-      "source": "calendar_2026"
+      "source": "calendar_2026",
+      "provisional": true,
+      "note": "Inferred from the 2026 tax calendar's pattern; the 2025 calendar wasn't retrievable."
     },
     {
       "key": "instalment_3",
@@ -391,77 +399,107 @@
         {
           "id": "sch1_employment",
           "label": "Schedule 1: employment income",
-          "value": "role.employment_income"
+          "value": "role.employment_income",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "sch3_interest",
           "label": "Schedule 3: interest income",
-          "value": "role.interest_income"
+          "value": "role.interest_income",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "sch3_rent",
           "label": "Schedule 3: rent income",
-          "value": "role.rent_income"
+          "value": "role.rent_income",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "cage_210_exempt",
           "label": "Cage 210: exempt income (provident fund withdrawals)",
-          "value": "role.withdrawal"
+          "value": "role.withdrawal",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "sch5_reliefs",
           "label": "Schedule 5: rent and solar reliefs",
-          "value": "line.rent_relief + line.solar_relief"
+          "value": "line.rent_relief + line.solar_relief",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "personal_relief",
           "label": "Personal relief",
-          "value": "line.personal_relief"
+          "value": "line.personal_relief",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "cage_100_qp",
           "label": "Cage 100: qualifying payments",
-          "value": "line.donation_relief"
+          "value": "line.donation_relief",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "cage_120_taxable",
           "label": "Cage 120: taxable income",
-          "value": "line.taxable"
+          "value": "line.taxable",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "cage_806_gain",
           "label": "Cage 806.1: gains on realising investment assets",
-          "value": "role.realised_gain"
+          "value": "role.realised_gain",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "cage_140_cgt",
           "label": "Cage 140: tax on gains",
-          "value": "line.cgt"
+          "value": "line.cgt",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "cage_150_tax",
           "label": "Cage 150: tax on balance taxable income",
-          "value": "line.income_tax"
+          "value": "line.income_tax",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "cage_903_apit",
           "label": "Cage 903: APIT, primary employment",
-          "value": "line.apit"
+          "value": "line.apit",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "cage_908_ait",
           "label": "Cage 908: AIT deducted",
-          "value": "line.ait"
+          "value": "line.ait",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "cage_909_cgt",
           "label": "Cage 909: tax paid on gains",
-          "value": "line.cgt_credit"
+          "value": "line.cgt_credit",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         },
         {
           "id": "cage_911_instalments",
           "label": "Cage 911: instalments paid",
-          "value": "line.instalments"
+          "value": "line.instalments",
+          "provisional": true,
+          "note": "Cage taken from the 2024/25 e-filing guide; the 2025/26 guide wasn't found."
         }
       ]
     }

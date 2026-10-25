@@ -676,6 +676,16 @@ class SQLLedgerRepository(LedgerRepository):
             chain.Link(_chain_content(row), row.hash) for row in result.scalars().all()
         )
 
+    async def chain_head(self, user_id: str) -> str | None:
+        return (
+            await self._session.execute(
+                select(JournalEntryORM.hash)
+                .where(JournalEntryORM.user_id == user_id)
+                .order_by(JournalEntryORM.seq.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
     async def update_account(
         self,
         user_id: str,

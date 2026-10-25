@@ -44,7 +44,7 @@ from salli.application.services.tax_rule_service import (
 from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import database_url, get_settings
-from salli.domain.accounting.models import AccountNotEmpty, BooksLocked
+from salli.domain.accounting.models import AccountNotEmpty, BeforeBooksStart, BooksLocked
 from salli.domain.decisions.journal import JournalError
 from salli.domain.decisions.principles import PrincipleError
 from salli.domain.decisions.templates import TemplateError, UnknownTemplate
@@ -549,6 +549,13 @@ def create_app() -> FastAPI:
     @app.exception_handler(BooksLocked)
     async def books_locked_handler(request: Request, exc: BooksLocked) -> JSONResponse:
         return problem(status.HTTP_409_CONFLICT, "books-locked", "The books are closed", str(exc))
+
+    # An entry dated before the books start (an opening balance covers it).
+    @app.exception_handler(BeforeBooksStart)
+    async def before_books_handler(request: Request, exc: BeforeBooksStart) -> JSONResponse:
+        return problem(
+            status.HTTP_409_CONFLICT, "before-books-start", "Before the books start", str(exc)
+        )
 
     # Deleting a document that is kept (its retention, or an entry cites it).
     @app.exception_handler(DocumentRetained)

@@ -59,6 +59,8 @@ class RolePosting:
     amount: Decimal
     #: In the owner's base currency, at the rate the posting was booked at.
     base_amount: Decimal
+    #: The ledger's posting, when it came from one.
+    posting_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,8 @@ class RoleTotals:
     postings: Mapping[str, int]
     #: The roles whose total came out negative.
     negative: tuple[str, ...] = field(default=())
+    #: The ledger's postings that counted towards each role, by id.
+    posting_ids: Mapping[str, list[str]] = field(default_factory=dict[str, list[str]])
 
 
 def normal_sign(account_type: AccountType) -> int:
@@ -105,6 +109,7 @@ def role_postings(
                     currency=posting.currency,
                     amount=sign * posting.amount,
                     base_amount=sign * posting.amount * posting.fx_rate,
+                    posting_id=posting.id,
                 )
             )
     return found
@@ -131,6 +136,7 @@ def total_roles(
     rates = rates or {}
     sums = dict.fromkeys(roles, Decimal(0))
     counts = dict.fromkeys(roles, 0)
+    ids: dict[str, list[str]] = {role: [] for role in roles}
     for p in postings:
         if base == target:
             amount = p.base_amount
@@ -140,6 +146,8 @@ def total_roles(
             amount = p.base_amount * rates[p.entry_date]
         sums[p.role] += amount
         counts[p.role] += 1
+        if p.posting_id is not None:
+            ids[p.role].append(p.posting_id)
     totals = {role: quantize(amount, target) for role, amount in sums.items()}
     negative = tuple(sorted(role for role, amount in totals.items() if amount < 0))
-    return RoleTotals(totals, counts, negative)
+    return RoleTotals(totals, counts, negative, ids)

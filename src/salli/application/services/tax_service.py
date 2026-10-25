@@ -597,7 +597,8 @@ class TaxService:
         a `draft`, what was `filed` (on `filed_on`, with the authority's
         `reference`), or an `amended` one (a filed return being corrected,
         and `reason` why). Each version keeps a snapshot of the computation
-        and its canonical-JSON hash, and supersedes the year's latest.
+        and its canonical-JSON hash, and the ledger's hash chain head, and
+        supersedes the year's latest.
 
         A filed return keeps its year's books closed (LedgerService); only
         an amendment lets them open, and a later `filed` version closes
@@ -656,6 +657,7 @@ class TaxService:
                     "content_hash": stored["content_hash"],
                     "snapshot": snapshot,
                     "snapshot_hash": digest(snapshot),
+                    "chain_head_hash": await uow.ledger.chain_head(user_id),
                     "reference": reference,
                     "filed_on": filed_on,
                 },
@@ -790,6 +792,11 @@ def _record(rules: ActiveRules, applied: Applied) -> dict[str, Any]:
             "period_end": doc.year.end.isoformat(),
             "base_currency": applied.base_currency,
             "roles": applied.role_rows(),
+            # Which postings made each role's total, so a return filed on it
+            # still shows them after an account is reclassified.
+            "posting_ids": dict(applied.totals.posting_ids),
+            # The rules' values not yet confirmed from a primary source.
+            "provisional": doc.provisional_values(),
             "answers": applied.answers,
             "rates": applied.rates,
         },
@@ -817,6 +824,8 @@ def _view(stored: Mapping[str, Any]) -> dict[str, Any]:
         "version": stored["version"],
         "content_hash": stored["content_hash"],
         "roles": inputs["roles"],
+        "posting_ids": inputs.get("posting_ids") or {},
+        "provisional": inputs.get("provisional") or [],
         "answers": inputs.get("answers") or {},
         "rates": inputs.get("rates") or [],
         "lines": stored["lines"],
@@ -850,6 +859,7 @@ def _return_view(row: Mapping[str, Any], payments: list[dict[str, Any]]) -> dict
         "content_hash": row["content_hash"],
         "snapshot": row["snapshot"],
         "snapshot_hash": row["snapshot_hash"],
+        "chain_head_hash": row.get("chain_head_hash"),
         "payments": [
             {
                 "id": p["id"],

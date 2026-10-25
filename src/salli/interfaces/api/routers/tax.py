@@ -29,6 +29,7 @@ from salli.interfaces.api.deps import AppServices, CurrentUser
 from salli.interfaces.api.routers.tax_rules import (
     TaxRuleForm,
     TaxRuleLine,
+    TaxRuleProvisional,
     TaxRuleRate,
     TaxRuleRoleTotal,
 )
@@ -77,6 +78,9 @@ class TaxComputation(BaseModel):
     content_hash: str
     #: Each ledger total the rules take, from the accounts carrying its tax role.
     roles: list[TaxRuleRoleTotal]
+    #: Role key → the ids of the ledger's postings that made its total
+    #: (empty for a computation stored before they were kept).
+    posting_ids: dict[str, list[str]] = {}
     #: The answers to the rules' questions it was computed with.
     answers: Answers
     #: The exchange rates the ledger was converted at, when its currency isn't the rules'.
@@ -88,6 +92,8 @@ class TaxComputation(BaseModel):
     tax_payable: Amount
     refund_due: Amount
     warnings: list[str]
+    #: The values the figures used that are not yet confirmed.
+    provisional: list[TaxRuleProvisional] = []
     #: Where these figures' rules came from, to show with them.
     provenance: str
 
@@ -486,6 +492,10 @@ class TaxReturnRecord(BaseModel):
     snapshot: TaxComputation
     #: "sha256:" and the hash of the snapshot's canonical JSON.
     snapshot_hash: str
+    #: The hash of the last journal entry when it was recorded (`salli
+    #: ledger verify` checks the chain); null for a version recorded
+    #: before it was kept, or with no entries.
+    chain_head_hash: str | None = None
     payments: list[TaxReturnPayment]
     created_at: str
 

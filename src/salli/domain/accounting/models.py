@@ -36,6 +36,21 @@ class BooksLocked(ValueError):
         )
 
 
+class BeforeBooksStart(BooksLocked):
+    """An entry dated before the day the user's books start: what happened
+    before it is in the opening balances, so a posting there would count it
+    twice."""
+
+    def __init__(self, entry_date: str, books_start: str) -> None:
+        super().__init__(
+            entry_date,
+            books_start,
+            f"The books start on {books_start}, so nothing can be posted on {entry_date}: "
+            "what happened before then is in the opening balances. Post it on or after "
+            f"{books_start}, or move the books' start earlier.",
+        )
+
+
 class AccountNotEmpty(ValueError):
     """Closing an account that still holds a balance, which would drop it
     from the balance sheet while the books still count it."""
@@ -52,6 +67,13 @@ def refuse_if_locked(entry_date: str, lock_date: str | None) -> None:
     `lock_date`; None locks nothing."""
     if lock_date is not None and entry_date <= lock_date:
         raise BooksLocked(entry_date, lock_date)
+
+
+def refuse_before_books_start(entry_date: str, books_start: str | None) -> None:
+    """Raise BeforeBooksStart when `entry_date` is before `books_start`;
+    None (the books' start not set) refuses nothing."""
+    if books_start is not None and entry_date < books_start:
+        raise BeforeBooksStart(entry_date, books_start)
 
 
 # What an account means to the tax engine, declared explicitly rather than

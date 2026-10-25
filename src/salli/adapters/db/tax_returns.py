@@ -30,6 +30,7 @@ _FIELDS = (
     "content_hash",
     "snapshot",
     "snapshot_hash",
+    "chain_head_hash",
     "reference",
     "filed_on",
 )

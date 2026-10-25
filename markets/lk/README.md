@@ -160,6 +160,9 @@ salli fi cma activate <id>
 
 ## Not confirmed from a primary source
 
+Those in the tax rule sets are marked `"provisional": true` there, with a
+`note`; every computation lists them under `provisional`.
+
 - The **ETF 3%** rate: from payroll guides; the ETF Board's pages retrieved
   don't state it.
 - The **EPF crediting rate** (10.75% for 2025, 11% for 2024): from press

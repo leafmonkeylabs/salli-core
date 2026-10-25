@@ -243,6 +243,14 @@ expression behind it, its source and, for a credit, whether it is refundable.
 It also carries the net, payable, refund, each form's field values and the
 document's content hash.
 
+**Provisional values.** A band table, block, line, the result, a deadline or
+a form field may carry `"provisional": true` with a `note` (required with
+it): a value the author hasn't confirmed from a primary source. It is
+computed with as written; every computation lists them under `provisional`
+(`{key, note}`, the key `band_tables.<key>`, `blocks.<key>`, `lines.<key>`,
+`result`, `deadlines.<key>` or `forms.<form>.<field>`), so the figures are
+never shown without saying which rest on them.
+
 Inputs: a role with no total is zero. A question with no answer takes its
 default, or is an error. A role or question the rule set doesn't declare is an
 error, never ignored.
@@ -519,8 +527,12 @@ year's return, `draft`, `filed` (on `filed_on`, with the authority's
 `reference`) or `amended` (a filed return being corrected, with a required
 `reason`), made from a stored computation. It keeps the rule set version
 and its content hash, a snapshot of the computation as it stood and that
-snapshot's canonical-JSON hash (`domain/canonical.py`), and the payments
-made against it. Versions are numbered per jurisdiction and year; each
+snapshot's canonical-JSON hash (`domain/canonical.py`), the ids of the
+postings behind each role (`snapshot.posting_ids`, so a later change to an
+account's tax role doesn't hide what was filed), the hash of the ledger's
+last entry when it was recorded (`chain_head_hash`), and the payments made
+against it. `salli ledger verify` names the filed years a break in the
+ledger's hash chain falls in (`first_break.filed_years`). Versions are numbered per jurisdiction and year; each
 supersedes the latest (`supersedes_id`), and after a filed one only an
 amendment may follow. Records and payments are append-only (core_0037's
 trigger, as the decision journal's; erasure excepted): nothing recorded

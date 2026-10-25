@@ -49,6 +49,10 @@ class LedgerRepository(ABC):
         (`domain.accounting.chain.verify`)."""
         raise NotImplementedError
 
+    async def chain_head(self, user_id: str) -> str | None:
+        """The hash of the user's last stored entry; None with none."""
+        raise NotImplementedError
+
     async def set_retained_earnings(self, user_id: str, account_id: str) -> None:
         """Make this (equity) account the user's one `retained_earnings`
         account, taking the role from any other."""

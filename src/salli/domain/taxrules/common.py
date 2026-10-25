@@ -14,7 +14,7 @@ import datetime
 import re
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, Self
 
 from pydantic import (
     AfterValidator,
@@ -24,6 +24,7 @@ from pydantic import (
     PlainSerializer,
     StringConstraints,
     WithJsonSchema,
+    model_validator,
 )
 
 from salli.domain.currency import is_currency
@@ -207,6 +208,22 @@ StringOrBoolean = Annotated[str | bool, BeforeValidator(_string_or_boolean)]
 
 Label = Annotated[str, StringConstraints(min_length=1, max_length=200)]
 Text = Annotated[str, StringConstraints(min_length=1, max_length=10_000)]
+
+
+class Provisional(Model):
+    """A value the author hasn't confirmed from a primary source: computed
+    with as written, and reported beside every computation with its `note`."""
+
+    provisional: bool = False
+    note: Text | None = None
+
+    @model_validator(mode="after")
+    def _noted(self) -> Self:
+        if self.provisional and self.note is None:
+            raise ValueError("a provisional value says why in its note")
+        return self
+
+
 Url = Annotated[str, StringConstraints(pattern=r"^https?://\S+$", max_length=2_000)]
 
 

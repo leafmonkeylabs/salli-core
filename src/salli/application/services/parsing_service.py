@@ -30,7 +30,12 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from salli.application.fx import rate_to_base
 from salli.application.ports import StoragePort
 from salli.application.services.ledger_service import balanced_in_base
-from salli.domain.accounting.models import MONEY_TYPES, money_account_problem, refuse_if_locked
+from salli.domain.accounting.models import (
+    MONEY_TYPES,
+    money_account_problem,
+    refuse_before_books_start,
+    refuse_if_locked,
+)
 from salli.domain.currency import UnknownCurrencyError, normalize_currency, quantize
 from salli.domain.dedup.matcher import (
     DATE_WINDOW_DAYS,
@@ -762,6 +767,7 @@ class ParsingService:
                 if not txn.debit_account_id or not txn.credit_account_id:
                     continue
                 refuse_if_locked(txn.raw.date, profile.get("lock_date"))
+                refuse_before_books_start(txn.raw.date, profile.get("books_start"))
 
                 # What the row was for — the classifier's label or a rule's
                 # category, and a rule's need — tags the other side of the

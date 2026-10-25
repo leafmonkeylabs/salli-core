@@ -11,7 +11,10 @@ The profile's `books_start` (`salli profile set --books-start 2031-01-01`,
 `PATCH /v1/onboarding/profile`) is the day the books start. Opening balances
 (`POST /v1/onboarding/balance-sheet`) are posted on it, converted at that
 day's rate; declaring them without one starts the books today and says so on
-the profile. It can be no later than the first entry already booked. A report
+the profile. It can be no later than the first entry already booked, and
+nothing is posted before it, by hand or by an import (409,
+`/problems/before-books-start`): what happened earlier is in the opening
+balances. Income declared at onboarding opens accounts and posts nothing. A report
 for a time before it (the balance sheet as of an earlier day, an income
 statement from an earlier day) says in its `notes` that the books don't
 cover it.
@@ -58,7 +61,10 @@ cleared postings; the difference is the closing balance less that. A
 reconciliation completes (`salli reconcile complete`) only at a difference of
 zero, recording who completed it and when; its postings then stay as they
 are. Clearing is the one change a posting in closed books still takes
-(core_0038). An AI reads the state with `get_reconciliation`.
+(core_0038). An AI reads the state with `get_reconciliation`. Reversing an
+entry with a cleared posting, or dated in a completed reconciliation's
+period on one of its accounts, dates the reversal today, as in closed books,
+so the reconciled period still agrees with the bank.
 
 ## Imports
 
@@ -98,4 +104,11 @@ that has passed. There is none by default.
 ## Plain-text exports
 
 `GET /v1/exports/beancount` and `/hledger` write the ledger for Beancount and
-hledger; CI checks both with `bean-check` and `hledger check`.
+hledger; CI checks both with `bean-check` and `hledger check`. A transaction
+is flagged `*` when one of its postings is cleared, and `!` otherwise, and
+each cleared posting carries `*`. Each completed reconciliation becomes a
+balance assertion on its closing balance (Beancount's `balance` the day
+after the period, hledger's `= ` on its last day), when the ledger agrees on
+that day; otherwise it is left as a comment saying so. A reversal carries
+`reverses` (its original's id), and an account its `tax-role`, `asset-role`
+and `equity-role`.

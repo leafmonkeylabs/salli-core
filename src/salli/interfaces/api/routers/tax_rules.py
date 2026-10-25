@@ -245,6 +245,16 @@ class TaxRuleForm(BaseModel):
     fields: list[TaxRuleFormField]
 
 
+class TaxRuleProvisional(BaseModel):
+    """A value of the rules not yet confirmed from a primary source."""
+
+    #: `band_tables.<key>`, `blocks.<key>`, `lines.<key>`, `result`,
+    #: `deadlines.<key>` or `forms.<form>.<field>`.
+    key: str
+    #: Why it is provisional, in the rules' author's words.
+    note: str
+
+
 class TaxRuleEvaluation(BaseModel):
     """A version's rules applied to the user's ledger. Nothing is stored."""
 
@@ -274,6 +284,8 @@ class TaxRuleEvaluation(BaseModel):
     refund_due: DecimalOut
     forms: list[TaxRuleForm]
     warnings: list[str]
+    #: The values the figures used that are not yet confirmed.
+    provisional: list[TaxRuleProvisional] = []
     #: Where these figures' rules came from, to show with them.
     provenance: str
 

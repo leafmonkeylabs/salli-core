@@ -75,6 +75,14 @@ def test_income_and_withholding_come_out_positive_in_their_normal_direction():
     assert result.negative == ()
 
 
+def test_each_role_keeps_the_postings_that_made_it():
+    entry = _payday("2031-01-31", "3000", "600")
+    for i, posting in enumerate(entry.postings):
+        posting.id = f"p{i}"
+    ids = _totals([entry]).posting_ids
+    assert ids == {"salary": ["p2"], "withheld": ["p1"], "gift_aid": []}
+
+
 def test_only_the_tax_year_counts_both_ends_included():
     entries = [
         _payday("2030-12-31", "1", "0.5"),
