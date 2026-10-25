@@ -265,7 +265,7 @@ function registerBudgets(program: Command, app: App): void {
           const out = app.out;
           if (!d.categories.length) return out.note('No spending in these months.');
           out.line(
-            out.table(d.categories, [
+            out.table([...d.categories, { account_id: '', category: 'Total', spent: d.totals }], [
               { header: 'CATEGORY', get: (c) => c.category, shrink: true },
               ...d.months.map((m, i) => ({ header: m, get: (c: (typeof d.categories)[number]) => out.amount(c.spent[i] ?? '0', d.currency), align: 'right' as const })),
             ]),
@@ -356,6 +356,13 @@ function registerDebts(program: Command, app: App): void {
           const rows = d.debts;
           if (!rows.length) return app.out.note('No debts. Add one with `salli debts add`.');
           app.out.line(debtTable(rows));
+          const currency = rows[0]?.currency ?? '';
+          app.out.line(
+            app.out.details([
+              ['Owed in all', app.out.money(d.total_balance, currency)],
+              ['Minimums a month', app.out.money(d.total_minimum_payments, currency)],
+            ]),
+          );
         },
       });
     });

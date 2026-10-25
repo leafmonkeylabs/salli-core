@@ -38,6 +38,7 @@ def _preferences(row: NotificationPreferencesORM) -> dict[str, Any]:
         "weekday": row.weekday,
         "hour": row.hour,
         "items": list(row.items),
+        "push": dict(row.push) if row.push else None,
         "updated_at": row.updated_at,
     }
 
@@ -78,6 +79,7 @@ class SQLNotificationRepository(NotificationRepository):
             "weekday": str(preferences["weekday"]),
             "hour": int(preferences["hour"]),
             "items": [str(i) for i in preferences["items"]],
+            "push": preferences.get("push"),
             "updated_at": now,
         }
         await self._s.execute(

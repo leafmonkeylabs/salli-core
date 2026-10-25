@@ -48,7 +48,7 @@ from salli.domain.notifications.digest import (
     message_hash,
     waiting_items,
 )
-from salli.domain.notifications.push import PUSH_ITEMS, build_push
+from salli.domain.notifications.push import PUSH_ITEMS, build_push, in_quiet_hours, parse_clock
 from salli.domain.notifications.schedule import Cadence, Schedule, Weekday
 
 _log = logging.getLogger(__name__)
@@ -65,6 +65,9 @@ DEFAULTS: dict[str, Any] = {
     "hour": timing.DEFAULT_HOUR,
     "items": list(DEFAULT_ITEMS),
 }
+
+#: Push alerts before a person sets anything: every kind, no quiet hours.
+PUSH_DEFAULTS: dict[str, Any] = {"items": list(PUSH_ITEMS), "quiet_hours": None}
 
 
 class PreferencesError(ValueError):
@@ -194,6 +197,7 @@ class NotificationService:
             profile: dict[str, Any] | None = await uow.user_profiles.get(user_id)
         preferences: dict[str, Any] = {**DEFAULTS, **(stored or {})}
         preferences["items"] = _ordered(list(preferences["items"]))
+        preferences["push"] = {**PUSH_DEFAULTS, **(preferences.get("push") or {})}
         time_zone = profile.get("time_zone") if profile else None
         return preferences, (str(time_zone) if time_zone else None)
 
@@ -207,6 +211,8 @@ class NotificationService:
             "weekday": preferences["weekday"],
             "hour": int(preferences["hour"]),
             "items": list(preferences["items"]),
+            "push_items": [k for k in PUSH_ITEMS if k in preferences["push"]["items"]],
+            "quiet_hours": preferences["push"]["quiet_hours"],
             "time_zone": time_zone,
             "next_at": _iso(next_at),
             "sender_enabled": self.sender_enabled,
@@ -220,7 +226,8 @@ class NotificationService:
 
     async def set_preferences(self, user_id: str, changes: dict[str, Any]) -> dict[str, Any]:
         """Change the fields given: `enabled`, `cadence`, `weekday`, `hour`,
-        `items`, `time_zone` (None clears it). Turning the digest on needs a
+        `items`, `push_items`, `quiet_hours` ({"start", "end"} local times;
+        None clears them), `time_zone` (None clears it). Turning the digest on needs a
         time zone. `PreferencesError` says what can't be saved; nothing is."""
         preferences, time_zone = await self._read(user_id)
         if "cadence" in changes:
@@ -246,6 +253,27 @@ class NotificationService:
             if not chosen:
                 raise PreferencesError("choose at least one item, or turn the digest off")
             preferences["items"] = _ordered(chosen)
+        if "push_items" in changes:
+            chosen = list(changes["push_items"])
+            unknown = [k for k in chosen if k not in PUSH_ITEMS]
+            if unknown:
+                raise PreferencesError(
+                    f"unknown push item {unknown[0]!r}: one of {', '.join(PUSH_ITEMS)}"
+                )
+            preferences["push"]["items"] = [k for k in PUSH_ITEMS if k in chosen]
+        if "quiet_hours" in changes:
+            quiet = changes["quiet_hours"]
+            if quiet is not None:
+                try:
+                    start, end = parse_clock(quiet["start"]), parse_clock(quiet["end"])
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise PreferencesError(
+                        "quiet hours are a start and an end, each HH:MM, such as '22:00'"
+                    ) from exc
+                if start == end:
+                    raise PreferencesError("quiet hours start and end at different times")
+                quiet = {"start": quiet["start"], "end": quiet["end"]}
+            preferences["push"]["quiet_hours"] = quiet
         if "enabled" in changes:
             preferences["enabled"] = bool(changes["enabled"])
         zone_changed = "time_zone" in changes
@@ -543,9 +571,11 @@ class NotificationService:
 
     async def send_pushes(self, now: dt.datetime | None = None) -> dict[str, Any]:
         """Send each person with a device the alert for what is waiting now
-        (budget lines over, the cash forecast below zero, reminders due), once
-        per state: the delivery log's row for the alert's period (a hash of
-        its items) is claimed first. Without push, nothing: `enabled` false."""
+        (budget lines over, the cash forecast below zero, reminders due: the
+        kinds they chose), once per state: the delivery log's row for the
+        alert's period (a hash of its items) is claimed first. Nothing goes in
+        their quiet hours (`quiet`); it goes after. Without push, nothing:
+        `enabled` false."""
         counts: dict[str, Any] = {
             "enabled": self.push_enabled,
             "people": 0,
@@ -554,6 +584,7 @@ class NotificationService:
             "no_destination": 0,
             "failed": 0,
             "skipped": 0,
+            "quiet": 0,
         }
         if not self.push_enabled:
             return counts
@@ -567,18 +598,25 @@ class NotificationService:
                 zone = timing.zone(str(person["time_zone"] or "UTC"))
             except timing.TimeZoneError:
                 zone = timing.zone("UTC")
-            today = now.astimezone(zone).date()
+            local = now.astimezone(zone)
             try:
-                outcome = await self._push(user_id, today, now)
+                outcome = await self._push(user_id, local, now)
             except Exception as exc:  # noqa: BLE001 — one person's failure must not stop the rest
                 _log.warning("push_failed user=%s error=%s", user_id, type(exc).__name__)
                 outcome = "failed"
             counts[outcome] += 1
         return counts
 
-    async def _push(self, user_id: str, today: dt.date, now: dt.datetime) -> str:
+    async def _push(self, user_id: str, local: dt.datetime, now: dt.datetime) -> str:
+        preferences, _ = await self._read(user_id)
+        push: dict[str, Any] = preferences["push"]
+        quiet: dict[str, str] = push["quiet_hours"] or {}
+        if in_quiet_hours(local.time(), quiet.get("start"), quiet.get("end")):
+            return "quiet"
+        today = local.date()
         await self._reminders.sync_alerts(user_id, today.isoformat())
-        notification = build_push(user_id, await self._push_items(user_id, today), link=self._link)
+        chosen = [i for i in await self._push_items(user_id, today) if i.kind in push["items"]]
+        notification = build_push(user_id, chosen, link=self._link)
         if notification is None:
             return "nothing_waiting"
         async with self._uow_factory() as uow:

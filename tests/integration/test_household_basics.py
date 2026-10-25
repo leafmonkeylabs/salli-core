@@ -21,6 +21,7 @@ from salli.application.services.insights_service import InsightsService
 from salli.application.services.ledger_service import LedgerService
 from salli.application.services.notification_service import (
     NotificationService,
+    PreferencesError,
     PushUnavailable,
 )
 from salli.application.services.reminder_service import ReminderService
@@ -138,6 +139,11 @@ async def test_the_monthly_budget_rolls_over_and_signals(uow_factory):
     trend = await now.trend("kofi", 2)
     assert trend["months"] == ["2026-09", "2026-10"]
     assert {c["account_id"]: c["spent"] for c in trend["categories"]}[food] == ["30.00", "20.00"]
+    assert trend["totals"] == [
+        str(sum((Decimal(c["spent"][i]) for c in trend["categories"]), Decimal(0)))
+        for i in range(2)
+    ]
+    assert trend["totals"][1] == "45.00"
 
     insights = InsightsService(uow_factory, today=lambda: TODAY, budget=now)
     kinds = {s["kind"]: s for s in (await insights.signals("kofi"))["signals"]}
@@ -225,3 +231,37 @@ async def test_push_alerts_go_once_per_state_and_say_nothing_of_the_ledger(uow_f
 
     assert await svc.remove_device("kofi", device["id"])
     assert await svc.devices("kofi") == []
+
+
+async def test_push_alerts_take_the_kinds_chosen_and_wait_out_quiet_hours(uow_factory):
+    ledger, bank, food, out = await _books(uow_factory)
+    await ledger.add_entry(
+        "kofi", "2026-10-03", "ZQCAFE 77.13", "manual", _legs(out, bank, "77.13")
+    )
+    await BudgetService(uow_factory, today=lambda: TODAY).set_monthly_lines(
+        "kofi", [{"account_id": out, "limit_amount": "20"}]
+    )
+    async with uow_factory() as uow:
+        await uow.reminders.create_reminder("kofi", "r1", "Pay Zqlandlord 900", "2026-10-11")
+    notifier = RecordingNotifier()
+    svc = _push(uow_factory, notifier)
+    await svc.add_device("kofi", "ExponentPushToken[abc]", "ios")
+
+    start = NOW.astimezone(dt.UTC).strftime("%H:00")
+    end = (NOW.astimezone(dt.UTC) + dt.timedelta(hours=1)).strftime("%H:00")
+    saved = await svc.set_preferences(
+        "kofi", {"push_items": ["reminder_due"], "quiet_hours": {"start": start, "end": end}}
+    )
+    assert saved["push_items"] == ["reminder_due"]
+    assert (await svc.send_pushes())["quiet"] == 1
+    assert notifier.sent == []
+
+    await svc.set_preferences("kofi", {"quiet_hours": None})
+    assert (await svc.send_pushes())["sent"] == 1
+    (sent,) = notifier.sent
+    assert [i.kind for i in sent.items] == ["reminder_due"]
+
+    with pytest.raises(PreferencesError):
+        await svc.set_preferences("kofi", {"quiet_hours": {"start": "22:00", "end": "22:00"}})
+    with pytest.raises(PreferencesError):
+        await svc.set_preferences("kofi", {"push_items": ["transactions_to_review"]})

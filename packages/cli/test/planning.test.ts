@@ -98,6 +98,8 @@ describe('debts', () => {
       "ID        NAME              BALANCE     APR     MINIMUM
       0000019b  Credit card  USD 1,200.00  23.99%   USD 35.00
       0000019c  Car loan     USD 8,400.00    6.9%  USD 310.00
+      Owed in all       USD 9,600.00
+      Minimums a month  USD 345.00
       "
     `);
     const plan = await run(['debts', 'payoff-plan', '--strategy', 'snowball', '--extra', '100']);

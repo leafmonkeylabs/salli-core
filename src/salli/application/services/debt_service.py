@@ -100,6 +100,20 @@ class DebtService:
             debts = await uow.debts.list(user_id, active_only)
         return [_debt_view(d, currency) for d in debts]
 
+    async def totals(self, user_id: str, as_of: dt.date | None = None) -> dict[str, str]:
+        """What the active debts owe together, as the baseline reads each one
+        (a linked debt its ledger account, another its declared principal),
+        and their minimum payments a month together, in the base currency."""
+        baseline = await self._baselines.build(user_id, as_of or self._today())
+        currency = baseline.currency
+        owing = [d for d in baseline.debts if d.balance > 0]
+        return {
+            "total_balance": str(quantize(baseline.debts_owed, currency)),
+            "total_minimum_payments": str(
+                quantize(sum((d.minimum_payment for d in owing), Decimal(0)), currency)
+            ),
+        }
+
     async def get_debt(self, user_id: str, debt_id: str) -> dict[str, Any] | None:
         async with self._uow_factory() as uow:
             currency = await uow.user_profiles.base_currency(user_id)

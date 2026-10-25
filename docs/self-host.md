@@ -442,6 +442,10 @@ a relay and a key, registering a device answers 503 and nothing is sent.
 goes once per state: its delivery-log period is a hash of its items, so the
 same alert never goes twice, and a new one goes only when what is waiting
 changes. Push alerts are logged with the digests (`salli notifications log`).
+Each person chooses which alerts their phones take and quiet hours in their
+time zone (`salli notifications set --push budget_over --quiet 22:00-08:00`,
+or More › Notifications on the phone); nothing goes in quiet hours, and what
+is still waiting goes at the first run after them.
 
 **Push and digests together.** Core allows one notifier, an extension's, for
 digests. Push alerts go through Salli's own relay notifier, and a composite

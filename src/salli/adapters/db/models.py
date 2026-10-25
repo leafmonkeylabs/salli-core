@@ -826,6 +826,9 @@ class NotificationPreferencesORM(Base):
     hour: Mapped[int] = mapped_column(Integer, nullable=False, default=9)
     #: The item kinds chosen, in any order: ["decision_review_due", ...].
     items: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    #: Push alerts: {"items": [...], "quiet_from": "22:00", "quiet_to": "08:00"}
+    #: (local times, or null); null is every alert and no quiet hours.
+    push: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

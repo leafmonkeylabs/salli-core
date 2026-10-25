@@ -31,6 +31,17 @@
 - **examples/entitlements**: a reference `EntitlementPolicy` mapping tiers to
   the hypotheses in business/thesis.md.
 
+- **Push preferences, debt and trend totals.** Each person chooses which push
+  alerts their phones take (over budget, cash low ahead, reminders due) and
+  quiet hours in their time zone (`push_items`, `quiet_hours` on
+  `/v1/notifications/preferences`; `salli notifications set --push --quiet`);
+  `salli-server jobs send-push` honours both, holding an alert through quiet hours.
+  `GET /v1/debt/` adds `total_balance` and `total_minimum_payments`, and
+  `/v1/budget/trend` adds `totals` per month, both summed on the server. The
+  phone shows the toggles and quiet hours on More › Notifications, the
+  minimums a month on Debts and each month's total on the budget's trend
+  bars. Migration `core_0049_push_preferences` adds one nullable column.
+
 - **The risk read discloses its method.** `GET /v1/ips/risk-profile` (and
   `salli ips risk`) carries `method`: the score buckets and the equity and
   needed-return bands, citing docs/risk.md.

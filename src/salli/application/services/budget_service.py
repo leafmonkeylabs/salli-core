@@ -178,16 +178,19 @@ class BudgetService:
         months, this one (so far) last."""
         _, spent, names, currency = await self._monthly(user_id, months)
         window = last_months(self._today(), months)
+        trend = monthly.trend(spent, window)
+        totals = [sum((v[i] for v in trend.values()), Decimal(0)) for i in range(len(window))]
         return {
             "currency": currency,
             "months": window,
+            "totals": [str(quantize(t, currency)) for t in totals],
             "categories": [
                 {
                     "account_id": account_id,
                     "category": names.get(account_id, account_id),
                     "spent": [str(quantize(v, currency)) for v in values],
                 }
-                for account_id, values in monthly.trend(spent, window).items()
+                for account_id, values in trend.items()
             ],
         }
 

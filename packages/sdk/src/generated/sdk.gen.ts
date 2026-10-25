@@ -3269,8 +3269,9 @@ export const notificationsPreferencesGet = <ThrowOnError extends boolean = false
 /**
  * Update Preferences
  *
- * Turn your digest on or off, or change when it goes and what it holds.
- * Turning it on needs a time zone.
+ * Turn your digest on or off, or change when it goes and what it holds;
+ * choose the push alerts your phones take and their quiet hours. Turning
+ * the digest on needs a time zone.
  */
 export const notificationsPreferencesUpdate = <ThrowOnError extends boolean = false>(options: Options<NotificationsPreferencesUpdateData, ThrowOnError>): RequestResult<NotificationsPreferencesUpdateResponses, NotificationsPreferencesUpdateErrors, ThrowOnError> => (options.client ?? client).patch<NotificationsPreferencesUpdateResponses, NotificationsPreferencesUpdateErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

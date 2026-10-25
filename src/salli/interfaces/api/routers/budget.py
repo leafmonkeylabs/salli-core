@@ -157,6 +157,8 @@ class SpendingTrend(BaseModel):
     currency: CurrencyCode
     #: The calendar months, oldest first; the last is this month so far.
     months: list[str]
+    #: Net spending across every category in each of `months`, in order.
+    totals: list[Amount]
     categories: list[CategoryTrend]
 
 
