@@ -52,6 +52,13 @@ it books nothing and returns the entry first booked with it. So do
 again, they change nothing and return the first answer, with `already_done`.
 `list_holdings`, `list_documents`, `list_decisions` and
 `list_pending_transactions` take `limit` and `cursor` (pass `next_cursor`).
+Each tool's own schema carries these rules (on its `client_ref`, `limit`
+and `cursor` arguments) and each write's description names the scope it
+needs, so an agent has them without the server instructions. Over the REST
+API, a POST takes an `Idempotency-Key` header to the same end, kept in the
+same table: sent again, it returns the first answer (`Idempotent-Replayed:
+true`); the SDK's `idempotencyKey` call option and `salli
+--idempotency-key <key>` send it.
 
 A tool that can't answer returns an MCP error result (`isError`) whose `error`
 says why in a `code` (`invalid_input`, `not_found`, `refused`, `scope`,

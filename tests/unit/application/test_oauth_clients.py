@@ -836,14 +836,14 @@ def _app(clients):
     return clients.seed(APP, "Salli app", [APP_CALLBACK], step_up_seconds=300)
 
 
-async def test_the_app_signs_in_to_its_one_redirect_with_no_absolute_end(world, clock):
+async def test_the_app_signs_in_to_its_one_redirect_for_ninety_days(world, clock):
     service, clients, tokens, _ = world
     _app(clients)
     pair = await _sign_in(service, APP, APP_CALLBACK, f"{BASE}/v1")
     record = await service.verify_access_token(pair["access_token"], audience=API)
     assert (record["client_first_party"], record["client_step_up_seconds"]) == (True, 300)
     [grant] = tokens.grants.values()
-    assert grant["expires_at"] is None
+    assert grant["expires_at"] - grant["authenticated_at"] == timedelta(days=90)
 
 
 @pytest.mark.parametrize(
@@ -956,14 +956,15 @@ async def test_a_console_sign_in_ends_twelve_hours_after_its_password(world, clo
         await service.exchange_refresh_token(last["refresh_token"], CONSOLE)
 
 
-async def test_the_cli_s_sign_in_has_no_absolute_end(world, clock):
+async def test_the_cli_s_sign_in_ends_ninety_days_after_its_password(world, clock):
     service, clients, tokens, _ = world
     clients.seed("salli-cli", "Salli CLI", ["http://127.0.0.1/callback"])
     pair = await _sign_in(service, "salli-cli", "http://127.0.0.1:5000/callback", f"{BASE}/v1")
     for _ in range(3):
         clock.advance(hours=20)  # within the refresh token's day
         pair = await service.exchange_refresh_token(pair["refresh_token"], "salli-cli")
-    assert next(iter(tokens.grants.values()))["expires_at"] is None
+    grant = next(iter(tokens.grants.values()))
+    assert grant["expires_at"] - grant["authenticated_at"] == timedelta(days=90)
 
 
 async def test_an_ai_client_s_connection_ends_ninety_days_after_its_approval(world, clock):

@@ -429,16 +429,16 @@ async def test_a_refresh_never_outlives_the_sign_in(salli):
     assert latest is True
 
 
-async def test_the_cli_keeps_its_lifetime(salli):
+async def test_the_cli_s_sign_in_ends_in_90_days(salli):
     await _sign_in(salli, CLI_CLIENT_ID, CLI_REDIRECT)
     async with salli.engine.connect() as conn:
         expires = (
             await conn.execute(
-                text("SELECT expires_at FROM oauth_grants WHERE client_id = :c"),
+                text("SELECT expires_at - authenticated_at FROM oauth_grants WHERE client_id = :c"),
                 {"c": CLI_CLIENT_ID},
             )
         ).scalar_one()
-    assert expires is None
+    assert expires == timedelta(days=90)
 
 
 # ── Step-up: tax:activate within five minutes of the password ───────────────

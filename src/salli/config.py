@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     # days after the person approved it, however often it refreshes; then
     # the person connects it again.
     mcp_grant_lifetime_days: int = Field(default=90, ge=1, le=365)
+    # The CLI's and the phone app's sign-ins end this many days after their
+    # password was checked, however often they refresh.
+    salli_app_sign_in_days: int = Field(default=90, ge=1, le=365)
 
     # CORS: the web origins whose pages may call this API from a browser,
     # comma-separated (`https://app.example.org,https://example.org`). None by

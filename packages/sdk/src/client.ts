@@ -67,6 +67,8 @@ type SdkFunction = (options: any) => Promise<any>;
 export type CallOptions<F extends SdkFunction> = Omit<NonNullable<Parameters<F>[0]>, 'client'> & {
   /** Overrides the client's timeout for this call; 0 for none. */
   timeoutMs?: number;
+  /** Sent as `Idempotency-Key` (POST writes): sent again, the write is not made twice. */
+  idempotencyKey?: string;
 };
 
 type CallArgs<F extends SdkFunction> = undefined extends Parameters<F>[0]
@@ -252,8 +254,14 @@ export function createClient(options: SalliClientOptions): SalliClient {
     args: unknown[],
     extra: { parseAs?: 'stream'; timeoutMs?: number; headers?: Record<string, string> },
   ): Promise<Settled> {
-    const given = (args[0] ?? {}) as Record<string, unknown> & { timeoutMs?: number; signal?: AbortSignal; headers?: Record<string, string> };
-    const { timeoutMs = extra.timeoutMs ?? defaultTimeout, signal, headers, ...rest } = given;
+    const given = (args[0] ?? {}) as Record<string, unknown> & {
+      timeoutMs?: number;
+      signal?: AbortSignal;
+      headers?: Record<string, string>;
+      idempotencyKey?: string;
+    };
+    const { timeoutMs = extra.timeoutMs ?? defaultTimeout, signal, headers: own, idempotencyKey, ...rest } = given;
+    const headers = idempotencyKey ? { ...own, 'Idempotency-Key': idempotencyKey } : own;
     const ms = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : 0;
     const timeout = ms > 0 ? AbortSignal.timeout(ms) : undefined;
     const cancels = [options.signal, signal].filter((s): s is AbortSignal => s !== undefined);

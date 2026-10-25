@@ -474,6 +474,36 @@ class LoginService:
                 await uow.logins.set_password(login["user_id"], rehash, changed_at=None)
         return SignedIn(user_id=str(login["user_id"]), email=str(login["email"]))
 
+    async def check_second_step(self, user_id: str, code: str | None) -> None:
+        """A powerful act's second step (the export, erasure): a code when
+        the person has two-step sign-in on, and two-step on at all for the
+        owner. CodeNeeded without one; CodeRefused (counted against the
+        account like a sign-in, and throttled) for a wrong one;
+        TwoStepState for an owner without two-step. A login with no
+        password (an extension's identity) has no second step."""
+        async with self._uow_factory() as uow:
+            login = await uow.logins.get(user_id)
+        if login is None:
+            return
+        if login.get("totp_enabled_at") is None:
+            if login.get("is_owner"):
+                raise TwoStepState(
+                    "The owner turns on two-step sign-in first (`salli totp enable`)."
+                )
+            return
+        now = self._clock()
+        keys = [(_key("account", str(login["email"]).strip().lower()), self._throttle.per_account)]
+        async with self._uow_factory() as uow:
+            failures = await uow.logins.failures_since(keys[0][0], now - self._throttle.window)
+        if len(failures) >= keys[0][1]:
+            frees_at = failures[len(failures) - keys[0][1]] + self._throttle.window
+            raise SignInThrottled(math.ceil((frees_at - now).total_seconds()))
+        if not code or not code.strip():
+            raise CodeNeeded()
+        if not await self._second_step(login, code.strip()):
+            await self._failed(keys, now)
+            raise CodeRefused()
+
     async def _failed(self, keys: list[tuple[str, int]], now: datetime) -> None:
         async with self._uow_factory() as uow:
             for key, _ in keys:
