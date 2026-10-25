@@ -342,7 +342,7 @@ Examples:
       if (app.out.machine) app.out.emit(made, { human: () => undefined });
       else
         app.out.success(
-          `Moved to ${book.label(target.id)}: reversal ${made.reversal_id.slice(0, 8)}, corrected entry ${made.corrected_id.slice(0, 8)}.`,
+          `Moved to ${book.label(target.id)}: reversal ${made.reversal_id.slice(0, 8)}, corrected entry ${made.corrected_id.slice(0, 8)}; ${made.dated === 'today' ? `dated today (${made.dated_reason})` : 'dated the original’s day'}.`,
         );
     });
 

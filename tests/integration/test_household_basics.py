@@ -59,14 +59,19 @@ async def _books(uow_factory, user: str = "kofi"):
 
 async def test_recategorise_books_a_reversal_and_a_corrected_copy(uow_factory):
     ledger, bank, food, out = await _books(uow_factory)
+    async with uow_factory() as uow:
+        receipt = await uow.agent_documents.save(
+            "kofi", {"title": "Lunch receipt", "source": "user_upload"}
+        )
     lunch = await ledger.add_entry(
-        "kofi", "2026-10-03", "Lunch", "manual", _legs(food, bank, "40"), "client-ref:lunch-1"
+        "kofi", "2026-10-03", "Lunch", "manual", _legs(food, bank, "40"), receipt
     )
     original = await ledger.get_entry("kofi", lunch)
     assert original is not None
     moved = next(p for p in original.postings if p.account_id == food)
 
     made = await ledger.recategorise_entry("kofi", lunch, moved.id or "", out, "Was a cafe")
+    assert (made["dated"], made["dated_reason"]) == ("original", None)
 
     reversal = await ledger.get_entry("kofi", made["reversal_id"])
     corrected = await ledger.get_entry("kofi", made["corrected_id"])
@@ -79,12 +84,14 @@ async def test_recategorise_books_a_reversal_and_a_corrected_copy(uow_factory):
     # The copy keeps the original's provenance and links to it.
     assert (corrected.source, corrected.external_ref, corrected.corrects) == (
         "manual",
-        "client-ref:lunch-1",
+        receipt,
         lunch,
     )
     assert corrected.entry_date == "2026-10-03"
     provenance = await ledger.get_entry_provenance("kofi", made["corrected_id"])
     assert provenance is not None and provenance["corrects"] == lunch
+    # The receipt the original cites follows the correction.
+    assert provenance["receipt"]["document_id"] == receipt
     assert {p.account_id for p in corrected.postings} == {out, bank}
     again = await ledger.get_entry("kofi", lunch)
     assert again is not None and again.reversed_by == made["reversal_id"]
@@ -111,6 +118,7 @@ async def test_recategorise_keeps_the_type_and_dates_a_closed_day_today(uow_fact
     made = await ledger.recategorise_entry("kofi", lunch, on_food.id or "", out, "Cafe")
     corrected = await ledger.get_entry("kofi", made["corrected_id"])
     assert corrected is not None and corrected.entry_date == TODAY.isoformat()
+    assert made["dated"] == "today" and "locked to 2026-09-30" in made["dated_reason"]
 
 
 async def test_the_monthly_budget_rolls_over_and_signals(uow_factory):

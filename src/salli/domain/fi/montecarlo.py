@@ -37,8 +37,9 @@ everywhere.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
+from typing import cast
 
 from salli.domain.baseline import fi, timelines
 from salli.domain.baseline.models import Baseline
@@ -53,6 +54,9 @@ from salli.domain.fi.returns import (
 )
 
 MAX_PATHS = 5000
+#: How far the odds move every correlation either way when a pack marks
+#: its correlations as assumptions.
+CORRELATION_SHIFT = Decimal("0.2")
 _TWELVE = Decimal(12)
 _FLOOR = Decimal("-0.95")
 _PERCENTILES = (Decimal("0.1"), Decimal("0.5"), Decimal("0.9"))
@@ -406,6 +410,28 @@ def plan_odds(
         source=source,
     )
     currency = baseline.currency
+    # Correlations marked as assumptions only reach parametric draws on the
+    # pack's own mix: rerun with each moved by ±0.2 and give the range.
+    sensitivity: list[Odds] = []
+    if pack.correlations_assumed and source.origin == "pack" and source.method == "student_t":
+        for delta in (-CORRELATION_SHIFT, CORRELATION_SHIFT):
+            shifted = replace(source, volatility=pack.shifted(delta).volatility)
+            sensitivity.append(
+                run(
+                    baseline,
+                    timeline,
+                    horizon_months=horizon,
+                    retire=retire,
+                    mean=source.mean,
+                    volatility=shifted.volatility,
+                    monthly_spending=monthly_spending,
+                    paths=paths,
+                    seed=seed,
+                    success_level=success_level,
+                    tails=source.tails,
+                    source=shifted,
+                )
+            )
 
     def money(value: Decimal) -> str:
         return str(quantize(value, currency, strict=False))
@@ -477,6 +503,25 @@ def plan_odds(
             for y in odds.years
         ],
         "withdrawal_tax": fi.withdrawal_tax(baseline),
+        "correlation_sensitivity": None
+        if not sensitivity
+        else {
+            "shift": share(CORRELATION_SHIFT),
+            "volatility": [
+                share(min(r.volatility for r in sensitivity).quantize(Decimal("0.0001"))),
+                share(max(r.volatility for r in sensitivity).quantize(Decimal("0.0001"))),
+            ],
+            "success": None
+            if odds.success is None
+            else [
+                share(min(cast(Decimal, r.success) for r in [odds, *sensitivity])),
+                share(max(cast(Decimal, r.success) for r in [odds, *sensitivity])),
+            ],
+            "reach": [
+                share(min(r.reach for r in [odds, *sensitivity])),
+                share(max(r.reach for r in [odds, *sensitivity])),
+            ],
+        },
         "placeholders": placeholders,
         "message": (
             "Odds from a seeded simulation of returns, not a forecast: "

@@ -104,7 +104,8 @@ an assumption too: the real return a plan uses is the mix's.
 
 Cash yield: 1.8%, the deposit rate deflated as above (every rate in the pack
 says `"basis": "real"`). Inflation: 5%, the Central Bank's target. Every volatility and correlation is
-an assumption.
+an assumption; the correlations say `"assumption": true`, so the odds also
+give their range with every correlation moved by 0.2 each way.
 
 ### Pensions
 

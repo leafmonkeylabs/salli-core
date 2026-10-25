@@ -359,6 +359,10 @@ class Recategorised(BaseModel):
     #: The corrected copy: the original's source and external_ref, and
     #: `corrects` naming the original.
     corrected_id: str
+    #: "original": both are on the original's day, which is open, so the fix
+    #: lands in its month; "today": that day is closed (`dated_reason`).
+    dated: Literal["original", "today"]
+    dated_reason: str | None = None
 
 
 @router.post("/{entry_id}/recategorise", status_code=201)

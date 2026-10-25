@@ -163,7 +163,7 @@ export function registerInvestments(portfolio: Command, app: App): void {
               ...figuresRows(out, d.portfolio),
               ['Volatility (yearly)', `${pct(r.volatility)} over ${r.months} months`],
               ['Largest fall', pct(r.max_drawdown)],
-              ['Sharpe ratio', r.sharpe === null ? '—' : `${r.sharpe.replace(/(\.\d{2})\d*$/, '$1')} against ${r.hurdle_source === 'benchmark' ? 'the benchmark' : 'a cash yield'} of ${pct(r.hurdle)}`],
+              ['Sharpe ratio', r.sharpe === null ? '—' : `${r.sharpe.replace(/(\.\d{2})\d*$/, '$1')} against a cash yield of ${pct(r.hurdle)}`],
               ...(r.benchmark ? [[`Benchmark ${r.benchmark.symbol}`, `${pct(r.benchmark.yearly_return)} a year, volatility ${pct(r.benchmark.volatility)}, largest fall ${pct(r.benchmark.max_drawdown)}`] as const] : []),
               ...(r.blended_benchmark ? [['Blended benchmark', `${pct(r.blended_benchmark.yearly_return)} a year, volatility ${pct(r.blended_benchmark.volatility)}`] as const] : []),
               ...(r.tracking_error !== null && r.tracking_error !== undefined ? [['Tracking error', `${pct(r.tracking_error)} against the ${r.tracking_against === 'blended_benchmark' ? 'blended benchmark' : 'benchmark'}`] as const] : []),

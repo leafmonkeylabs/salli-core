@@ -4,6 +4,14 @@
 
 ### Added
 
+- **The odds give a range when a pack's correlations are assumptions.** A
+  correlation marked `"assumption": true` makes `GET /v1/fi/odds` rerun with
+  every correlation moved by 0.2 each way (kept to [-1, 1]) and report the
+  volatility, success and reach ranges (`correlation_sensitivity`).
+- **A recategorise says how it was dated.** `dated` is "original" (the
+  original's day is open, so the fix lands in its month) or "today", with
+  `dated_reason`; the CLI and the phone say so under the result.
+
 - **Push alerts are sent, and only once chosen.** compose.yaml gains a
   `push` service that runs `salli-server jobs send-push` every 15 minutes
   (docs/self-host.md's jobs list says so). On the phone, the over-budget
@@ -436,6 +444,12 @@
 ### Breaking
 
 #### Changed
+
+- **The Sharpe ratio is on one basis.** The CMA pack's cash yield (real) is
+  grossed up by the pack's inflation to set it against the nominal
+  time-weighted returns; with no inflation, or no cash yield or pack, there is
+  no Sharpe ratio and a note says why. The benchmark is no longer a hurdle
+  (`hurdle_source` drops "benchmark"): tracking error covers it.
 
 - Push alerts are off for every kind until the person turns one on
   (`push_items` defaults to none, not every kind).

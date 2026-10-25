@@ -317,7 +317,10 @@ With an active pack, where you set no figure of your own:
 - the [odds](#the-odds) draw returns with the mix's expected return and its
   volatility (`√(wᵀΣw)`, from the classes' volatilities and correlations),
   unless you set both your own return and your own volatility; with a
-  `history`, they resample it instead;
+  `history`, they resample it instead; a correlation without a primary
+  source says `"assumption": true`, and the odds then carry
+  `correlation_sensitivity`: the volatility, success and reach with every
+  correlation moved by 0.2 each way (kept to [-1, 1]);
 - a [spending phase's](#the-fi-plan) categories inflate at the pack's
   `category_inflation` where your plan gives none;
 - [debt or invest](templates.md) sets investing against the debt under it.
