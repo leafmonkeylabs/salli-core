@@ -159,6 +159,17 @@
   answer whose figures are the person's own.
 - **Market packs** (`markets/`): a country's tax rule sets, planning assumptions and pension schemes as cited data, outside the core, with the bar to add one. The first is `markets/lk`: rule sets for two years of assessment with the authority's worked examples, capital-market assumptions, and the provident funds. `tests/taxrules/test_market_packs.py` validates every pack's rule sets and runs their examples.
 
+- **Fat tails in the odds.** The Monte Carlo draws each month's return
+  from a Student-t, scaled to keep the pack's volatility; a CMA pack may
+  give its `degrees_of_freedom` (3 to 100), else 5, listed in
+  `placeholders` and shown in `cma.degrees_of_freedom`.
+- **Withdrawals taxed beside guaranteed income.** A guaranteed income
+  stream may name the income role it is taxed under (`tax_role`); the FI
+  number and the odds gross withdrawals up at the marginal tax beside it.
+- Scenario sales on a holding that names no cost method are costed by the
+  active tax rules' `cost_basis`, as portfolio reads are, else first in,
+  first out.
+
 ### Security
 
 - **Outside text is fenced everywhere a model reads it.** Every free-text
@@ -182,6 +193,10 @@
   of its accounts, dates the reversal today, as in closed books.
 - **Plain-text exports flag uncleared transactions `!`** rather than every
   transaction `*`.
+- **The odds move.** Monte Carlo draws are fat-tailed now (above), so
+  the same seed gives different odds, percentiles and horizon-derived
+  rates than before; the share of paths where investing beats paying down
+  a debt moves too.
 - **FI pack 4.0.0: debt is scored by its size too.** Half of the debt
   component is now the debt-service ratio (scheduled payments ÷ income),
   no marks at 40%. Scores with debts move (the golden household's from

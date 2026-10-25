@@ -23,7 +23,7 @@ class _Baselines:
     async def build(self, user_id: str) -> SimpleNamespace:
         month = SimpleNamespace
         return SimpleNamespace(
-            currency="LKR",
+            currency="KES",
             liquid=Decimal(8000),
             total_liabilities=Decimal(20000),
             balances=(SimpleNamespace(role="investment", owned=Decimal(12000)),),
@@ -155,7 +155,7 @@ async def test_the_insurance_needs_analysis_is_figures(client, mock_services):
     assert r.status_code == 200
     # 4,000 × 12 × 5 + 20,000 + 6,000 − (8,000 + 12,000).
     assert r.json() == {
-        "currency": "LKR",
+        "currency": "KES",
         "replacement_years": 5,
         "income_replacement": "240000.00",
         "debts": "20000.00",

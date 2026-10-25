@@ -14,7 +14,9 @@ one wherever it is used.
 What a pack decides (`resolve` in `assumptions.py`, the monthly timeline,
 the Monte Carlo): the real return when the user set none (the mix's
 expected return), inflation when the user set none, what cash earns, and
-the volatility the Monte Carlo draws returns with.
+the volatility the Monte Carlo draws returns with, and how fat its tails
+are (the optional `degrees_of_freedom` of its Student-t draws; without one,
+`TAILS`, a labelled placeholder).
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ _BOUNDS: dict[str, tuple[Decimal, Decimal]] = {
     "cash_yield": (Decimal("-0.10"), Decimal("0.10")),
     "inflation": (Decimal("-0.05"), Decimal("1")),
     "correlation": (Decimal(-1), Decimal(1)),
+    "degrees_of_freedom": (Decimal(3), Decimal(100)),
 }
 
 _MAX_CLASSES = 20
@@ -74,6 +77,9 @@ class CmaPack:
     mix: Mapping[str, Decimal]
     #: Set for the code's neutral pack: it is a placeholder.
     placeholder: bool = False
+    #: The Student-t degrees of freedom the Monte Carlo draws with: the
+    #: lower, the fatter the tails. None: `TAILS`, a placeholder.
+    degrees_of_freedom: Figure | None = None
     #: The stored pack's id and content hash, when it is one.
     pack_id: str | None = None
     content_hash: str | None = None
@@ -105,6 +111,11 @@ class CmaPack:
         return variance.sqrt() if variance > 0 else Decimal(0)
 
     @property
+    def tails(self) -> Decimal:
+        """The degrees of freedom the Monte Carlo draws with."""
+        return TAILS if self.degrees_of_freedom is None else self.degrees_of_freedom.value
+
+    @property
     def label(self) -> str:
         return f"{self.name} {self.version}"
 
@@ -113,6 +124,10 @@ _PLACEHOLDER_SOURCE = (
     "Placeholder: a neutral round figure, not a forecast and not any market's. "
     "Import and activate your own capital-market assumptions, with sources."
 )
+
+#: The degrees of freedom drawn with when a pack gives none: a placeholder,
+#: a round figure for tails fatter than a normal's, labelled as one.
+TAILS = Decimal(5)
 
 #: The neutral pack used while the user has none active: one class whose
 #: return is the real-return placeholder, a round volatility, and cash
@@ -161,7 +176,8 @@ def _number(raw: object, what: str, kind: str) -> Decimal:
         raise ValueError(f"{what} must be a decimal string such as '0.03'")
     low, high = _BOUNDS[kind]
     if not low <= value <= high:
-        raise ValueError(f"{what} must be from {low} to {high} (a yearly fraction), not {value}")
+        unit = "" if kind == "degrees_of_freedom" else " (a yearly fraction)"
+        raise ValueError(f"{what} must be from {low} to {high}{unit}, not {value}")
     return value
 
 
@@ -241,6 +257,7 @@ def parse(document: object) -> CmaPack:
         raise ValueError("The mix's weights must sum to 1")
 
     inflation = doc.get("inflation")
+    tails = doc.get("degrees_of_freedom")
     pack = CmaPack(
         name=_text(doc.get("name"), "name"),
         version=_text(doc.get("version"), "version"),
@@ -249,6 +266,9 @@ def parse(document: object) -> CmaPack:
         cash_yield=_figure(doc.get("cash_yield"), "cash_yield", "cash_yield"),
         inflation=None if inflation is None else _figure(inflation, "inflation", "inflation"),
         mix=mix,
+        degrees_of_freedom=None
+        if tails is None
+        else _figure(tails, "degrees_of_freedom", "degrees_of_freedom"),
     )
     return pack
 
@@ -269,6 +289,7 @@ def stored(document: object, pack_id: str, digest: str) -> CmaPack:
         pack.cash_yield,
         pack.inflation,
         pack.mix,
+        degrees_of_freedom=pack.degrees_of_freedom,
         pack_id=pack_id,
         content_hash=digest,
     )
@@ -287,4 +308,5 @@ def summary(pack: CmaPack) -> dict[str, Any]:
         "inflation": None
         if pack.inflation is None
         else canonical.decimal_text(pack.inflation.value),
+        "degrees_of_freedom": canonical.decimal_text(pack.tails),
     }

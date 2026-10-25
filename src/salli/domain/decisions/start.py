@@ -160,7 +160,11 @@ def _odds_view(baseline: Baseline, debt_id: str, years: int) -> dict[str, Any] |
     inflation = baseline.inflation
     real_rate = debt.apr if inflation is None else real_return(debt.apr, inflation)
     share = montecarlo.beats(
-        applied.real_return.value, applied.cma.volatility, years * 12, real_rate
+        applied.real_return.value,
+        applied.cma.volatility,
+        years * 12,
+        real_rate,
+        tails=applied.cma.tails,
     )
     return {
         "debt": debt_id,

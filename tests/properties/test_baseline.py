@@ -31,10 +31,8 @@ SHARES = ("0", "0.35", "0.8", "1")
 days = st.integers(min_value=1, max_value=28)
 
 
-@st.composite
-def ledgers(draw: st.DrawFn) -> Ledger:
-    """Books in krona with a euro account: pay, rent, spending on a card and
-    from the bank, transfers to savings and to investments, at random."""
+def ledger_accounts() -> Ledger:
+    """The random ledgers' accounts, with nothing booked."""
     books = Ledger("SEK")
     books.account("bank", "asset")
     books.account("savings", "asset")
@@ -47,6 +45,14 @@ def ledgers(draw: st.DrawFn) -> Ledger:
     books.account("rent", "expense")
     books.account("food", "expense")
     books.account("fun", "expense")
+    return books
+
+
+@st.composite
+def ledgers(draw: st.DrawFn) -> Ledger:
+    """Books in krona with a euro account: pay, rent, spending on a card and
+    from the bank, transfers to savings and to investments, at random."""
+    books = ledger_accounts()
     books.book("2025-10-31", "bank", "equity", draw(amounts) * 10, description="Opening")
     books.book("2025-10-31", "equity", "loan", draw(amounts) * 20, description="Opening")
     books.book(

@@ -20141,6 +20141,10 @@
               }
             ],
             "title": "Inflation"
+          },
+          "degrees_of_freedom": {
+            "type": "string",
+            "title": "Degrees Of Freedom"
           }
         },
         "type": "object",
@@ -20150,7 +20154,8 @@
           "placeholder",
           "expected_real_return",
           "volatility",
-          "cash_yield"
+          "cash_yield",
+          "degrees_of_freedom"
         ],
         "title": "CmaSummary",
         "description": "A capital-market assumptions pack's figures, as projections use them."
@@ -27757,6 +27762,18 @@
               }
             ],
             "title": "Source"
+          },
+          "tax_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Role"
           }
         },
         "type": "object",
@@ -27808,6 +27825,17 @@
               }
             ],
             "title": "Source"
+          },
+          "tax_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Role"
           }
         },
         "type": "object",
