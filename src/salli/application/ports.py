@@ -1482,8 +1482,26 @@ class InsuranceTargetRepository(ABC):
 # ── Audit log ──────────────────────────────────────────────────────────────────
 
 
+class ClientRefRepository(ABC):
+    """An agent's client_ref per write tool, with what the write answered."""
+
+    @abstractmethod
+    async def claim(self, user_id: str, tool: str, client_ref: str) -> dict[str, Any] | None:
+        """None when this claims the ref; else what the write it was first
+        sent with answered ({} while that write is still running)."""
+
+    @abstractmethod
+    async def settle(
+        self, user_id: str, tool: str, client_ref: str, result: dict[str, Any]
+    ) -> None: ...
+
+    @abstractmethod
+    async def release(self, user_id: str, tool: str, client_ref: str) -> None:
+        """Forget a claim whose write failed, so it may be sent again."""
+
+
 class AuditLogRepository(ABC):
-    """Append-only (core_0045's trigger): rows are added, each linked into
+    """Append-only (core_0046's trigger): rows are added, each linked into
     the instance's one hash chain (`domain/audit_chain.py`), never changed
     but to pseudonymise an erased account's."""
 

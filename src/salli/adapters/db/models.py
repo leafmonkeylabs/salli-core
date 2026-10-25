@@ -1719,7 +1719,7 @@ class AuditLogORM(Base):
     """Every write an agent made or asked to make: Scrooge's with the person's
     decision (approved/denied), an MCP client's with its outcome (succeeded,
     refused, failed) and the client; sign-ins, tokens issued and revoked.
-    Append-only (core_0045's trigger): erasing an account only pseudonymises
+    Append-only (core_0046's trigger): erasing an account only pseudonymises
     its rows. One hash chain over every row (`domain/audit_chain.py`)."""
 
     __tablename__ = "audit_logs"
@@ -1748,6 +1748,22 @@ class AuditLogORM(Base):
     __table_args__ = (
         Index("ix_audit_logs_user_created", "user_id", "created_at"),
         UniqueConstraint("seq", name="uq_audit_logs_seq"),
+    )
+
+
+class McpClientRefORM(Base):
+    """An agent's own id for one write it asked for (client_ref), and what
+    the write answered: sent again, the write is not made twice. `result` is
+    null while the first is still running."""
+
+    __tablename__ = "mcp_client_refs"
+
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tool: Mapped[str] = mapped_column(String(50), primary_key=True)
+    client_ref: Mapped[str] = mapped_column(String(180), primary_key=True)
+    result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
     )
 
 

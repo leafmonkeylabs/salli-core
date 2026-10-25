@@ -4,6 +4,19 @@
 
 ### Added
 
+- **More of Salli over MCP.** `get_portfolio_performance` reads the
+  portfolio's performance; `import_statement` imports a statement file
+  (base64, a write the user confirms) for review; `list_holdings`,
+  `list_documents`, `list_decisions` and `list_pending_transactions` come in
+  pages (`limit`, `cursor`); `create_account`, `create_reminder`,
+  `save_document` and `add_principle` take a `client_ref`, so a retry is not
+  made twice. Migration `core_0045_mcp_client_refs`.
+- **A firmer benchmark scorer.** An answer whose headline sentence denies its
+  figure, or that takes it back ("actually", "ignore that", "double that"),
+  fails; a refusal that then guesses a month, a date or a number in words
+  fails; and every figure resting on a placeholder or provisional value (the
+  FI assumptions, a provisional tax value, a placeholder source) needs the
+  caveat. The key is regenerated.
 - **Filing on provisional figures is acknowledged.** A return whose
   computation uses values its rules mark provisional is filed (or amended)
   only with `acknowledge_provisional` and a `provisional_note` (`salli tax
@@ -272,7 +285,7 @@
 ### Security
 
 - **A hash-chained audit trail.** Every `audit_logs` row on an instance is
-  numbered and carries the previous row's hash and its own (core_0045;
+  numbered and carries the previous row's hash and its own (core_0046;
   `salli-server audit verify` reports the first break). Sign-ins (succeeded
   or refused, by the throttle's hashes of the email and address), personal
   access tokens issued and revoked, and OAuth grants revoked are recorded.

@@ -87,7 +87,7 @@ rotates them.
   keeps what was done, when, by which client and its outcome, with the
   person's id replaced by `erased:` and a keyed hash of it (HMAC-SHA-256
   under the instance's `MCP_SIGNING_SECRET`) and its arguments removed; the
-  database refuses any other change (core_0045), and the hash chain still
+  database refuses any other change (core_0046), and the hash chain still
   verifies (`salli-server audit verify`). Those rows identify no one, and are
   kept for the life of the instance's audit trail, as its record of what
   happened; the export above is how the person takes the full rows first.
