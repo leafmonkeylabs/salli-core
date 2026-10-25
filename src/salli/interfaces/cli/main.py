@@ -37,6 +37,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 db_app = typer.Typer(help="Database migrations", no_args_is_help=True)
+audit_app = typer.Typer(help="The audit trail", no_args_is_help=True)
 
 app.command("setup")(setup)
 app.command("serve")(serve)
@@ -46,6 +47,31 @@ app.add_typer(db_app, name="db")
 app.add_typer(members_app, name="members")
 app.add_typer(secrets_app, name="secrets")
 app.add_typer(jobs_app, name="jobs")
+app.add_typer(audit_app, name="audit")
+
+
+# ── audit ─────────────────────────────────────────────────────────────────────
+
+
+@audit_app.command("verify")
+def audit_verify() -> None:
+    """Check the audit trail's hash chain; exit 1 at the first break."""
+    import asyncio
+
+    from salli.interfaces.cli.support import services
+
+    check = asyncio.run(services().agent.verify_audit_chain())
+    if not emit(check):
+        if check["ok"]:
+            console.print(f"[green]The audit trail is intact[/green] ({check['checked']} rows).")
+        else:
+            b = check["first_break"]
+            console.print(
+                f"[red]The audit trail breaks at row {b['seq']}[/red] ({b['reason']}), "
+                f"after {check['checked']} intact."
+            )
+    if not check["ok"]:
+        raise typer.Exit(1)
 
 
 # ── db ────────────────────────────────────────────────────────────────────────

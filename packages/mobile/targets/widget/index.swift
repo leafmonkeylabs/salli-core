@@ -56,7 +56,9 @@ struct SafeView: View {
         VStack(alignment: .leading, spacing: 0) {
           Text(glance?.safe.label ?? openSalli).font(.caption).widgetAccentable()
           if let glance, !entry.old {
-            Text(figure(glance)).font(.headline).accessibilityLabel(glance.safe.spoken)
+            // Privacy mode: the lock screen is seen by anyone holding the
+            // phone, so the amount stays masked there; the app shows it.
+            Text(verbatim: "••••").font(.headline).accessibilityHidden(true)
             Text(glance.safe.until).font(.caption)
           } else if let glance {
             Text(glance.open).font(.caption)

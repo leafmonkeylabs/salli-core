@@ -11,6 +11,13 @@ and each instance is exactly what a self-hoster runs
 - A small Linux machine per instance with Docker and the compose plugin (2
   vCPU and 2 GB of memory is plenty for a household), ports 80 and 443
   open.
+- **Its disk encrypted (required).** The instance directory and Docker's data
+  directory (`docker info -f '{{.DockerRootDir}}'`, where the database and
+  files live) must be on a LUKS volume (`cryptsetup luksFormat`, or the
+  installer's "encrypt disk"; a provider's encrypted block storage mounted
+  through dm-crypt counts). `init` checks and refuses otherwise; pass
+  `--unencrypted-volume` only where the disk is encrypted some other way you
+  can vouch for.
 - A domain name for it, its DNS pointing at the machine
   (`alex.example.org`).
 - A checkout of this repository on the machine, at the release you run.
@@ -46,12 +53,31 @@ Anything else (an AI key for the instance, digests, extensions) goes in
 deploy/host.sh backup /srv/salli
 ```
 
-writes the database (`pg_dump`) and the files and secrets (a tar) into
-`/srv/salli/backups`, readable only by its owner, and keeps two weeks there.
-Run it nightly from cron (`init` prints the line), and copy `backups/` off
-the machine, encrypted: the secrets are in it. Restore as in
-[self-host.md](self-host.md#backup-and-restore), and rehearse a restore
-before the beta starts.
+writes the database (`pg_dump`) and the uploaded files (a tar) into
+`/srv/salli/backups`, each encrypted with [age](https://age-encryption.org)
+before it reaches the disk, readable only by its owner. It refuses to run
+without the recipient: the public key of an age key pair kept **off** the
+machine (`age-keygen -o backup.key` on your own computer, then
+`age-keygen -y backup.key > /srv/salli/backup-recipient` there). Run it
+nightly from cron (`init` prints the line).
+
+**The secrets are never in a backup.** The BYOK and signing keys stay apart
+from the data they open, so a stolen backup is useless alone. Copy them once,
+after `init` and after any key rotation, to offline storage (a password
+manager's secure note, or an encrypted USB key in a drawer):
+
+```bash
+docker compose -f /srv/salli/compose.yaml exec -T salli tar -C /var/lib/salli -cf - secrets \
+  | age -r <your age public key> > salli-secrets.tar.age
+```
+
+**Off the machine before anything is pruned.** Put an executable
+`/srv/salli/backup-copy` there that copies the two files it is given
+elsewhere (`rclone copy "$@" remote:salli/`, `scp "$@" backup-host:`) and
+exits 0 only once they are there. Only then are backups older than two weeks
+deleted; without it, or when it fails, nothing is pruned and the run says so.
+Restore as in [self-host.md](self-host.md#backup-and-restore) (`age -d -i
+backup.key` each file first), and rehearse a restore before the beta starts.
 
 ## Upgrades
 

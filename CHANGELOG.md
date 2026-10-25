@@ -299,6 +299,13 @@
 
 ### Security
 
+- **A hash-chained audit trail.** Every `audit_logs` row on an instance is
+  numbered and carries the previous row's hash and its own (core_0046;
+  `salli-server audit verify` reports the first break). Sign-ins (succeeded
+  or refused, by the throttle's hashes of the email and address), personal
+  access tokens issued and revoked, and OAuth grants revoked are recorded.
+- **Lock-screen privacy.** The Safe to spend widget masks its amount on the
+  lock screen; the app and the Home Screen tile show it.
 - **Outside text is fenced everywhere a model reads it.** Every free-text
   field any MCP read tool or in-app agent tool returns (descriptions,
   payees, memos, account and holding names, principle labels, decisions'
@@ -314,6 +321,20 @@
 
 - **A CMA pack's `history` needs ten years.** At least 120 months (and,
   as before, a source); a shorter one is refused on import.
+
+- **Backups are encrypted and leave the secrets out.** `deploy/host.sh
+  backup` refuses to run without an age public key in
+  `<dir>/backup-recipient`, encrypts the database dump and the files with
+  it, never includes the `secrets` volume (keep it offline, apart; see
+  docs/hosting.md), and prunes old backups only once `<dir>/backup-copy` has
+  copied the new ones off the machine. `init` refuses unless the instance
+  and Docker's data are on an encrypted (LUKS) volume, or
+  `--unencrypted-volume` is passed.
+- **Erasure keeps the audit trail, pseudonymised.** Erasing an account no
+  longer deletes its `audit_logs` rows: they keep a keyed hash in place of
+  the id and lose their arguments, and the database refuses any other
+  change or delete. The export carries the person's audit rows
+  (`audit_log`); erasure's counts say `audit_logs_pseudonymised`.
 
 - **The FI number counts debts once and holds the emergency fund out.** Its
   spending leaves out what the average spending already pays on debts

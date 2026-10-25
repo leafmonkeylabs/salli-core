@@ -3,7 +3,9 @@
 - a write and its audit row commit together: a change whose row can't be
   written is not made;
 - the audit log is append-only: the database refuses an UPDATE, DELETE or
-  TRUNCATE, except erasing the user's own account.
+  TRUNCATE, except pseudonymising the user's own rows as their account is
+  erased;
+- its rows form one hash chain, which still verifies after an erasure.
 """
 
 from __future__ import annotations
@@ -68,6 +70,7 @@ async def test_reads_write_no_audit_row(uow_factory, db):
         "update audit_logs set params = '{}'::jsonb",
         "delete from audit_logs",
         "truncate audit_logs",
+        "update audit_logs set user_id = 'erased:x'",
     ],
 )
 async def test_the_database_refuses_to_change_the_audit_log(uow_factory, db, statement):
@@ -80,17 +83,47 @@ async def test_the_database_refuses_to_change_the_audit_log(uow_factory, db, sta
         # Not even while erasing someone else's account.
         with pytest.raises(Exception, match="append-only"), engine.begin() as conn:
             conn.execute(text("select set_config('salli.erase_user', 'ben', true)"))
-            conn.execute(text("delete from audit_logs"))
+            conn.execute(text("update audit_logs set user_id = 'erased:x', params = '{}'"))
     finally:
         engine.dispose()
     assert scalar(db, "select decision from audit_logs") == "refused"
 
 
-async def test_erasing_an_account_erases_its_audit_rows_and_no_one_elses(uow_factory, db):
+async def test_erasing_an_account_pseudonymises_its_audit_rows_and_no_one_elses(uow_factory, db):
     async with uow_factory() as uow:
         await uow.audit_log.log("ana", "create_rule", {"name": "Rent"}, "succeeded", "claude-1")
         await uow.audit_log.log("ben", "create_rule", {"name": "Rent"}, "succeeded", "claude-2")
+        await uow.audit_log.log("f" * 64, "sign_in", {}, "refused")
     async with uow_factory() as uow:
-        counts = await uow.data_portability.delete_all("ana")
-    assert counts["audit_logs"] == 1
-    assert scalar(db, "select user_id from audit_logs") == "ben"
+        counts = await uow.data_portability.delete_all("ana", "erased:abc", ["f" * 64])
+    assert counts["audit_logs_pseudonymised"] == 2
+    assert scalar(db, "select count(*) from audit_logs") == 3
+    assert scalar(db, "select count(*) from audit_logs where user_id = 'erased:abc'") == 2
+    assert scalar(db, "select params::text from audit_logs where seq = 1") == "{}"
+    assert scalar(db, "select params::text from audit_logs where user_id = 'ben'") != "{}"
+    async with uow_factory() as uow:
+        assert (await uow.audit_log.verify())["ok"]
+
+
+async def test_the_chain_names_the_first_changed_row(uow_factory, db):
+    async with uow_factory() as uow:
+        for name in ("Rent", "Food", "Fuel"):
+            await uow.audit_log.log("ana", "create_rule", {"name": name}, "succeeded")
+    async with uow_factory() as uow:
+        check = await uow.audit_log.verify()
+    assert check == {"ok": True, "checked": 3, "first_break": None}
+    engine = create_engine(_sync(db))
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("alter table audit_logs disable trigger trg_audit_logs_append_only"))
+            conn.execute(text('update audit_logs set params = \'{"name": "Gift"}\' where seq = 2'))
+            conn.execute(text("alter table audit_logs enable trigger trg_audit_logs_append_only"))
+    finally:
+        engine.dispose()
+    async with uow_factory() as uow:
+        check = await uow.audit_log.verify()
+    assert (check["checked"], check["first_break"]["seq"], check["first_break"]["reason"]) == (
+        1,
+        2,
+        "content",
+    )

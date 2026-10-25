@@ -191,6 +191,9 @@ seeded by `core_0022_mobile_client`:
 Design 15's lock screen: two widgets, **Safe to spend** and **Waiting**, as
 paper tiles on the Home Screen (`systemSmall`) and as the system tints them on
 the lock screen (`accessoryRectangular`), where iOS draws no paper.
+**Privacy mode:** on the lock screen Safe to spend masks its amount (`••••`)
+and keeps only its label and date; the amount is in the app and on the Home
+Screen tile.
 
 - **What they show comes from the app.** After each read, the app writes a
   small snapshot to the app group `group.money.salli.app` (`src/glance.tsx`,
