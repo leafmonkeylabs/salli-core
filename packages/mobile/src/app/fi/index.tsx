@@ -7,7 +7,7 @@ import { useRead } from '../../api';
 import { Body, Card, Icon, SectionLabel, Waiting } from '../../kit';
 import { bandChart } from '../../lib/chart';
 import { amountParts, displayMonth, todayIso, wholeDigits } from '../../lib/display';
-import { percentOf } from '../../lib/fi';
+import { percentOf, scoreShown } from '../../lib/fi';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -38,7 +38,10 @@ export default function Independence() {
     >
       <Card tile style={{ gap: 6 }}>
         <SectionLabel onTile>{t.label}</SectionLabel>
-        {s ? (
+        {s && !scoreShown(s) ? (
+          // As Home: under two full months of income and spending, no month, progress or score.
+          <Text style={[styles.tooSoon, { color: theme.tileText }]}>{strings.home.fiTooSoon}</Text>
+        ) : s ? (
           <>
             <Text
               accessibilityLabel={s.projected_fi_month ? t.bySpoken(displayMonth(s.projected_fi_month)) : t.notYet}
@@ -135,6 +138,7 @@ function Projection({ points, target, label }: { points: { low?: string | null; 
 const styles = StyleSheet.create({
   when: { fontFamily: font.semibold, fontSize: 34, letterSpacing: -0.6 },
   sub: { fontFamily: font.regular, fontSize: size.small },
+  tooSoon: { fontFamily: font.medium, fontSize: size.body },
   track: { height: 8 },
   fill: { position: 'absolute', top: 0, left: 0 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

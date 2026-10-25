@@ -33,9 +33,10 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   answers invented a figure or advised. `--self-check` scores the key
   against itself; a contract test runs it. No results are published yet.
 - **Your AI starts from where you stand, and can find what you booked.**
-  MCP `get_overview` is one small read of Salli's figures: net worth, cash,
-  free until payday and its low point, signals, the FI month and progress,
-  reminders due within 30 days, and how fresh the ledger is (`data_as_of`,
+  MCP `get_overview` is one small read of Salli's figures: net worth, cash
+  and savings, free until payday and its low point, signals, the FI month
+  and progress (null, with `fi.status` `not_enough_data`, under two full
+  months observed), reminders due within 30 days, and how fresh the ledger is (`data_as_of`,
   `is_stale`). MCP `search_entries` finds entries by text, account, dates
   and amount, a page at a time (`next_cursor`), with the server's totals
   over every match, so "what did I spend at the bakery?" needs no sum by
@@ -76,16 +77,23 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
     balance `role` may be `savings`, and its `totals` add `savings`.
   - CLI: `--asset-role savings`, `salli profile balance-sheet`'s `:savings`,
     and a Savings line in `salli baseline`. The app's first run offers
-    Savings between Cash to spend and Investments.
+    Savings between Cash to spend and Investments, and an asset account's
+    screen changes its role later.
   - Migration `core_0026_savings_role` allows the role.
 
 - **No FI score on too little data.** `GET /v1/fi/score` adds `status`
   (`ok`, or `not_enough_data` under two full months of income and spending)
-  and `months_observed`. The app's Home, the console's Home and the CLI say
-  "Needs two months of data" in place of the score and grade.
+  and `months_observed`. The app's Home and Independence screen, the
+  console's Home and the CLI say "Needs two months of data" in place of the
+  score and grade (the app's Independence screen in place of the FI month
+  and progress too).
 
-- **Day one on the phone.** With nothing in the books, Home's Needs attention
+- **Day one on the phone.** Until a month of income and spending is in the
+  books (the opening balances of first run are not), Home's Needs attention
   shows one row, Import a statement, in place of "Nothing needs attention".
+  Under Free until payday, Home shows what it is made of: cash today,
+  everyday spending, the cushion, what is held for goals, the low point and
+  its day, and the server's notes.
 
 - **Erasing an account leaves nothing behind, and the export has your
   conversations.** `DELETE /v1/onboarding/account` deletes the rows first,
