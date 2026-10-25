@@ -97,7 +97,7 @@ async def test_reads_need_no_scope_and_are_audited_without_their_arguments(servi
 
     assert result.isError is False
     assert result.structuredContent is not None
-    assert result.structuredContent["value"] == "Ana"
+    assert result.structuredContent["value"] == {"untrusted_text": "Ana"}
     services.audit.log.assert_awaited_once_with(
         "u1", "get_memory", {}, "succeeded", client_id="claude-1"
     )
