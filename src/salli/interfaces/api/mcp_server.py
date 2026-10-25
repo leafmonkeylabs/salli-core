@@ -1101,11 +1101,10 @@ def build_mcp_server(
     async def get_coverage_report(
         replacement_years: int = 10, benefit_years: int | None = None, sick_pay: str = "0"
     ) -> dict[str, Any]:
-        """The user's insurance cover against their targets, uncovered types,
-        policies expiring within 30 days, and `needs`: life cover from
-        `replacement_years` of income, debts and goals less assets, income
-        protection, and disability cover to the planning age (or
-        `benefit_years`) less declared `sick_pay`. Figures, never a product."""
+        """Insurance cover against targets, uncovered types, policies
+        expiring in 30 days, and `needs`: life cover (`replacement_years`),
+        income protection, disability cover to the planning age (or
+        `benefit_years`) less `sick_pay`. Figures, never a product."""
         if not 0 <= replacement_years <= 50:
             _fail("invalid_input", "replacement_years is 0 to 50")
         if benefit_years is not None and not 0 <= benefit_years <= 70:
