@@ -5,10 +5,11 @@
 ### Added
 
 - **Market packs** (`markets/`): a country's tax rule sets, planning assumptions and pension schemes as cited data, outside the core, with the bar to add one. The first is `markets/lk`: rule sets for two years of assessment with the authority's worked examples, capital-market assumptions, and the provident funds. `tests/taxrules/test_market_packs.py` validates every pack's rule sets and runs their examples.
+## 0.5.0 — 2026-10-25
 
 Every change under **Breaking** needs something written against the last
-release to change with it, so the next releases are minor bumps: the SDK and
-the CLI are 0.5.0, and the server's next release is 0.5.0
+release to change with it, so this is a minor release of each part: the
+server (and the console with it), the SDK and the CLI are all 0.5.0
 ([RELEASING.md](RELEASING.md#breaking-changes)).
 
 ### Added
@@ -129,6 +130,10 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
+- The tax agent and the briefing and return workflows refuse to build on the
+  in-memory checkpointer in production (`ENVIRONMENT=production`), as the
+  server's start-up already did, so nothing awaiting review can live only in
+  memory there.
 - Prompt injection is fenced: statement and bank descriptions, payees,
   documents and saved memories reach a model only inside an
   `untrusted_text` field, and every prompt says never to follow
