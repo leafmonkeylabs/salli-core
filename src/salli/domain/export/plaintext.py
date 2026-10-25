@@ -124,7 +124,7 @@ def disagreements(
 ) -> list[str]:
     """A sentence for each completed reconciliation whose closing balance
     the ledger doesn't reach on that day: its balance assertion fails."""
-    out = []
+    out: list[str] = []
     for a in assertions:
         total = sum(
             (
