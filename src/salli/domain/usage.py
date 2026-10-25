@@ -28,7 +28,6 @@ class AIAction(StrEnum):
     ENTRY_PARSE = "entry_parse"
     ADVISOR_RUN = "advisor_run"
     STATEMENT_IMPORT = "statement_upload"
-    FIRE_STRATEGY = "fire_strategy"
 
 
 class UsageLimitReached(Exception):

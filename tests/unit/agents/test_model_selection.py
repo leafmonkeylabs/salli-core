@@ -79,7 +79,7 @@ class TestPriceMatchesWhatRuns:
     then actually run that model.
 
     This has been the same bug twice — once in the agent cache key, once in
-    /fi/strategy/generate, both pricing an Opus answer and running Sonnet. The
+    the FIRE strategy generator (since removed), both pricing an Opus answer and running Sonnet. The
     two facts live in different layers with nothing structural tying them
     together, so this enumerates the metered sites and asserts the pairing at
     each one. A meter that prices by model (the hosted service's does) is only
@@ -107,7 +107,6 @@ class TestPriceMatchesWhatRuns:
             # Run on the user's model — and each of these threads that same id
             # into the call that runs.
             ("CHAT_MESSAGE", "model_id"),
-            ("FIRE_STRATEGY", "model_id"),
             # Run at the default, so the meter is told nothing more specific.
             #
             # The two extraction actions are pinned to Haiku in

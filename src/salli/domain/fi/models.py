@@ -14,37 +14,6 @@ from decimal import Decimal
 
 
 @dataclass(frozen=True)
-class AllocationBucket:
-    """AI-generated allocation bucket within a FIRE strategy."""
-
-    key: str  # e.g. "emergency_moat"
-    name: str  # e.g. "Emergency Moat"
-    target_pct: Decimal  # e.g. Decimal("0.20")
-    description: str  # AI-generated rationale for this bucket
-    color: str  # display color key (e.g. "emerald", "blue", "amber")
-
-
-@dataclass(frozen=True)
-class FireStrategy:
-    """Versioned AI-generated FIRE configuration for a user."""
-
-    version: int
-    fire_style: str  # "lean" | "standard" | "fat" | "coast"
-    swr: Decimal  # safe withdrawal rate, e.g. Decimal("0.04")
-    # Yearly returns AFTER inflation, per scenario.
-    real_return_conservative: Decimal
-    real_return_base: Decimal
-    real_return_growth: Decimal
-    target_monthly_expenses: Decimal | None  # None = use actual from ledger
-    target_age: int | None
-    buckets: list[AllocationBucket]
-    ai_rationale: str  # markdown explanation
-    theories_applied: list[str]
-    created_at: str  # ISO datetime string
-    is_initial: bool  # True for first setup, False for refreshes
-
-
-@dataclass(frozen=True)
 class SurplusBreakdown:
     """Ledger-derived income and expense breakdown for the surplus flow chart."""
 

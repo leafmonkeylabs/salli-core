@@ -11,8 +11,7 @@ the surplus once each is paid off. So FI, the baseline and every scenario
 agree: a scenario with no changes has the baseline's FI exactly.
 
 - **The FI number** is a year of the spending to live on, over the safe
-  withdrawal rate: the FIRE strategy's target, when it names one, or the
-  baseline's average monthly spending (and a scenario's spending for good).
+  withdrawal rate: the baseline's average monthly spending (and a scenario's spending for good).
   Zero while there is no spending to go by.
 - **The FI asset base** at a month's end is what could fund withdrawals:
   cash and investments, less debts and other liabilities, in today's money.
@@ -38,11 +37,7 @@ FI_YEARS = timelines.MAX_HORIZON_YEARS
 
 
 def spending(baseline: Baseline) -> Decimal:
-    """The monthly spending FI is built on: the FIRE strategy's target, when
-    it names one, else the baseline's average spending."""
-    target = baseline.strategy.target_monthly_expenses if baseline.strategy else None
-    if target is not None and target > 0:
-        return target
+    """The monthly spending FI is built on: the baseline's average spending."""
     return baseline.flows.expenses
 
 

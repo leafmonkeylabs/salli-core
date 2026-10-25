@@ -35,7 +35,7 @@ class TestWritingStyle:
     def test_prompts_were_actually_discovered(self):
         """A regex that silently matches nothing would make every test below
         pass without checking anything."""
-        assert len(_prompt_constants()) >= 7
+        assert len(_prompt_constants()) >= 6
 
     def test_every_prompt_carries_the_shared_style(self):
         missing = [n for n, text in _prompt_constants() if WRITING_STYLE not in text]

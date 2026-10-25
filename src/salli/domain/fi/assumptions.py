@@ -30,9 +30,8 @@ with a `source` and a `note`, and stored as user data:
   stays in cash, which earns nothing (`baseline.timelines` says what is
   regular). Not a rate: a share of money, the same in every year.
 
-**What applies** (`resolve`): the user's own figure; then their FIRE
-strategy's (its real returns and withdrawal rate; it chooses no share of the
-surplus); then the placeholder.
+**What applies** (`resolve`): the user's own figure, else the placeholder.
+No model chooses one.
 """
 
 from __future__ import annotations
@@ -42,7 +41,7 @@ from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, cast
 
-Origin = Literal["user", "strategy", "placeholder"]
+Origin = Literal["user", "placeholder"]
 
 #: What a user may set, in the order they are shown.
 NAMES: tuple[str, ...] = (
@@ -71,7 +70,7 @@ MAX_SOURCE_LENGTH = 500
 MAX_NOTE_LENGTH = 1000
 
 #: The conservative and growth scenarios sit this far below and above the
-#: base real return, unless the user's FIRE strategy chose all three. Part of
+#: base real return. Part of
 #: the method (a spread to show uncertainty), not an assumption about a market.
 SCENARIO_SPREAD = Decimal("0.02")
 
@@ -287,52 +286,11 @@ def check_consistent(own: OwnAssumptions) -> None:
 
 
 @dataclass(frozen=True)
-class StrategyFigures:
-    """The real returns and withdrawal rate a user's FIRE strategy chose.
-    `real_returns` is None for a strategy stored without them."""
-
-    safe_withdrawal_rate: Decimal
-    real_returns: Scenarios | None = None
-    version: int | None = None
-    #: The monthly spending the strategy aims to live on once independent,
-    #: when it names one: the FI number is built on it instead of today's
-    #: spending.
-    target_monthly_expenses: Decimal | None = None
-
-    @classmethod
-    def from_stored(cls, data: Mapping[str, Any] | None) -> StrategyFigures | None:
-        """From a stored FIRE strategy. The model writes floats; they become
-        Decimals here, once. A strategy stored without real returns
-        contributes only its withdrawal rate, and one without a withdrawal
-        rate contributes nothing."""
-        if data is None or data.get("swr") is None:
-            return None
-
-        def rate(key: str) -> Decimal:
-            return Decimal(str(data[key]))
-
-        keys = ("real_return_conservative", "real_return_base", "real_return_growth")
-        returns = (
-            Scenarios(*(rate(k) for k in keys))
-            if all(data.get(k) is not None for k in keys)
-            else None
-        )
-        version = data.get("version")
-        target = data.get("target_monthly_expenses")
-        return cls(
-            safe_withdrawal_rate=rate("swr"),
-            real_returns=returns,
-            version=version if isinstance(version, int) else None,
-            target_monthly_expenses=rate("target_monthly_expenses") if target else None,
-        )
-
-
-@dataclass(frozen=True)
 class Applied:
     value: Decimal
     origin: Origin
-    #: Where it comes from, in words: the user's citation, the strategy, or
-    #: the placeholder's label.
+    #: Where it comes from, in words: the user's citation or the
+    #: placeholder's label.
     source: str
     note: str | None = None
 
@@ -386,7 +344,7 @@ class FiAssumptions:
     @property
     def status(self) -> Literal["placeholder", "user"]:
         """ "placeholder" while any figure used is one; "user" once every one
-        was set by the user, their agent or their FIRE strategy."""
+        was set by the user or their agent."""
         return "placeholder" if self.placeholders else "user"
 
     @property
@@ -425,9 +383,8 @@ def _yours(figure: OwnFigure) -> Applied:
     return Applied(figure.value, "user", figure.source or _NO_SOURCE, figure.note)
 
 
-def resolve(own: OwnAssumptions, strategy: StrategyFigures | None = None) -> FiAssumptions:
-    """The assumptions that apply: the user's own, then their FIRE strategy's,
-    then the placeholders. A nominal return without inflation (which
+def resolve(own: OwnAssumptions) -> FiAssumptions:
+    """The assumptions that apply: the user's own, then the placeholders. A nominal return without inflation (which
     `check_consistent` keeps from being stored) is not used."""
     inflation = _yours(own.inflation) if own.inflation is not None else None
 
@@ -447,14 +404,6 @@ def resolve(own: OwnAssumptions, strategy: StrategyFigures | None = None) -> FiA
             own.nominal_return.note,
         )
         scenarios = Scenarios.around(real)
-    elif strategy is not None and strategy.real_returns is not None:
-        version = f" (version {strategy.version})" if strategy.version else ""
-        base = Applied(
-            strategy.real_returns.base,
-            "strategy",
-            f"The real returns your FIRE strategy{version} chose.",
-        )
-        scenarios = strategy.real_returns
     else:
         placeholder = PLACEHOLDERS["real_return"]
         base = Applied(placeholder.value, "placeholder", placeholder.source)
@@ -462,13 +411,6 @@ def resolve(own: OwnAssumptions, strategy: StrategyFigures | None = None) -> FiA
 
     if own.safe_withdrawal_rate is not None:
         swr = _yours(own.safe_withdrawal_rate)
-    elif strategy is not None:
-        version = f" (version {strategy.version})" if strategy.version else ""
-        swr = Applied(
-            strategy.safe_withdrawal_rate,
-            "strategy",
-            f"The rate your FIRE strategy{version} chose.",
-        )
     else:
         placeholder = PLACEHOLDERS["safe_withdrawal_rate"]
         swr = Applied(placeholder.value, "placeholder", placeholder.source)

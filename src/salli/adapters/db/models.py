@@ -860,8 +860,7 @@ class UserProfileORM(Base):
     # The user's own FI planning assumptions, each with where it comes from:
     # {"inflation": {"value": "0.03", "source": "...", "note": "...",
     # "set_at": "..."}, ...}, values as decimal strings. One that is missing
-    # uses the FIRE strategy's figure, or a labelled placeholder
-    # (domain/fi/assumptions.py).
+    # uses a labelled placeholder (domain/fi/assumptions.py).
     fi_assumptions: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
@@ -1089,7 +1088,8 @@ class FiScoreORM(Base):
 
 
 class FireStrategyORM(Base):
-    """Versioned AI-generated FIRE strategy for a user."""
+    """A FIRE strategy an earlier Salli drafted with a model. None are made
+    any more; kept for the user's export."""
 
     __tablename__ = "fire_strategies"
 

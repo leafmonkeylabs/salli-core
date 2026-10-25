@@ -173,7 +173,7 @@ invest never counts towards them.
 ## Assumptions and placeholders
 
 The real return and the safe withdrawal rate are yours where you set them,
-then your FIRE strategy's, then a round 4% placeholder. The share of your
+else a round 4% placeholder. No model chooses them. The share of your
 surplus invested is yours, or the placeholder's 100%. Inflation has no
 placeholder: with none set, nominal amounts (cash, fixed payments) keep their
 real value, and the baseline lists inflation among its placeholders until you
@@ -183,8 +183,8 @@ used.
 
 ## Financial independence
 
-FI reads the monthly timeline. The FI number is a year of your spending (or
-your FIRE strategy's target) over your safe withdrawal rate; the month FI is
+FI reads the monthly timeline. The FI number is a year of your spending over
+your safe withdrawal rate; the month FI is
 reached is the first whose end your cash and investments, less your debts,
 reach it, looked for up to 50 years ahead. The projections are the same
 timeline with your investments at each scenario's real return. The share of

@@ -1,4 +1,4 @@
-import { fiAssumptions, fiProjections, fiScoreGet, fiStrategyGet, goalsList } from '@leafmonkeylabs/salli-sdk';
+import { fiAssumptions, fiProjections, fiScoreGet, goalsList } from '@leafmonkeylabs/salli-sdk';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
@@ -17,7 +17,7 @@ const t = strings.fi;
 /**
  * Independence (design 45): when you reach financial independence, how far
  * along you are, and the path, every figure the server's; then where its
- * assumptions, goals, strategy and the surplus are.
+ * assumptions, goals and the surplus are.
  */
 export default function Independence() {
   const theme = useTheme();
@@ -25,7 +25,6 @@ export default function Independence() {
   const projections = useRead('fi.projections', fiProjections);
   const assumptions = useRead('fi.assumptions', fiAssumptions);
   const goals = useRead('goals.list', goalsList);
-  const strategy = useRead('fi.strategy.get', fiStrategyGet);
   const s = score.data;
   const progress = s ? Math.min(1, Math.max(0, Number(s.progress_to_fi))) : 0; // eslint-disable-line no-restricted-syntax -- not money: a fraction for a bar
   const placeholders = assumptions.data?.applied.placeholders.length ?? 0;
@@ -79,7 +78,6 @@ export default function Independence() {
       <Card style={{ paddingVertical: 0 }}>
         <Place title={t.assumptions} value={placeholders ? t.placeholders(placeholders) : t.allYours} onPress={() => router.push('/fi/assumptions')} />
         <Place title={t.goals} value={goals.data ? String(goals.data.goals.length) : ''} onPress={() => router.push('/fi/goals')} />
-        <Place title={t.strategy} value={strategy.data?.fire_style ? (t.styles[strategy.data.fire_style] ?? strategy.data.fire_style) : ''} onPress={() => router.push('/fi/strategy')} />
         <Place title={t.surplus} value="" onPress={() => router.push('/fi/surplus')} last />
       </Card>
     </Page>

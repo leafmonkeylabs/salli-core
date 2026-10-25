@@ -191,7 +191,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     tax_rules = _build_tax_rules(uow_factory, fx)
     tax = TaxService(uow_factory, tax_rules)
     documents = DocumentService(uow_factory, storage)
-    fi = FiService(uow_factory, llm_credentials, baselines=baseline)
+    fi = FiService(uow_factory, baselines=baseline)
     budget = BudgetService(uow_factory)
     debt = DebtService(uow_factory, baselines=baseline)
     scenarios = ScenarioService(uow_factory, baselines=baseline)

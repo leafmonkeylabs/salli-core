@@ -2,7 +2,7 @@
 LlmCredentialService — decides what a request's AI runs on, and who pays.
 
 The single choke point for that decision. Every LLM path (agent chat, statement
-classification, quick-add parsing, the FIRE strategy, advisor runs) resolves
+classification, quick-add parsing, briefings) resolves
 here by user id, so the HTTP routes and the MCP server — which reaches the same
 services with a user id off its OAuth token — cannot diverge.
 

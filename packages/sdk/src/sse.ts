@@ -1,8 +1,7 @@
 /**
  * Server-sent events, read from a response body.
  *
- * The agent chat and the FIRE strategy generator stream their progress as
- * SSE. These are POSTs that act (a chat message is metered and remembered),
+ * The agent chat streams its progress as SSE. These are POSTs that act (a chat message is metered and remembered),
  * so a dropped stream is never retried here: replaying it would send the
  * message twice.
  */

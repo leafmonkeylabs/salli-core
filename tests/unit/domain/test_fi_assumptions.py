@@ -24,7 +24,6 @@ from salli.domain.fi.assumptions import (
     OwnAssumptions,
     OwnFigure,
     Scenarios,
-    StrategyFigures,
     assumptions_dict,
     check_consistent,
     check_value,
@@ -102,13 +101,12 @@ def test_the_scenarios_sit_a_spread_either_side_of_the_base_in_real_terms():
 
 
 def test_the_users_own_figures_come_first_with_their_sources():
-    strategy = StrategyFigures(D("0.035"), Scenarios(D("0.01"), D("0.03"), D("0.05")))
     own = OwnAssumptions(
         real_return=own_figure("real_return", "0.035", "https://example.org/returns", "a note"),
         safe_withdrawal_rate=own_figure("safe_withdrawal_rate", "0.03"),
         surplus_invested=own_figure("surplus_invested", "0.6", "my standing orders"),
     )
-    applied = resolve(own, strategy)
+    applied = resolve(own)
     assert applied.status == "user"
     assert applied.placeholders == ()
     assert applied.real_return.value == D("0.035")
@@ -166,30 +164,6 @@ def test_a_nominal_return_without_inflation_is_never_used():
     applied = resolve(OwnAssumptions(nominal_return=OwnFigure(D("0.07"))))
     assert applied.real_return.origin == "placeholder"
     assert applied.nominal_return is None
-
-
-def test_a_strategy_s_figures_come_before_the_placeholders():
-    strategy = StrategyFigures(D("0.035"), Scenarios(D("0.01"), D("0.03"), D("0.05")), version=3)
-    applied = resolve(OwnAssumptions(), strategy)
-    assert (applied.safe_withdrawal_rate.value, applied.safe_withdrawal_rate.origin) == (
-        D("0.035"),
-        "strategy",
-    )
-    assert applied.real_returns == strategy.real_returns
-    assert applied.real_return.origin == "strategy"
-    assert "version 3" in applied.real_return.source
-    # A strategy chooses no share of the surplus: that is what the user does.
-    assert applied.placeholders == ("surplus_invested",)
-    assert applied.status == "placeholder"
-    shared = resolve(_own(surplus_invested="0.5"), strategy)
-    assert shared.status == "user" and shared.placeholders == ()
-
-
-def test_a_strategy_without_real_returns_gives_only_its_withdrawal_rate():
-    applied = resolve(OwnAssumptions(), StrategyFigures(D("0.035")))
-    assert applied.safe_withdrawal_rate.origin == "strategy"
-    assert applied.real_return.origin == "placeholder"
-    assert applied.placeholders == ("real_return", "surplus_invested")
 
 
 # ── Checking what the user sets ──────────────────────────────────────────────

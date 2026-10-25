@@ -1958,42 +1958,7 @@ class SQLFireStrategyRepository(FireStrategyRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._s = session
 
-    async def get_latest(self, user_id: str) -> dict[str, Any] | None:
-        r = (
-            await self._s.execute(
-                select(FireStrategyORM)
-                .where(FireStrategyORM.user_id == user_id)
-                .order_by(FireStrategyORM.version.desc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-        if r is None:
-            return None
-        return {"version": r.version, "created_at": r.created_at.isoformat(), **r.strategy}
-
-    async def save(self, user_id: str, strategy: dict[str, Any]) -> int:
-        # Determine next version number
-        latest = (
-            await self._s.execute(
-                select(FireStrategyORM.version)
-                .where(FireStrategyORM.user_id == user_id)
-                .order_by(FireStrategyORM.version.desc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-        version = (latest or 0) + 1
-        self._s.add(
-            FireStrategyORM(
-                id=str(uuid.uuid4()),
-                user_id=user_id,
-                version=version,
-                strategy=strategy,
-            )
-        )
-        await self._s.flush()
-        return version
-
-    async def get_history(self, user_id: str) -> list[dict[str, Any]]:
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
         rows = (
             (
                 await self._s.execute(
@@ -2006,12 +1971,7 @@ class SQLFireStrategyRepository(FireStrategyRepository):
             .all()
         )
         return [
-            {
-                "version": r.version,
-                "created_at": r.created_at.isoformat(),
-                "fire_style": r.strategy.get("fire_style"),
-                "theories_applied": r.strategy.get("theories_applied", []),
-            }
+            {"version": r.version, "created_at": r.created_at.isoformat(), **r.strategy}
             for r in rows
         ]
 

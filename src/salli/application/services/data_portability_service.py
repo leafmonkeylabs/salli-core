@@ -145,6 +145,7 @@ class DataPortabilityService:
             "insurance_targets": await self._insurance.list_targets(user_id),
             "goals": await self._fi.list_goals(user_id),
             "fi_score_history": await self._fi.get_score_history(user_id),
+            "fire_strategies": await self._fire_strategies(user_id),
             "advisor_reports": await self._advisor.list_reports(user_id),
             "reminders_and_alerts": await self._reminders.list_reminders(user_id),
             "documents": await self._documents.list_documents(user_id),
@@ -173,6 +174,11 @@ class DataPortabilityService:
             {**st, "transactions": [transaction_view(t) for t in st["transactions"]]}
             for st in statements
         ]
+
+    async def _fire_strategies(self, user_id: str) -> list[dict[str, Any]]:
+        """The FIRE strategies an earlier Salli drafted, as stored."""
+        async with self._uow_factory() as uow:
+            return list(await uow.fire_strategies.export(user_id))
 
     async def _tax_rule_sets(self, user_id: str) -> list[dict[str, Any]]:
         """Every tax rule set the user (or their agent) wrote, with every

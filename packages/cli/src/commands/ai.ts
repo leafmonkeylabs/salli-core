@@ -126,7 +126,7 @@ Examples:
     .argument('<provider>', 'openai or chatgpt')
     .description('Name the model each task runs on (neither: let Salli pick again)')
     .option('--fast <model>', 'For sorting statements and quick add')
-    .option('--best <model>', 'For chat, the FIRE strategy and advice')
+    .option('--best <model>', 'For chat and the briefing')
     .action(async (provider, opts) => {
       if (provider !== 'openai' && provider !== 'chatgpt') throw new UsageError('Models can be chosen for openai or chatgpt.');
       const api = await app.api();

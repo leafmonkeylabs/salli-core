@@ -5,7 +5,7 @@ Salli never fixes an OpenAI model name: what a ChatGPT plan or an API key can
 use differs by account and changes over time, so each account's own catalogue
 (`GET /v1/models`) is read, and a model picked from it per tier:
 
-- "best", for the chat agent, the FIRE strategy and advice;
+- "best", for the chat agent and the briefing;
 - "fast", for sorting statement rows, quick add and naming a conversation.
 
 A user can name either one themselves (an override); otherwise a heuristic

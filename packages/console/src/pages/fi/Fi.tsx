@@ -1,13 +1,12 @@
 /**
  * Financial independence (docs/design/console.md, section 5; `salli fi
- * score`, `projections`, `assumptions`, `history`, `strategy`): the FI
+ * score`, `projections`, `assumptions`, `history`): the FI
  * number and how far along you are, the savings rate and the month you
  * would get there; your invested money projected at three real returns,
  * drawn against the FI number; the parts the score is made of; the
  * assumptions every figure rests on, each placeholder flagged, and setting
  * your own (`fi.assumptions.set`) with where each comes from; the score
- * over time; and the FIRE strategy, when you have one. Every figure is the
- * server's: the console neither projects nor converts.
+ * over time. Every figure is the server's: the console neither projects nor converts.
  */
 import {
   fiAssumptions,
@@ -15,10 +14,8 @@ import {
   fiProjections,
   fiScoreGet,
   fiScoreHistory,
-  fiStrategyGet,
   formatDecimal,
   formatRatio,
-  SalliApiError,
   type FiAssumption,
   type FiAssumptions,
   type FiAssumptionsReport,
@@ -29,8 +26,6 @@ import {
   type FiScore,
   type FiScoreComponent,
   type FiScoreSnapshot,
-  type FireStrategy,
-  type FireStrategyBucket,
 } from '@leafmonkeylabs/salli-sdk';
 import { useState, type FormEvent } from 'react';
 import { problemOf, useRead, useWrite } from '../../api';
@@ -253,13 +248,11 @@ function Assumption({
   name,
   applied,
   own,
-  strategy,
   onSaved,
 }: {
   name: Key;
   applied: FiAssumption | null | undefined;
   own: FiOwnAssumption | null | undefined;
-  strategy: boolean;
   onSaved: (text: string) => void;
 }) {
   const locale = useLocale();
@@ -290,7 +283,7 @@ function Assumption({
     setLocal('');
     write.mutate({ body: { [name]: { value: parsed, source: source.trim() || null, note: note.trim() || null } }, cleared: false });
   };
-  const origin = applied ? (applied.origin === 'placeholder' ? <PlaceholderTag /> : applied.origin === 'strategy' ? f.strategy : f.you) : f.notSet;
+  const origin = applied ? (applied.origin === 'placeholder' ? <PlaceholderTag /> : f.you) : f.notSet;
   return (
     <li className="assumption">
       <div className="assumption-head">
@@ -335,7 +328,7 @@ function Assumption({
           </Button>
           {own ? (
             <Button variant="tertiary" onPress={() => write.mutate({ body: { [name]: null }, cleared: true })} isPending={write.isPending}>
-              {write.isPending ? f.clearing : strategy ? f.clearStrategy : f.clear}
+              {write.isPending ? f.clearing : f.clear}
             </Button>
           ) : null}
         </div>
@@ -357,14 +350,13 @@ function Assumptions() {
     <Section label={f.assumptions} full anchor="assumptions">
       <Loaded query={query}>
         {(report) => {
-          const strategy = [report.applied.real_return, report.applied.safe_withdrawal_rate, report.applied.surplus_invested].some((a) => a.origin === 'strategy');
           return (
             <Panel>
               <p className="section-help">{f.assumptionsHelp}</p>
               <Basis assumptions={report.applied} />
               <ul className="list assumptions">
                 {KEYS.map((key) => (
-                  <Assumption key={`${key}-${report.own[key]?.set_at ?? ''}`} name={key} applied={report.applied[key]} own={report.own[key]} strategy={strategy} onSaved={setSaid} />
+                  <Assumption key={`${key}-${report.own[key]?.set_at ?? ''}`} name={key} applied={report.applied[key]} own={report.own[key]} onSaved={setSaid} />
                 ))}
               </ul>
               <p role="status" className="quiet-success">
@@ -420,58 +412,6 @@ function History() {
   );
 }
 
-function StrategyView({ strategy, currency }: { strategy: FireStrategy; currency: string | undefined }) {
-  const locale = useLocale();
-  const buckets = strategy.buckets ?? [];
-  return (
-    <Panel>
-      <p className="panel-title">{f.version(String(strategy.version ?? ''), strategy.fire_style ?? '')}</p>
-      <Rows>
-        {strategy.swr !== null && strategy.swr !== undefined ? <Row label={f.withdrawal}>{rate(strategy.swr, locale)}</Row> : null}
-        {strategy.real_return_base !== null && strategy.real_return_base !== undefined ? (
-          <Row label={f.returns}>{f.returnsText(rate(strategy.real_return_conservative, locale), rate(strategy.real_return_base, locale), rate(strategy.real_return_growth, locale))}</Row>
-        ) : null}
-        {strategy.target_monthly_expenses && currency ? (
-          <Row label={f.targetSpending}>
-            <Money amount={strategy.target_monthly_expenses} currency={currency} variant="table" withCode />
-          </Row>
-        ) : null}
-        {strategy.target_age ? <Row label={f.targetAge}>{String(strategy.target_age)}</Row> : null}
-      </Rows>
-      {buckets.length ? (
-        <Table<FireStrategyBucket>
-          caption={f.buckets}
-          rows={buckets}
-          rowKey={(b) => b.key ?? b.name ?? ''}
-          columns={[
-            { key: 'name', header: f.bucket, label: f.bucket, render: (b) => b.name ?? '' },
-            { key: 'share', header: f.bucketShare, label: f.bucketShare, align: 'end', render: (b) => rate(b.target_pct, locale) },
-            { key: 'for', header: f.bucketFor, label: f.bucketFor, render: (b) => b.description ?? '' },
-          ]}
-        />
-      ) : null}
-      {strategy.ai_rationale ? (
-        <>
-          <p className="subhead">{f.rationale}</p>
-          <p className="own-words">{strategy.ai_rationale}</p>
-        </>
-      ) : null}
-      {strategy.theories_applied?.length ? <Provenance>{f.theories(strategy.theories_applied.join(', '))}</Provenance> : null}
-      {strategy.created_at ? <Provenance>{f.created(displayDate(strategy.created_at, locale))}</Provenance> : null}
-    </Panel>
-  );
-}
-
-function Strategy({ currency }: { currency: string | undefined }) {
-  const query = useRead('fi.strategy.get', fiStrategyGet);
-  const none = query.error instanceof SalliApiError && query.error.status === 404;
-  return (
-    <Section label={f.fire} wide>
-      {none ? <Empty>{f.noStrategy}</Empty> : <Loaded query={query}>{(strategy) => <StrategyView strategy={strategy} currency={currency} />}</Loaded>}
-    </Section>
-  );
-}
-
 export function Fi() {
   const score = useRead('fi.score.get', fiScoreGet);
   return (
@@ -486,7 +426,6 @@ export function Fi() {
           <Loaded query={score}>{(data) => <Components score={data} />}</Loaded>
         </Section>
         <History />
-        <Strategy currency={score.data?.currency} />
       </Grid>
     </Page>
   );

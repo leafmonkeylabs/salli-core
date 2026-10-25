@@ -526,7 +526,7 @@ class LLMClient(ABC):
     between them cover every AI feature:
 
     - `generate`: one instruction, one input, the model's text back. Statement
-      sorting, quick add, the FIRE strategy and the advisor ask for JSON and
+      sorting, quick add and the briefing ask for JSON and
       parse it themselves; naming a conversation takes the text as it is.
     - `chat_model`: a LangChain chat model with tool calling and streaming, for
       the LangGraph agents.
@@ -1095,16 +1095,13 @@ class AdvisoryRepository(ABC):
 
 
 class FireStrategyRepository(ABC):
-    @abstractmethod
-    async def get_latest(self, user_id: str) -> dict[str, Any] | None: ...
+    """The FIRE strategies an earlier Salli drafted with a model. None are
+    made any more; they are kept for the user's export and erased with them."""
 
     @abstractmethod
-    async def save(self, user_id: str, strategy: dict[str, Any]) -> int:
-        """Persist a new strategy version and return the version number."""
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        """Every version as stored, newest first."""
         ...
-
-    @abstractmethod
-    async def get_history(self, user_id: str) -> list[dict[str, Any]]: ...
 
 
 # ── Budget ────────────────────────────────────────────────────────────────────
@@ -1909,7 +1906,6 @@ class Surface(StrEnum):
     """A response whose depth an `EntitlementPolicy` may shape."""
 
     FI_PROJECTIONS = "fi.projections"
-    FIRE_STRATEGY = "fi.strategy"
     ADVISOR_REPORT = "advisor.report"
 
 

@@ -101,14 +101,6 @@ def test_fi_number_uses_the_supplied_swr():
     assert score.swr == Decimal("0.035")
 
 
-def test_target_monthly_expenses_moves_the_target_only():
-    score = _score(_snapshot(), target_monthly_expenses=Decimal("40000"))
-    assert score.annual_expenses == Decimal("480000")
-    assert score.fi_number == Decimal("12000000")
-    # Contribution basis is untouched: still actual income − actual expenses.
-    assert score.monthly_surplus == Decimal("50000")
-
-
 # ── Progress measures the FI asset base, not total net worth ──────────────────
 
 

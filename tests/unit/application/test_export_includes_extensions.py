@@ -14,7 +14,7 @@ from salli.application.services.data_portability_service import DataPortabilityS
 pytestmark = pytest.mark.asyncio
 
 
-def _service(exporters=(), statements=(), banks=(), rule_sets=()):
+def _service(exporters=(), statements=(), banks=(), rule_sets=(), strategies=()):
     # profile, ledger, tax, budget, debt, portfolio, subscription, insurance,
     # fi, advisor, documents, reminders
     from contextlib import asynccontextmanager
@@ -30,6 +30,7 @@ def _service(exporters=(), statements=(), banks=(), rule_sets=()):
             statements=SimpleNamespace(export=AsyncMock(return_value=statements)),
             bank_connections=SimpleNamespace(list=AsyncMock(return_value=banks)),
             tax_rule_sets=SimpleNamespace(export=AsyncMock(return_value=rule_sets)),
+            fire_strategies=SimpleNamespace(export=AsyncMock(return_value=strategies)),
             principles=SimpleNamespace(list=AsyncMock(return_value=[])),
             decisions=SimpleNamespace(list_full=AsyncMock(return_value=[])),
         )
@@ -90,3 +91,11 @@ async def test_tax_rule_sets_are_exported_with_every_version():
     rule_set = {"id": "rs1", "versions": [{"id": "v1", "content": {"schema": "salli.tax/1"}}]}
     data = await _service(rule_sets=[rule_set]).export_all("u1")
     assert data["tax_rule_sets"] == [rule_set]
+
+
+async def test_past_fire_strategies_are_exported_as_stored():
+    """Salli no longer drafts them; the ones an earlier version stored stay
+    the user's, in the export."""
+    stored = [{"version": 2, "created_at": "2026-01-01T00:00:00+00:00", "swr": 0.04}]
+    data = await _service(strategies=stored).export_all("u1")
+    assert data["fire_strategies"] == stored

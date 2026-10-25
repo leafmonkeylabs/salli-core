@@ -11,8 +11,7 @@ Salli doesn't rank the options. A comparison reports:
   cash, net worth or investments is ahead; fewer debts, less interest, a
   smaller FI number and earlier months are ahead. Never an overall verdict.
 - **Sensitivity:** the same options under the conservative and growth real
-  returns (the base return less and plus the spread, or the FIRE strategy's
-  own three; `fi.assumptions`). Cash earns nothing, so only the monthly
+  returns (the base return less and plus the spread; `fi.assumptions`). Cash earns nothing, so only the monthly
   figures and FI move.
 - **Break-evens,** solved exactly by bisection on whole numbers of the
   currency's smallest unit or of a basis point (0.0001), so deterministic;

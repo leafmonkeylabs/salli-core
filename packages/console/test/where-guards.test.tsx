@@ -13,8 +13,6 @@ import { join, resolve } from 'node:path';
 import { act, fireEvent, screen, within } from '@testing-library/react';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { whereStrings } from '../src/where-strings';
-import { MockApi } from './fixtures/api';
-import * as where from './fixtures/where';
 import { setup } from './harness';
 
 const root = resolve(process.cwd(), '../..');
@@ -93,11 +91,9 @@ describe('what its pages render from the server’s answers', () => {
     expect(ranks(text)).toBeUndefined();
   });
 
-  it('financial independence ranks nothing, with its strategy too', async () => {
-    const api = new MockApi();
-    api.where.strategy = where.STRATEGY;
-    await setup({ api, path: '/console/fi' });
-    await screen.findByText('Version 2, standard');
+  it('financial independence ranks nothing', async () => {
+    await setup({ path: '/console/fi' });
+    await screen.findByRole('region', { name: 'Assumptions' });
     await new Promise((r) => setTimeout(r, 50));
     expect(ranks(await rendered(), true)).toBeUndefined();
   });

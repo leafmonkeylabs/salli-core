@@ -159,26 +159,3 @@ def tax_specialist_section(ctx: UserContext) -> str:
             f"it is: {roles}."
         )
     return section
-
-
-# ── Investing: local knowledge is researched, never built in ─────────────────
-
-
-def investing_context(tax_residency: str | None) -> str:
-    """What the FIRE strategy should know about where the user invests: only
-    where that is, and that local products are theirs to check. The strategy is
-    one model call with no web access, so it suggests kinds of product, never
-    named local ones."""
-    if tax_residency is None:
-        return (
-            "Where the user is tax resident is not known: keep investment suggestions to "
-            "broad, low-cost index funds, and assume no country's products or tax rules."
-        )
-    return (
-        f"The user is tax resident in {_place(tax_residency)}. Salli has no built-in notes "
-        "on any country's investment products or rates, and you have no way to look them "
-        "up here: suggest the kinds of low-cost index funds and tax-advantaged accounts to "
-        "look for there, by type rather than by product or provider name, and say in "
-        "ai_rationale that the user (or their AI agent) should check what is available "
-        "locally against current, official sources."
-    )

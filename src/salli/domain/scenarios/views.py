@@ -431,7 +431,6 @@ def _result_view(r: ScenarioResult, w: _Writer) -> dict[str, Any]:
             "schema": r.versions.schema,
             "engine": r.versions.engine,
             "fi_assumptions": r.versions.fi_assumptions,
-            "fire_strategy": r.versions.fire_strategy,
             "rule_sets": [rule_set_view(x) for x in r.versions.rule_sets],
         },
         "data_as_of": r.data_as_of,

@@ -164,18 +164,3 @@ async def test_what_a_policy_withholds_stays_out_and_what_it_adds_comes_through(
     assert "fi_by" not in body
     assert all("growth" not in p for p in body["points"])
     assert body["growth_locked"] is True
-
-
-async def test_a_strategy_stored_by_an_earlier_version_reads_as_stored(client, mock_services):
-    stored = {
-        "version": 1,
-        "created_at": "2026-01-01T00:00:00+00:00",
-        "fire_style": "lean",
-        "swr": 0.04,
-        "buckets": [],
-    }
-    mock_services.fi.get_strategy.return_value = stored
-
-    r = await client.get("/v1/fi/strategy", headers=AUTH)
-
-    assert r.json() == stored
