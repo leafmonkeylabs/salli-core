@@ -287,6 +287,8 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/onboarding/profile"): "profile.get",
     ("PATCH", "/onboarding/profile"): "profile.update",
     ("GET", "/onboarding/export"): "account.export",
+    ("GET", "/onboarding/export/archive"): "account.exportArchive",
+    ("POST", "/onboarding/restore"): "account.restore",
     ("DELETE", "/onboarding/account"): "account.delete",
     # LLM keys and MCP connections
     ("GET", "/llm-keys"): "llmKeys.list",

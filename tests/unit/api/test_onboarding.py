@@ -325,8 +325,12 @@ def _portability_service(exporters=()) -> DataPortabilityService:
     advisor.export_reports.return_value = []
     reminders.list_reminders.return_value = []
     documents.list_documents.return_value = []
+    stored = MagicMock()
+    stored.return_value.__aenter__.return_value.data_portability.stored_rows = AsyncMock(
+        return_value={"accounts": []}
+    )
     return DataPortabilityService(
-        MagicMock(),
+        stored,
         profile,
         ledger,
         tax,
@@ -470,3 +474,85 @@ async def test_the_export_keeps_closed_accounts_and_every_tax_computation():
     [computation] = document["tax_computations"]
     assert computation["rule_set_version_id"] == "version-2" and computation["lines"]
     assert "tax_computation_2025_26" not in document
+
+
+# ── Restore ──────────────────────────────────────────────────────────────────
+
+
+def _restore(client: Any) -> Any:
+    return client.post(
+        "/v1/onboarding/restore",
+        files={"file": ("salli-export.zip", b"PK\x03\x04archive", "application/zip")},
+        headers=AUTH,
+    )
+
+
+async def test_a_restore_hands_the_file_to_the_service_and_says_what_came(client, mock_services):
+    mock_services.data_portability = AsyncMock()
+    mock_services.data_portability.restore.return_value = {
+        "export_hash": "sha256:" + "a" * 64,
+        "export_version": 2,
+        "entries": 3,
+        "chain_head": "sha256:" + "b" * 64,
+        "restored": {"journal_entries": 3},
+        "files": 1,
+        "files_missing": [],
+    }
+
+    r = await _restore(client)
+
+    assert r.status_code == 200
+    assert r.json()["entries"] == 3
+    mock_services.data_portability.restore.assert_awaited_once_with(USER, b"PK\x03\x04archive")
+
+
+async def test_only_your_own_sign_in_in_a_salli_client_restores(client, app, mock_services):
+    from salli.interfaces.api.deps import Principal, get_principal
+
+    mock_services.data_portability = AsyncMock()
+    for method, first_party in (("oauth", False), ("pat", False)):
+        app.dependency_overrides[get_principal] = lambda m=method, f=first_party: Principal(
+            USER, None, m, first_party_client=f
+        )
+        r = await _restore(client)
+        assert r.status_code == 403
+        assert "Only your own sign-in" in r.json()["detail"]
+    mock_services.data_portability.restore.assert_not_awaited()
+
+    # The console's, with a password older than it asks: the step-up.
+    app.dependency_overrides[get_principal] = lambda: Principal(
+        USER,
+        None,
+        "oauth",
+        first_party_client=True,
+        sign_in_age=datetime.timedelta(minutes=10),
+        fresh_within=datetime.timedelta(minutes=5),
+    )
+    assert (await _restore(client)).json()["type"] == "/problems/step-up-required"
+
+
+async def test_a_refused_restore_says_why(client, mock_services):
+    from salli.application.ports import RestoreCollision
+    from salli.application.services.data_portability_service import BooksNotEmpty
+    from salli.domain.export.restore import ExportRefused
+
+    mock_services.data_portability = AsyncMock()
+    for raised, code, says in (
+        (BooksNotEmpty(["journal_entries", "lock_date"]), 409, "journal_entries, lock_date"),
+        (RestoreCollision("UniqueViolationError"), 409, "on this server already"),
+        (ExportRefused("entry 5 fails its hash chain"), 422, "entry 5"),
+    ):
+        mock_services.data_portability.restore.side_effect = raised
+        r = await _restore(client)
+        assert (r.status_code, says in r.json()["detail"]) == (code, True)
+
+
+async def test_the_archive_is_a_zip_download(client, mock_services):
+    mock_services.data_portability = AsyncMock()
+    mock_services.data_portability.export_archive.return_value = b"PK\x03\x04zip"
+
+    r = await client.get("/v1/onboarding/export/archive", headers=AUTH)
+
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/zip"
+    assert r.content == b"PK\x03\x04zip"

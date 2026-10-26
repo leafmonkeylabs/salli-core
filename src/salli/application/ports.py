@@ -1544,6 +1544,36 @@ class DataPortabilityRepository(ABC):
         Irreversible."""
         ...
 
+    @abstractmethod
+    async def stored_rows(self, user_id: str) -> dict[str, list[dict[str, Any]]]:
+        """The person's rows a restore takes, and their profile and audit
+        rows, by table, as the export's `rows` carries them
+        (domain/export/restore.py)."""
+        ...
+
+    @abstractmethod
+    async def occupied(self, user_id: str) -> list[str]:
+        """What in the person's books stops a restore into them: the tables
+        holding a row of theirs, and `lock_date` while one is set. Empty
+        books hold at most the starter chart, the seeded tags, the digest's
+        preferences and an agent's memories."""
+        ...
+
+    @abstractmethod
+    async def restore(
+        self, user_id: str, rows: dict[str, list[dict[str, Any]]], profile: dict[str, Any]
+    ) -> dict[str, int]:
+        """Writes rows already moved to the person into their empty books,
+        and their profile's settings, the lock date last. Raises
+        `RestoreCollision` when a row is on this server already. Returns
+        {table_name: rows}."""
+        ...
+
+
+class RestoreCollision(Exception):
+    """A restored row is on this server already, or points at one the
+    export doesn't hold."""
+
 
 # ── MCP OAuth ────────────────────────────────────────────────────────────────
 

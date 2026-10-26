@@ -68,8 +68,13 @@ rotates them.
   as plain text. No credential is ever in it. Conversations with Salli's AI
   are in it (`conversations`: each thread's messages in order, the tools the
   AI called by name only, read from the checkpoint tables). It leaves out the
-  uploaded files themselves, the sorting rules and sign-in records; it
-  carries the person's audit log (`audit_log`, every row under their id).
+  uploaded files themselves and sign-in records; it carries the person's
+  audit log (`audit_log`, every row under their id) and, in `rows`, the
+  stored rows a restore reads. `GET /v1/onboarding/export/archive` (`salli
+  profile export --archive`) adds the uploaded files, as one zip.
+- **Restore:** `POST /v1/onboarding/restore` (`salli restore`) takes such an
+  export into the person's empty books on another server, behind the same
+  step-up (docs/self-host.md, "Moving your books").
 - **Erasure:** `DELETE /v1/onboarding/account` (`salli profile
   delete-account`), with the person's email typed again, deletes their rows in
   every table above, the decision journal and an extension's tables included,

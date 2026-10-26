@@ -948,6 +948,24 @@ export class MockSalli {
       }
       return { status: 200, body: { updated: true } };
     }
+    if (method === 'GET' && path === '/v1/onboarding/export/archive') {
+      return { status: 200, raw: 'PK\u0003\u0004zip', headers: { 'Content-Type': 'application/zip' } };
+    }
+    if (method === 'POST' && path === '/v1/onboarding/restore') {
+      if (!(req.headers['content-type'] ?? '').startsWith('multipart/form-data')) return problem(422, 'Request validation failed', 'file required');
+      return {
+        status: 200,
+        body: {
+          export_hash: `sha256:${'a'.repeat(64)}`,
+          export_version: 2,
+          entries: 42,
+          chain_head: `sha256:${'b'.repeat(64)}`,
+          restored: { journal_entries: 42 },
+          files: 1,
+          files_missing: [],
+        },
+      };
+    }
     if (method === 'GET' && path === '/v1/onboarding/export') return { status: 200, raw: '{"profile": {"display_name": "Ada"}, "progress": 0.0}', headers: { 'Content-Type': 'application/json' } };
     if (method === 'GET' && path === '/v1/tax/current-year') {
       return { status: 200, body: this.data.taxYear };
