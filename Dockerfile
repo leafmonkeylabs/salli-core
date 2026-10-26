@@ -79,7 +79,7 @@ LABEL org.opencontainers.image.title="Salli" \
 # The base image's security fixes published since its digest (OpenSSL's,
 # which the image scan holds it to).
 RUN apt-get update \
- && apt-get install -y --no-install-recommends --only-upgrade libssl3 openssl \
+ && apt-get install -y --no-install-recommends libssl3=3.0.22-1~deb12u2 openssl=3.0.22-1~deb12u2 \
  && rm -rf /var/lib/apt/lists/*
 
 # An unprivileged user, and the two places it writes: uploaded files, and the
