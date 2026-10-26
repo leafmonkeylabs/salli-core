@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Linking, StyleSheet, Text, View } from 'react-native';
-import { cardOf, Icon, Press, type IconName } from '../../kit';
+import { cardOf, Icon, Press, useLargeText, type IconName } from '../../kit';
 import { useYourAI } from '../../ai/store';
 import { useAppearance } from '../../appearance';
 import { providerOf } from '../../lib/ai';
@@ -25,10 +25,12 @@ export default function More() {
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
   const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
 
+  const large = useLargeText();
   const status = !ai.enabled ? strings.ai.off : (ai.model ?? strings.ai.notSet);
   return (
     <Page title={t.title}>
-      <View style={styles.grid}>
+      {/* Remounted when the text size crosses into large, so each tile takes its new width. */}
+      <View key={large ? 'large' : 'regular'} style={styles.grid}>
         <Tile icon="spark" title={strings.ai.title} status={status} hint={ai.model ? `${ai.model} · ${providerOf(ai.provider)?.name ?? ''}` : undefined} onPress={() => router.push('/ai')} />
         <Tile icon="message" title={t.automationsPlace} hint={t.automationsBody} onPress={() => router.push('/automations')} />
         <Tile icon="appearance" title={strings.appearance.title} status={strings.appearance.names[appearance.theme]} onPress={() => router.push('/appearance')} />
@@ -57,24 +59,27 @@ export default function More() {
 /** A place as a tile: its icon, its title, and a word on how it stands; one in the console says so with ↗. */
 function Tile({ icon, title, status, label, hint, external, onPress }: { icon: IconName; title: string; status?: string; label?: string; hint?: string; external?: boolean; onPress: () => void }) {
   const theme = useTheme();
+  // At large text, one tile to a row, its title on two lines at most and its status whole (design LargeMore).
+  const large = useLargeText();
   return (
     <Press
-      accessibilityRole="link"
+      accessibilityRole={external ? 'link' : 'button'}
       accessibilityLabel={[label ?? title, status].filter(Boolean).join(', ')}
       {...(hint ? { accessibilityHint: hint } : {})}
       onPress={onPress}
-      style={[styles.tile, cardOf(theme)]}
+      style={[styles.tile, large ? styles.tileLarge : null, cardOf(theme)]}
     >
       <View style={styles.tileTop}>
         <Icon name={icon} size={24} colour={theme.text} />
         {external ? <Icon name="external" size={14} colour={theme.muted} /> : null}
       </View>
       <View style={{ gap: 2 }}>
-        <Text style={[styles.tileTitle, { color: theme.text }]} numberOfLines={1}>
+        {/* Twice its size at most, so a place's one-word name never breaks inside (design LargeMore). */}
+        <Text maxFontSizeMultiplier={2} style={[styles.tileTitle, { color: theme.text }]} numberOfLines={large ? 2 : 1}>
           {title}
         </Text>
         {status ? (
-          <Text style={[styles.tileStatus, { color: theme.muted }]} numberOfLines={1}>
+          <Text maxFontSizeMultiplier={2} style={[styles.tileStatus, { color: theme.muted }]} numberOfLines={large ? undefined : 1}>
             {status}
           </Text>
         ) : null}
@@ -86,6 +91,7 @@ function Tile({ icon, title, status, label, hint, external, onPress }: { icon: I
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: { flexBasis: '48%', flexGrow: 1, minHeight: 104, padding: 14, justifyContent: 'space-between', gap: 14 },
+  tileLarge: { flexBasis: '100%', minHeight: 0, padding: 16, gap: 6 },
   tileTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   tileTitle: { fontFamily: font.medium, fontSize: size.body },
   tileStatus: { fontFamily: font.regular, fontSize: 13 },

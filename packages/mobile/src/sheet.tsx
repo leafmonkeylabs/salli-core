@@ -3,17 +3,19 @@
  * Salli will do before it does it (design 12). It rises on the sheet's spring
  * while its scrim fades in on its own (src/motion.ts), or both fade with
  * Reduce Motion on. It closes on the scrim, the back gesture, its own buttons
- * or a drag down past 30% of its height (or a quick flick), and VoiceOver
+ * or a drag down past 30% of its height (or a quick flick), its grabber (a
+ * button named Close, design SheetGrabber) and VoiceOver's escape; VoiceOver
  * starts at its title (`SheetTitle`).
  */
 import * as Haptics from 'expo-haptics';
 import { createContext, useContext, useEffect, useRef, useState, type ComponentRef, type ReactNode, type RefObject } from 'react';
-import { AccessibilityInfo, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, type StyleProp, type TextStyle } from 'react-native';
+import { AccessibilityInfo, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { sheet as motion, useReducedMotion } from './motion';
+import { strings } from './strings';
 import { size, useTheme } from './theme';
 
 const TitleRef = createContext<RefObject<ComponentRef<typeof Text> | null> | null>(null);
@@ -141,9 +143,13 @@ export function Sheet({ visible, onClose, label, children }: { visible: boolean;
             <Animated.View
               accessibilityViewIsModal
               accessibilityLabel={label}
+              onAccessibilityEscape={onClose}
               onLayout={(e) => arrive(e.nativeEvent.layout.height)}
               style={[styles.panel, { backgroundColor: theme.chrome, borderTopColor: theme.rule, paddingBottom: insets.bottom + 16 }, panel]}
             >
+              <Pressable accessibilityRole="button" accessibilityLabel={strings.sheet.close} onPress={onClose} style={styles.grabber}>
+                <View style={[styles.grip, { backgroundColor: theme.fieldBorder, borderRadius: theme.control ? 3 : 0 }]} />
+              </Pressable>
               <TitleRef.Provider value={title}>{children}</TitleRef.Provider>
             </Animated.View>
           </GestureDetector>
@@ -155,5 +161,8 @@ export function Sheet({ visible, onClose, label, children }: { visible: boolean;
 
 const styles = StyleSheet.create({
   frame: { flex: 1, justifyContent: 'flex-end' },
-  panel: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: size.gutter, paddingTop: 24, gap: 16 },
+  panel: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: size.gutter, gap: 16 },
+  // 120 × 44 to touch, a 40 × 5 bar to see; the title sits close under it.
+  grabber: { alignSelf: 'center', width: 120, height: 44, alignItems: 'center', justifyContent: 'center', marginBottom: -14 },
+  grip: { width: 40, height: 5 },
 });

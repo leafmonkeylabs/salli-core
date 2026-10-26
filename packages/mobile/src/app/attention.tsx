@@ -127,7 +127,7 @@ export default function Attention() {
               return (
                 <Animated.View key={`${s.kind}-${i}`} {...list}>
                   {place ? (
-                    <Pressable accessibilityRole="link" onPress={() => router.push(place)} style={style}>
+                    <Pressable accessibilityRole="button" onPress={() => router.push(place)} style={style}>
                       {row}
                     </Pressable>
                   ) : (

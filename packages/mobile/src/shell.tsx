@@ -7,7 +7,8 @@ import { useState, type ReactNode } from 'react';
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { Body, Button, Card, Icon, Title } from './kit';
+import { useYourAI } from './ai/store';
+import { Body, Button, Card, Icon, Title, useLargeText } from './kit';
 import { useSession, labelIn } from './session';
 import { strings } from './strings';
 import { font, size, useTheme } from './theme';
@@ -19,11 +20,13 @@ export function Header({ title, server, unreachable, back, action }: { title?: s
   const { session } = useSession();
   const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
   const named = session.status === 'signed-in' && session.known.some((k) => k.server === session.server && k.name);
+  const large = useLargeText();
   const lead = back ? (
     <BackLink label={back.label} onPress={back.onPress} />
   ) : server ? (
     <Pressable accessibilityRole="button" accessibilityLabel={unreachable ? strings.reach.switchServer(host) : strings.home.switchServer(host)} onPress={() => router.push('/servers')} style={styles.server}>
-      <Text style={[styles.host, named ? styles.name : null, { color: theme.text }]} numberOfLines={1}>
+      {/* An address never breaks inside: it grows to twice its size at most, and a long one ends in an ellipsis. */}
+      <Text maxFontSizeMultiplier={named ? undefined : 2} style={[styles.host, named ? styles.name : null, { color: theme.text, flexShrink: 1 }]} numberOfLines={large && named ? undefined : 1}>
         {host}
       </Text>
       <Icon name="down" size={14} colour={theme.muted} />
@@ -31,7 +34,13 @@ export function Header({ title, server, unreachable, back, action }: { title?: s
   ) : null;
   return (
     <View style={[styles.header, { paddingTop: insets.top, backgroundColor: theme.chrome, borderBottomColor: theme.rule }]}>
-      {lead || action ? (
+      {/* At large text the actions keep their own line, above the server's name (design LargeHome). */}
+      {lead && action && large ? (
+        <>
+          <View style={[styles.bar, { justifyContent: 'flex-end' }]}>{action}</View>
+          <View style={styles.bar}>{lead}</View>
+        </>
+      ) : lead || action ? (
         <View style={styles.bar}>
           {lead ?? <View />}
           {action}
@@ -63,8 +72,28 @@ export function Pull({ read }: { read: () => Promise<unknown> }) {
   );
 }
 
-/** Room below a tab's last card, so the AI button floating over it never covers it. */
-export const UNDER_AI = 56 + 16 + 8;
+export type AITab = 'home' | 'cash' | 'decide' | 'books';
+
+/**
+ * Your AI, a tap away (design AIButtonPlacement): in the header beside + on
+ * Home, Cash, Decide and Books, opening with starters for the tab it is on.
+ * Before an AI is set up it opens More → Your AI instead.
+ */
+export function AIButton({ from }: { from: AITab }) {
+  const theme = useTheme();
+  const ai = useYourAI();
+  if (!ai.loaded || !ai.enabled) return null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={ai.ready ? strings.ai.open : strings.ai.openSetUp}
+      onPress={() => (ai.ready ? router.push({ pathname: '/agent', params: { from } }) : router.push('/ai'))}
+      style={styles.icon}
+    >
+      <Icon name="message" colour={theme.text} />
+    </Pressable>
+  );
+}
 
 /** Aurora's two lights behind a page; nothing in other themes. */
 export function Glow() {
@@ -96,11 +125,11 @@ export function Page({
   action,
   children,
   onRefresh,
-  underAI,
+  ai,
 }: {
   title?: string;
-  /** A tab the AI button floats over: room is left below its last card. */
-  underAI?: boolean;
+  /** A tab with the AI button in its header. */
+  ai?: AITab;
   back?: { label: string; onPress: () => void };
   action?: ReactNode;
   children: ReactNode;
@@ -110,10 +139,11 @@ export function Page({
   return (
     <View style={{ flex: 1, backgroundColor: theme.work }}>
       <Glow />
-      <Header {...(title ? { title } : {})} {...(back ? { back } : {})} action={action} />
+      <Header {...(title ? { title } : {})} {...(back ? { back } : {})} action={ai ? <AIButton from={ai} /> : action} />
       <ScrollView
-        contentContainerStyle={[styles.page, underAI ? { paddingBottom: UNDER_AI } : null]}
+        contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         refreshControl={onRefresh ? <Pull read={onRefresh} /> : undefined}
       >
         {children}
@@ -143,9 +173,9 @@ export function Later({ title }: { title: string }) {
 export function BackLink({ label, onPress }: { label: string; onPress: () => void }) {
   const theme = useTheme();
   return (
-    <Pressable accessibilityRole="link" onPress={onPress} style={styles.back}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.back}>
       <Icon name="back" colour={theme.text} />
-      <Body>{label}</Body>
+      <Body max={1.5}>{label}</Body>
     </Pressable>
   );
 }
@@ -158,5 +188,6 @@ const styles = StyleSheet.create({
   name: { fontFamily: font.medium, fontSize: size.body },
   titleBox: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 8, paddingBottom: 8 },
   page: { padding: size.gutter, gap: size.gap },
+  icon: { width: size.target, height: size.target, alignItems: 'center', justifyContent: 'center' },
   back: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingRight: 12 },
 });

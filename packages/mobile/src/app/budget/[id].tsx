@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, Toggle } from '../../kit';
+import { Body, Button, Card, Toggle, useDoneBar } from '../../kit';
+import { useKeepDraft } from '../../draft';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
 
@@ -42,6 +43,8 @@ export default function BudgetEdit() {
       .slice(-3)
       .reverse() ?? [];
   const exact = normalizeAmountInput(limit);
+  const done = useDoneBar();
+  const keep = useKeepDraft(!!monthly.data && (limit !== (existing?.limit_amount ?? '') || rollover !== (existing?.rollover ?? false)));
 
   const others: MonthlyLineRequest[] = (monthly.data?.lines ?? [])
     .filter((l) => l.account_id !== id)
@@ -57,12 +60,13 @@ export default function BudgetEdit() {
     mutationFn: (lines: MonthlyLineRequest[]) => api.call(budgetsMonthlySet, { body: { lines } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: [api.server] });
+      keep.done();
       router.back();
     },
   });
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.work }}>
+    <View style={{ flex: 1, backgroundColor: theme.work }} onAccessibilityEscape={() => router.back()}>
       <View
         style={[
           styles.header,
@@ -74,17 +78,18 @@ export default function BudgetEdit() {
         ]}
       >
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <Body>{strings.add.cancel}</Body>
+          <Body max={1.5}>{strings.add.cancel}</Body>
         </Pressable>
-        <Text accessibilityRole="header" numberOfLines={1} style={[styles.headerTitle, { color: theme.text }]}>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={[styles.headerTitle, { color: theme.text }]}>
           {name}
         </Text>
         <View style={styles.headerButton} />
       </View>
-      <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
         <Card style={{ gap: 6 }}>
           <Text style={[styles.label, { color: theme.text }]}>{t.limit(currency)}</Text>
           <TextInput
+            {...done.field('limit')}
             value={limit}
             onChangeText={setLimit}
             keyboardType="decimal-pad"
@@ -117,6 +122,7 @@ export default function BudgetEdit() {
           {existing ? <Button kind="tertiary" label={t.remove} disabled={save.isPending} onPress={() => save.mutate(others)} /> : null}
         </View>
       </ScrollView>
+      {done.bar}
     </View>
   );
 }
@@ -135,7 +141,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
-  headerTitle: { flexShrink: 1, fontFamily: font.medium, fontSize: 17 },
+  headerTitle: { flex: 1, textAlign: 'center', fontFamily: font.medium, fontSize: 17 },
   page: { padding: size.gutter, gap: 12 },
   label: { fontFamily: font.medium, fontSize: 14 },
   input: {

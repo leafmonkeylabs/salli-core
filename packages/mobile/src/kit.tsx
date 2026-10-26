@@ -5,8 +5,8 @@
  * their corners, edges, markers and icon lines (theme.ts).
  */
 import { SalliNetworkError } from '@leafmonkeylabs/salli-sdk';
-import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { ActivityIndicator, Keyboard, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type PressableProps, type StyleProp, type TextInput, type TextStyle, type ViewStyle } from 'react-native';
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Path, Rect, SvgXml } from 'react-native-svg';
 import { LOGO_DARK, LOGO_LIGHT } from './brand/logo';
@@ -14,6 +14,17 @@ import { amountParts } from './lib/display';
 import { press, useReducedMotion } from './motion';
 import { strings } from './strings';
 import { font, size, useTheme, type Theme } from './theme';
+
+/**
+ * The phone's text size (Dynamic Type), as the layouts answer it: from xxxL
+ * (a font scale of about 1.35) rows stack their title over their details and
+ * tiles go one to a row; from the accessibility sizes (AX1, about 1.65) a
+ * ledger's columns stack too. Text is never shrunk to fit.
+ */
+export function useLargeText(from: 'large' | 'ax' = 'large'): boolean {
+  const { fontScale } = useWindowDimensions();
+  return fontScale >= (from === 'ax' ? 1.6 : 1.3);
+}
 
 export function Logo({ height = 36 }: { height?: number }) {
   const theme = useTheme();
@@ -48,24 +59,28 @@ export function SectionLabel({ children, onTile }: { children: string; onTile?: 
   return (
     <View style={styles.label} accessibilityRole="header">
       <View style={[styles.square, { borderColor: colour }, theme.marker === 'dot' ? { borderRadius: 4 } : null]} />
-      <Text style={[styles.labelText, { color: colour }]}>{children.toUpperCase()}</Text>
+      <Text maxFontSizeMultiplier={1.7} style={[styles.labelText, { color: colour, flexShrink: 1 }]}>
+        {children.toUpperCase()}
+      </Text>
     </View>
   );
 }
 
+/** A place's title: it grows with the text size to half again, so a long word never breaks. */
 export function Title({ children }: { children: string }) {
   const theme = useTheme();
   return (
-    <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+    <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={[styles.title, { color: theme.text }]}>
       {children}
     </Text>
   );
 }
 
-export function Body({ children, muted, small, style, alert }: { children: ReactNode; muted?: boolean; small?: boolean; style?: TextStyle; alert?: boolean }) {
+/** Text in the body's size; `max` caps how far it grows with the text size (a bar's buttons, as iOS's own). */
+export function Body({ children, muted, small, style, alert, max }: { children: ReactNode; muted?: boolean; small?: boolean; style?: TextStyle; alert?: boolean; max?: number }) {
   const theme = useTheme();
   return (
-    <Text {...(alert ? { accessibilityRole: 'alert' as const, accessibilityLiveRegion: 'polite' as const } : {})} style={[small ? styles.small : styles.body, { color: muted ? theme.muted : theme.text }, style]}>{children}</Text>
+    <Text {...(alert ? { accessibilityRole: 'alert' as const, accessibilityLiveRegion: 'polite' as const } : {})} {...(max ? { maxFontSizeMultiplier: max } : {})} style={[small ? styles.small : styles.body, { color: muted ? theme.muted : theme.text }, style]}>{children}</Text>
   );
 }
 
@@ -73,14 +88,14 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 /**
  * Something to press, answering on the UI thread: it scales to 0.98 and
- * dims to 0.85 while held (Reduce Motion: it only dims). `dim` draws it
- * unavailable, at 0.45 and still: never what a press looks like.
+ * dims to 0.85 while held (Reduce Motion: it only dims). Something
+ * unavailable is drawn as such by its owner, never dimmed.
  */
-export function Press({ style, dim, onPressIn, onPressOut, ...rest }: Omit<PressableProps, 'style'> & { style?: StyleProp<ViewStyle>; dim?: boolean }) {
+export function Press({ style, onPressIn, onPressOut, ...rest }: Omit<PressableProps, 'style'> & { style?: StyleProp<ViewStyle> }) {
   const reduced = useReducedMotion();
   const held = useSharedValue(0);
   const answer = useAnimatedStyle(() => ({
-    opacity: dim ? 0.45 : 1 - held.value * (1 - press.opacity),
+    opacity: 1 - held.value * (1 - press.opacity),
     transform: [{ scale: reduced ? 1 : 1 - held.value * (1 - press.scale) }],
   }));
   const to = (value: number, duration: number) => (held.value = withTiming(value, { duration, easing: press.easing, reduceMotion: ReduceMotion.Never }));
@@ -104,18 +119,19 @@ type ButtonKind = 'primary' | 'secondary' | 'tertiary';
 
 export function Button({ label, kind = 'primary', busy, icon, ...rest }: { label: string; kind?: ButtonKind; busy?: boolean; icon?: IconName } & Omit<PressableProps, 'children' | 'style'>) {
   const theme = useTheme();
-  // A secondary button that can't be used is drawn outlined and empty, as the design draws Done away from the server.
-  const unavailable = kind === 'secondary' && !!rest.disabled && !busy;
+  // A button that can't be used is drawn outlined and empty, its words in the muted ink (7:1 on paper), never dimmed (design DisabledState).
+  const unavailable = !!rest.disabled && !busy;
+  const outlined = unavailable && kind !== 'tertiary';
   const fill = unavailable ? 'transparent' : kind === 'primary' ? theme.button : kind === 'secondary' ? theme.button2 : 'transparent';
   const colour = unavailable ? theme.muted : kind === 'primary' ? theme.buttonText : kind === 'secondary' ? theme.button2Text : theme.text;
   return (
     <Press
       accessibilityRole="button"
       accessibilityState={{ disabled: !!rest.disabled || !!busy, busy: !!busy }}
-      dim={!unavailable && !!rest.disabled}
       style={[
         styles.button,
-        { backgroundColor: fill, borderRadius: theme.control, borderColor: unavailable ? theme.fieldBorder : kind === 'secondary' ? theme.button2Border : 'transparent' },
+        { backgroundColor: fill, borderRadius: theme.control, borderColor: outlined ? theme.fieldBorder : kind === 'secondary' ? theme.button2Border : 'transparent' },
+        outlined ? { borderWidth: 1.5 } : null,
         kind === 'tertiary' || unavailable ? null : offsetOf(theme),
       ]}
       {...rest}
@@ -147,35 +163,36 @@ export function Money({ amount, currency, figure, onTile, style }: { amount: str
   return (
     <View accessible accessibilityLabel={parts.spoken} style={styles.figureRow}>
       <Text style={[styles.code, { color: onTile ? theme.tileMuted : theme.muted }]}>{currency}</Text>
-      <Text
-        adjustsFontSizeToFit
-        numberOfLines={1}
-        minimumFontScale={0.6}
-        style={[styles.figures, figure === 'hero' ? styles.hero : styles.keyFigure, { color: colour }, style]}
-      >
+      {/* Never shrunk to fit: the hero grows to 1.4 times at most, and any figure wraps rather than shrinks. */}
+      <Text maxFontSizeMultiplier={figure === 'hero' ? 1.4 : undefined} style={[styles.figures, figure === 'hero' ? styles.hero : styles.keyFigure, { color: colour }, style]}>
         {shown}
       </Text>
     </View>
   );
 }
 
-/** A list row: a bullet, a title and a line under it, and what it opens. */
-export function Row({ title, detail, onPress, action, last }: { title: string; detail?: string; onPress?: () => void; action?: ReactNode; last?: boolean }) {
+/**
+ * A list row: a bullet, a title and a line under it, and what it opens. At
+ * large text the title comes first and whole, its action under it.
+ */
+export function Row({ title, detail, hint, onPress, action, last }: { title: string; detail?: string; hint?: string; onPress?: () => void; action?: ReactNode; last?: boolean }) {
   const theme = useTheme();
+  const large = useLargeText();
   const content = (
     <>
-      <View style={[styles.bullet, { backgroundColor: theme.muted }, theme.marker === 'dot' ? { borderRadius: 3 } : null]} />
+      {large ? null : <View style={[styles.bullet, { backgroundColor: theme.muted }, theme.marker === 'dot' ? { borderRadius: 3 } : null]} />}
       <View style={styles.rowText}>
         <Body>{title}</Body>
         {detail ? <Body small muted>{detail}</Body> : null}
+        {large && action ? <View style={styles.under}>{action}</View> : null}
       </View>
-      {action}
+      {large ? null : action}
       {onPress ? <Icon name="chevron" size={16} colour={theme.muted} /> : null}
     </>
   );
   const style = [styles.row, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
   return onPress ? (
-    <Press accessibilityRole="link" onPress={onPress} style={style}>
+    <Press accessibilityRole="button" {...(hint ? { accessibilityHint: hint } : {})} onPress={onPress} style={style}>
       {content}
     </Press>
   ) : (
@@ -186,20 +203,32 @@ export function Row({ title, detail, onPress, action, last }: { title: string; d
 /**
  * A ledger's row on one line, as the console's tables: a date, a name, the
  * amount at the end. What the line leaves out (the account, where it came
- * from) goes in `label`, which VoiceOver reads for the whole row.
+ * from) goes in `label`, which VoiceOver reads for the whole row. At large
+ * text the amount takes its own line, under the name.
  */
 export function LedgerRow({ lead, title, amount, currency, note, label, onPress, last }: { lead?: string; title: string; amount?: string; currency: string; note?: string; label?: string; onPress?: () => void; last?: boolean }) {
   const theme = useTheme();
+  const large = useLargeText();
   const style = [styles.ledgerRow, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
-  const content = (
+  const figure = amount !== undefined ? <Money amount={amount} currency={currency} style={large ? styles.linesRight : undefined} /> : note ? <Body small muted>{note}</Body> : null;
+  const content = large ? (
+    <>
+      <View style={styles.rowText}>
+        {lead ? <Text style={[styles.ledgerLead, styles.ledgerLeadLarge, { color: theme.muted }]}>{lead}</Text> : null}
+        {title ? <Body>{title}</Body> : null}
+        {figure}
+      </View>
+      {onPress ? <Icon name="chevron" size={16} colour={theme.muted} /> : null}
+    </>
+  ) : (
     <>
       {lead ? <Text style={[styles.ledgerLead, { color: theme.muted }]}>{lead}</Text> : null}
       <Body style={styles.ledgerTitle}>{title}</Body>
-      {amount !== undefined ? <Money amount={amount} currency={currency} /> : note ? <Body small muted>{note}</Body> : null}
+      {figure}
     </>
   );
   return onPress ? (
-    <Pressable accessibilityRole="link" accessibilityLabel={label} onPress={onPress} style={style}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={style}>
       {content}
     </Pressable>
   ) : (
@@ -209,11 +238,25 @@ export function LedgerRow({ lead, title, amount, currency, note, label, onPress,
   );
 }
 
-/** A row with a figure at its end: a label, a line under it, the amount. */
+/** A row with a figure at its end: a label, a line under it, the amount. At large text the label is whole on its line, the line and the amount under it. */
 export function AmountRow({ title, detail, amount, currency, onPress, last }: { title: string; detail?: string; amount: string; currency: string; onPress?: () => void; last?: boolean }) {
   const theme = useTheme();
+  const large = useLargeText();
   const style = [styles.amountRow, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
-  const content = (
+  const content = large ? (
+    <>
+      <View style={styles.rowText}>
+        <Body>{title}</Body>
+        <View style={styles.stacked}>
+          <Body small muted style={styles.stackedLabel}>
+            {detail ?? ''}
+          </Body>
+          <Money amount={amount} currency={currency} style={styles.stackedFigure} />
+        </View>
+      </View>
+      {onPress ? <Icon name="chevron" size={16} colour={theme.muted} /> : null}
+    </>
+  ) : (
     <>
       <View style={styles.rowText}>
         <Body>{title}</Body>
@@ -228,7 +271,7 @@ export function AmountRow({ title, detail, amount, currency, onPress, last }: { 
     </>
   );
   return onPress ? (
-    <Pressable accessibilityRole="link" onPress={onPress} style={style}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={style}>
       {content}
     </Pressable>
   ) : (
@@ -241,9 +284,14 @@ export function CardHead({ label, help, end }: { label: string; help?: string; e
   const theme = useTheme();
   return (
     <View style={{ gap: 4, paddingBottom: 4 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Its end goes under the label when the two don't fit on one line. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', columnGap: 12 }}>
         <SectionLabel>{label}</SectionLabel>
-        {end ? <Text style={[styles.labelText, { color: theme.muted }]}>{end}</Text> : null}
+        {end ? (
+          <Text maxFontSizeMultiplier={1.7} style={[styles.labelText, { color: theme.muted }]}>
+            {end}
+          </Text>
+        ) : null}
       </View>
       {help ? (
         <Body small muted>
@@ -294,53 +342,86 @@ export interface Line {
  * credit), each line on its side, and a Total under a rule with a double
  * rule below. As the console's: the Total is shown only when each side is
  * one line in one currency, so it is that line's own amount, never a sum.
+ * The figure columns grow with the text size; at the accessibility sizes
+ * each line stacks, its account over its side and figure (design LargeLedger).
  */
 export function LinesTable({ lines, currency, changeLabel, total = true }: { lines: readonly Line[]; currency: string; changeLabel?: (account: string) => string; total?: boolean }) {
   const theme = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const stacked = useLargeText('ax');
   const debits = lines.filter((l) => l.side === 'debit');
   const credits = lines.filter((l) => l.side === 'credit');
   const [debit] = debits;
   const [credit] = credits;
   const pair = total && debits.length === 1 && credits.length === 1 && debit && credit && debit.currency === credit.currency ? { debit, credit } : undefined;
   const head = [styles.linesHead, { color: theme.muted }];
+  const column = { minWidth: Math.round(84 * Math.max(1, fontScale)) };
+  const sideName = (side: Line['side']) => (side === 'debit' ? strings.entry.debit : strings.entry.credit);
+  const nameOf = (line: Line) =>
+    line.onChange ? (
+      <Pressable accessibilityRole="button" accessibilityLabel={changeLabel ? changeLabel(line.account) : line.account} onPress={line.onChange} style={styles.linesChange}>
+        <Body>{line.account}</Body>
+        <Icon name="down" size={14} colour={theme.muted} />
+      </Pressable>
+    ) : (
+      <Body>{line.account}</Body>
+    );
+  const bold = { ...styles.linesRight, fontFamily: font.semibold };
+  if (stacked) {
+    return (
+      <View>
+        <Text style={[head, styles.linesHeadRow]}>{currency}</Text>
+        {lines.map((line) => (
+          <View key={line.key} style={[styles.linesStack, { borderTopColor: theme.rule, borderTopWidth: StyleSheet.hairlineWidth }]}>
+            {nameOf(line)}
+            <View style={styles.stacked}>
+              <Body small muted style={styles.stackedLabel}>
+                {sideName(line.side)}
+              </Body>
+              <Money amount={line.amount} currency={line.currency} style={styles.stackedFigure} />
+            </View>
+          </View>
+        ))}
+        {pair ? (
+          <View accessible style={[styles.linesStack, styles.linesTotal, { borderTopColor: theme.text, borderBottomColor: theme.text }]}>
+            <Text style={[styles.linesTotalText, { color: theme.text }]}>{strings.entry.total}</Text>
+            {[pair.debit, pair.credit].map((line) => (
+              <View key={line.side} style={styles.stacked}>
+                <Text style={[styles.linesTotalSide, styles.stackedLabel, { color: theme.text }]}>{sideName(line.side)}</Text>
+                <Money amount={line.amount} currency={line.currency} style={{ ...styles.stackedFigure, fontFamily: font.semibold }} />
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {pair ? <View style={[styles.linesDouble, { backgroundColor: theme.text }]} /> : null}
+      </View>
+    );
+  }
   return (
     <View>
       <View style={[styles.linesRow, styles.linesHeadRow]}>
         <Text style={[head, styles.linesAccount]}>{currency}</Text>
-        <Text style={[head, styles.linesFigure]}>{strings.entry.debit.toUpperCase()}</Text>
-        <Text style={[head, styles.linesFigure]}>{strings.entry.credit.toUpperCase()}</Text>
+        <Text style={[head, styles.linesFigure, column]}>{strings.entry.debit.toUpperCase()}</Text>
+        <Text style={[head, styles.linesFigure, column]}>{strings.entry.credit.toUpperCase()}</Text>
       </View>
       {lines.map((line) => {
         const figure = <Money amount={line.amount} currency={line.currency} style={styles.linesRight} />;
-        const name = line.onChange ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={changeLabel ? changeLabel(line.account) : line.account}
-            onPress={line.onChange}
-            style={styles.linesChange}
-          >
-            <Body>{line.account}</Body>
-            <Icon name="down" size={14} colour={theme.muted} />
-          </Pressable>
-        ) : (
-          <Body>{line.account}</Body>
-        );
         return (
           <View key={line.key} style={[styles.linesRow, { borderTopColor: theme.rule, borderTopWidth: StyleSheet.hairlineWidth }]}>
-            <View style={styles.linesAccount}>{name}</View>
-            <View style={styles.linesFigure}>{line.side === 'debit' ? figure : null}</View>
-            <View style={styles.linesFigure}>{line.side === 'credit' ? figure : null}</View>
+            <View style={styles.linesAccount}>{nameOf(line)}</View>
+            <View style={[styles.linesFigure, column]}>{line.side === 'debit' ? figure : null}</View>
+            <View style={[styles.linesFigure, column]}>{line.side === 'credit' ? figure : null}</View>
           </View>
         );
       })}
       {pair ? (
         <View accessible style={[styles.linesRow, styles.linesTotal, { borderTopColor: theme.text, borderBottomColor: theme.text }]}>
           <Text style={[styles.linesTotalText, styles.linesAccount, { color: theme.text }]}>{strings.entry.total}</Text>
-          <View style={styles.linesFigure}>
-            <Money amount={pair.debit.amount} currency={pair.debit.currency} style={{ ...styles.linesRight, fontFamily: font.semibold }} />
+          <View style={[styles.linesFigure, column]}>
+            <Money amount={pair.debit.amount} currency={pair.debit.currency} style={bold} />
           </View>
-          <View style={styles.linesFigure}>
-            <Money amount={pair.credit.amount} currency={pair.credit.currency} style={{ ...styles.linesRight, fontFamily: font.semibold }} />
+          <View style={[styles.linesFigure, column]}>
+            <Money amount={pair.credit.amount} currency={pair.credit.currency} style={bold} />
           </View>
         </View>
       ) : null}
@@ -350,29 +431,62 @@ export function LinesTable({ lines, currency, changeLabel, total = true }: { lin
   );
 }
 
-/** One of a few options, as a row of chips: a radio group under its label. */
-export function Choice<V extends string | number>({ label, options, chosen, onPick }: { label: string; options: readonly { id: V; text: string }[]; chosen: V | undefined; onPick: (v: V) => void }) {
+/**
+ * One of a few options under its label: a row of chips, or with `list` a
+ * list of `Option` rows, the chosen one with a checkmark (design TargetsAndRows).
+ */
+export function Choice<V extends string | number>({ label, options, chosen, onPick, list }: { label: string; options: readonly { id: V; text: string }[]; chosen: V | undefined; onPick: (v: V) => void; list?: boolean }) {
   const theme = useTheme();
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: list ? 6 : 8 }}>
       <Text style={[styles.choiceLabel, { color: theme.text }]}>{label}</Text>
-      <View accessibilityRole="radiogroup" style={styles.choices}>
-        {options.map((o) => {
-          const on = o.id === chosen;
-          return (
+      <View accessibilityRole="radiogroup" accessibilityLabel={label} style={list ? null : styles.choices}>
+        {options.map((o) =>
+          list ? (
+            <Option key={String(o.id)} label={o.text} chosen={o.id === chosen} onPress={() => onPick(o.id)} />
+          ) : (
             <Pressable
               key={String(o.id)}
               accessibilityRole="radio"
-              accessibilityState={{ checked: on }}
+              accessibilityState={{ checked: o.id === chosen }}
               onPress={() => onPick(o.id)}
-              style={[styles.choice, { borderColor: on ? theme.text : theme.rule, backgroundColor: on ? theme.text : theme.card, borderRadius: Math.min(theme.control, 999) }]}
+              style={[styles.choice, { borderColor: o.id === chosen ? theme.text : theme.rule, backgroundColor: o.id === chosen ? theme.text : theme.card, borderRadius: Math.min(theme.control, 999) }]}
             >
-              <Text style={[styles.choiceText, { color: on ? theme.work : theme.text }]}>{o.text}</Text>
+              <Text style={[styles.choiceText, { color: o.id === chosen ? theme.work : theme.text }]}>{o.text}</Text>
             </Pressable>
-          );
-        })}
+          ),
+        )}
       </View>
     </View>
+  );
+}
+
+/**
+ * One row of a list to choose one from: its name, a line under it, and a
+ * checkmark at its end when chosen, as iOS lists mark it (never a radio circle).
+ */
+export function Option({ label, detail, end, chosen, disabled, onPress, accessibilityLabel }: { label: string; detail?: string; end?: ReactNode; chosen: boolean; disabled?: boolean; onPress: () => void; accessibilityLabel?: string }) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ checked: chosen, disabled: !!disabled }}
+      {...(accessibilityLabel ? { accessibilityLabel } : {})}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.option, { borderTopColor: theme.rule }]}
+    >
+      <View style={styles.rowText}>
+        <Body style={chosen ? { fontFamily: font.medium } : undefined}>{label}</Body>
+        {detail ? (
+          <Body small muted>
+            {detail}
+          </Body>
+        ) : null}
+      </View>
+      {end}
+      {chosen ? <Icon name="check" size={20} colour={theme.text} /> : null}
+    </Pressable>
   );
 }
 
@@ -391,10 +505,11 @@ export function Toggle({ label, help, value, disabled, onChange }: { label: stri
       accessibilityState={{ checked: value, disabled: !!disabled }}
       disabled={disabled}
       onPress={() => onChange(!value)}
-      style={[styles.toggleRow, disabled ? { opacity: 0.45 } : null]}
+      style={styles.toggleRow}
     >
+      {/* Unavailable, it is said in the muted ink, never dimmed. */}
       <View style={{ flex: 1, gap: 2 }}>
-        <Body>{label}</Body>
+        <Body muted={!!disabled}>{label}</Body>
         {help ? (
           <Body small muted>
             {help}
@@ -430,6 +545,69 @@ export function Problem({ title, body, mono, children }: { title: string; body: 
   );
 }
 
+/**
+ * The bar over a form's keyboard (design KeypadDone), shared by every number
+ * pad: Previous and Next between the form's fields, in the order they are
+ * drawn, and Done to put the keyboard away. Each field takes `field(key)`;
+ * the screen draws `bar` once, as its last child. On a screen whose bottom
+ * is the window's it rides on the keyboard; in a sheet (`inSheet`), which
+ * rises with the keyboard, it sits at the sheet's foot. iOS only: Android's
+ * keyboards have their own.
+ */
+export function useDoneBar(inSheet = false) {
+  const theme = useTheme();
+  const inputs = useRef(new Map<string, ComponentRef<typeof TextInput>>());
+  // The fields in the order the last render drew them; this render's list is kept once it is drawn.
+  const order = useRef<string[]>([]);
+  const drawn: string[] = [];
+  useEffect(() => {
+    order.current = drawn;
+  });
+  const [focused, setFocused] = useState<string | undefined>(undefined);
+  const [keyboard, setKeyboard] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    const shown = Keyboard.addListener('keyboardWillShow', (e) => setKeyboard(e.endCoordinates.height));
+    const hidden = Keyboard.addListener('keyboardWillHide', () => setKeyboard(0));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, []);
+  const field = (key: string) => {
+    drawn.push(key);
+    return {
+      ref: (input: ComponentRef<typeof TextInput> | null) => void (input ? inputs.current.set(key, input) : inputs.current.delete(key)),
+      onFocus: () => setFocused(key),
+      onBlur: () => setFocused((now) => (now === key ? undefined : now)),
+    };
+  };
+  const go = (step: number) => {
+    const keys = order.current;
+    const next = keys[keys.indexOf(focused ?? '') + step];
+    if (focused && next) inputs.current.get(next)?.focus();
+  };
+  const at = order.current.indexOf(focused ?? '');
+  const key = (label: string, icon: IconName, step: number, off: boolean) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: off }} disabled={off} onPress={() => go(step)} style={styles.doneKey}>
+      <Icon name={icon} colour={off ? theme.fieldBorder : theme.text} />
+    </Pressable>
+  );
+  const bar =
+    Platform.OS === 'ios' && keyboard > 0 && focused !== undefined ? (
+      <View accessibilityRole="toolbar" style={[styles.doneBar, { bottom: inSheet ? 0 : keyboard, backgroundColor: theme.work, borderTopColor: theme.rule }]}>
+        {key(strings.keys.previous, 'raise', -1, at <= 0)}
+        {key(strings.keys.next, 'down', 1, at < 0 || at >= order.current.length - 1)}
+        <Pressable accessibilityRole="button" onPress={() => Keyboard.dismiss()} style={[styles.doneKey, { marginLeft: 'auto', paddingHorizontal: 12 }]}>
+          <Text maxFontSizeMultiplier={1.5} style={[styles.doneText, { color: theme.chart }]}>
+            {strings.keys.done}
+          </Text>
+        </Pressable>
+      </View>
+    ) : null;
+  return { field, bar };
+}
+
 const ICONS = {
   home: 'M4 11 12 4l8 7v9h-5v-6H9v6H4z',
   decide: 'M12 4v16M8 20h8M5 8h14M5 8l-2.5 6h5zM19 8l-2.5 6h5z',
@@ -450,6 +628,9 @@ const ICONS = {
   settings: 'M4 7h10M18 7h2M4 17h4M12 17h8M14 5h4v4h-4zM8 15h4v4H8z',
   server: 'M4 4h16v7H4zM4 13h16v7H4zM8 7.5h2M8 16.5h2',
   message: 'M4 5h16v11H10l-6 4zM8 9h8M8 12h5',
+  raise: 'M6 15l6-6 6 6',
+  info: 'M3.5 3.5h17v17h-17zM12 10.5v6M12 7.5v.5',
+  silent: 'M6 16v-5a6 6 0 0 1 9.2-5.1M18 10.5V16l2 2H8.5M10 20.5h4M4 4l16 16',
   // Your AI: a spark, a point with rays.
   spark: 'M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8M10.5 12a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0z',
   appearance: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 3v18M12 8h4.5M12 12h6M12 16h4.5',
@@ -492,18 +673,30 @@ const styles = StyleSheet.create({
   choice: { borderWidth: 1, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
   choiceText: { fontFamily: font.regular, fontSize: size.body },
   monoInline: { fontFamily: font.mono, fontSize: size.small },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: size.target, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
+  doneBar: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', minHeight: size.target, paddingHorizontal: 4, borderTopWidth: StyleSheet.hairlineWidth },
+  doneKey: { minWidth: size.target, minHeight: size.target, alignItems: 'center', justifyContent: 'center' },
+  doneText: { fontFamily: font.semibold, fontSize: size.body },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8 },
   track: { width: 48, height: 28, padding: 3, flexDirection: 'row', alignItems: 'center' },
   knobOn: { width: 22, height: 22 },
   knobOff: { width: 19, height: 19 },
   ledgerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingVertical: 6 },
   ledgerLead: { width: 56, fontFamily: font.regular, fontSize: size.body },
+  ledgerLeadLarge: { width: undefined },
   ledgerTitle: { flex: 1, minWidth: 0 },
+  under: { alignSelf: 'flex-start', marginTop: 6 },
+  // A label and its figure on one line, the figure on its own line, at the end, when both don't fit.
+  stacked: { flexDirection: 'row', alignItems: 'baseline', columnGap: 12, flexWrap: 'wrap' },
+  stackedLabel: { flexGrow: 1, flexShrink: 0 },
+  stackedFigure: { flexGrow: 1, textAlign: 'right' },
   linesRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 8 },
   linesHeadRow: { minHeight: 28 },
   linesHead: { fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
   linesAccount: { flex: 1, minWidth: 0 },
-  linesFigure: { width: 84, alignItems: 'flex-end', textAlign: 'right' },
+  linesFigure: { flexShrink: 0, alignItems: 'flex-end', textAlign: 'right' },
+  linesStack: { paddingVertical: 8, gap: 2 },
+  linesTotalSide: { fontFamily: font.semibold, fontSize: size.small },
   linesRight: { textAlign: 'right' },
   linesChange: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
   // A ledger's total: a rule above, a double rule below (React Native draws no double border: a second line under it).

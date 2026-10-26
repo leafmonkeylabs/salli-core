@@ -70,18 +70,18 @@ struct SafeView: View {
           Mark(colour: look.accent).frame(width: 20, height: 14).accessibilityHidden(true)
           Spacer(minLength: 0)
           if let glance, !entry.old {
-            Text(glance.safe.label).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
+            Text(glance.safe.label).font(.custom("Geist-Regular", size: 13, relativeTo: .footnote)).foregroundStyle(look.muted)
             Text(figure(glance))
               .privacySensitive()
-              .font(.custom("Geist-Medium", size: 22))
+              .font(.custom("Geist-Medium", size: 22, relativeTo: .title2))
               .foregroundStyle(look.ink)
               .minimumScaleFactor(0.6)
               .lineLimit(1)
               .accessibilityLabel(glance.safe.spoken)
-            Text(glance.safe.until).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
+            Text(glance.safe.until).font(.custom("Geist-Regular", size: 13, relativeTo: .footnote)).foregroundStyle(look.muted)
           } else {
-            Text(glance?.safe.label ?? openSalli).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
-            if let glance { Text(glance.open).font(.custom("Geist-Medium", size: 15)).foregroundStyle(look.ink) }
+            Text(glance?.safe.label ?? openSalli).font(.custom("Geist-Regular", size: 13, relativeTo: .footnote)).foregroundStyle(look.muted)
+            if let glance { Text(glance.open).font(.custom("Geist-Medium", size: 15, relativeTo: .subheadline)).foregroundStyle(look.ink) }
           }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -120,28 +120,28 @@ struct WaitingView: View {
       } else {
         VStack(alignment: .leading, spacing: 0) {
           Text(glance?.waiting.label ?? openSalli)
-            .font(.custom("Geist-Regular", size: 13))
+            .font(.custom("Geist-Regular", size: 13, relativeTo: .footnote))
             .foregroundStyle(look.muted)
             .padding(.bottom, 8)
           if let glance, !entry.old {
             ForEach(lines, id: \.self) { line in
               Rectangle().fill(look.rule).frame(height: 1)
               Text(line)
-                .font(.custom("Geist-Regular", size: 14))
+                .font(.custom("Geist-Regular", size: 14, relativeTo: .subheadline))
                 .foregroundStyle(look.ink)
                 .lineLimit(2)
                 .padding(.vertical, 6)
             }
             if !glance.waiting.more.isEmpty {
-              Text(glance.waiting.more).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
+              Text(glance.waiting.more).font(.custom("Geist-Regular", size: 13, relativeTo: .footnote)).foregroundStyle(look.muted)
             }
           } else if let glance {
-            Text(glance.open).font(.custom("Geist-Medium", size: 15)).foregroundStyle(look.ink)
+            Text(glance.open).font(.custom("Geist-Medium", size: 15, relativeTo: .subheadline)).foregroundStyle(look.ink)
           }
           Spacer(minLength: 0)
           if let glance {
             Text(glance.host)
-              .font(.custom("GeistMono-Regular", size: 11))
+              .font(.custom("GeistMono-Regular", size: 11, relativeTo: .caption2))
               .foregroundStyle(look.muted)
               .lineLimit(1)
               .truncationMode(.middle)

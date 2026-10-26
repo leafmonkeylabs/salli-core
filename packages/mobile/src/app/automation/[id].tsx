@@ -8,6 +8,7 @@ import { Drafted, useAutomations } from '../../automations';
 import { Body, Button, Card, CardHead, Toggle } from '../../kit';
 import { readWith, type AutomationRule, type DateOrder } from '../../lib/automations';
 import { todayIso } from '../../lib/display';
+import { useKeepDraft } from '../../draft';
 import { Picker } from '../../picker';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
@@ -57,6 +58,8 @@ export default function AutomationRuleEditor() {
   const reading = sample.trim() ? readWith({ ...rule, id: '' }, sample, todayIso()) : undefined;
   const missing = !rule.name.trim() ? t.needs.name : !rule.accountId ? t.needs.account : typeof reading === 'string' ? reading : undefined;
   const leave = () => (router.canGoBack() ? router.back() : router.replace('/automations'));
+  const stored = existing ?? { ...BLANK, id: '' };
+  const keep = useKeepDraft(rules !== undefined && (JSON.stringify({ ...rule, id: stored.id }) !== JSON.stringify(stored) || senders !== stored.senders.join(', ')));
 
   const onSave = async () => {
     setSaving(true);
@@ -67,13 +70,17 @@ export default function AutomationRuleEditor() {
       senders: senders.split(',').map((s) => s.trim()).filter(Boolean),
     });
     setSaving(false);
+    keep.done();
     leave();
   };
 
   const onRemove = () =>
     Alert.alert(t.removeTitle, t.removeBody, [
       { text: t.cancel, style: 'cancel' },
-      { text: t.remove, style: 'destructive', onPress: () => void (existing ? remove(existing.id).then(leave) : leave()) },
+      { text: t.remove, style: 'destructive', onPress: () => {
+        keep.done();
+        void (existing ? remove(existing.id).then(leave) : leave());
+      } },
     ]);
 
   return (
@@ -254,7 +261,7 @@ const TOKENS = ['{amount}', '{payee}', '{date}', '{ref}', '{skip}'] as const;
 
 const styles = StyleSheet.create({
   tokens: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  token: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, minHeight: 36, justifyContent: 'center' },
+  token: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center' },
   tokenText: { fontFamily: font.mono, fontSize: 13 },
   label: { fontFamily: font.medium, fontSize: size.small },
   input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontSize: size.body },

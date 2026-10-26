@@ -45,7 +45,7 @@ export default function Connect() {
 
   return (
     <ScrollView style={{ backgroundColor: theme.chrome }} contentContainerStyle={[styles.page, { paddingTop: insets.top + 4, paddingBottom: insets.bottom + 24 }]}>
-      <Pressable accessibilityRole="link" onPress={() => router.back()} style={styles.back}>
+      <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
         <Icon name="back" colour={theme.text} />
         <Body>{t.back}</Body>
       </Pressable>

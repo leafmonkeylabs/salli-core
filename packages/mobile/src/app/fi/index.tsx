@@ -97,7 +97,7 @@ function Place({ title, value, onPress, last }: { title: string; value: string; 
   const theme = useTheme();
   return (
     <Pressable
-      accessibilityRole="link"
+      accessibilityRole="button"
       accessibilityLabel={value ? `${title}, ${value}` : title}
       onPress={onPress}
       style={[styles.place, last ? null : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule }]}

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Body, Button } from '../kit';
+import { Body, Button, Icon } from '../kit';
 import { useSession, labelIn } from '../session';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
@@ -44,7 +44,6 @@ export default function Servers() {
                 }}
                 style={[styles.option, { borderBottomColor: theme.rule }]}
               >
-                <View style={[styles.radio, { borderColor: on ? theme.text : theme.muted }]}>{on ? <View style={[styles.dot, { backgroundColor: theme.text }]} /> : null}</View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[styles.host, named ? styles.name : null, { color: theme.text }]} numberOfLines={1}>
                     {host}
@@ -53,6 +52,7 @@ export default function Servers() {
                     {on ? t.onScreen : t.signedIn}
                   </Body>
                 </View>
+                {on ? <Icon name="check" size={20} colour={theme.text} /> : null}
               </Pressable>
             );
           })}
@@ -80,6 +80,4 @@ const styles = StyleSheet.create({
   headerTitle: { fontFamily: font.medium, fontSize: 17 },
   option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   host: { fontFamily: font.mono, fontSize: size.body },
-  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4 },
 });

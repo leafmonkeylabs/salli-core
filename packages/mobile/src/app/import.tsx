@@ -8,6 +8,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../api';
 import { Body, Button, Icon } from '../kit';
+import { useKeepDraft } from '../draft';
 import { Picker } from '../picker';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
@@ -32,6 +33,7 @@ export default function Import() {
   const [account, setAccount] = useState<string | undefined>(undefined);
   const [picking, setPicking] = useState(false);
   const [tooLarge, setTooLarge] = useState(false);
+  const keep = useKeepDraft(!!file);
 
   const choose = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true, multiple: false });
@@ -60,6 +62,7 @@ export default function Import() {
     },
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: [api.server] });
+      keep.done();
       // Straight to review, with what the server noted while reading the file.
       router.replace({
         pathname: '/review/[id]',
@@ -71,12 +74,12 @@ export default function Import() {
   const name = accounts.data?.find((a) => a.id === account)?.name ?? t.noAccount;
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.chrome }}>
+    <View style={{ flex: 1, backgroundColor: theme.chrome }} onAccessibilityEscape={() => router.back()}>
       <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top, borderBottomColor: theme.rule }]}>
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <Body>{t.cancel}</Body>
+          <Body max={1.5}>{t.cancel}</Body>
         </Pressable>
-        <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.text }]}>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={[styles.headerTitle, { color: theme.text }]}>
           {t.title}
         </Text>
         <View style={styles.headerButton} />
@@ -163,7 +166,7 @@ const styles = StyleSheet.create({
   format: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, paddingVertical: 4, fontFamily: font.regular, fontSize: 12, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
   headerButton: { minHeight: size.target, minWidth: 72, justifyContent: 'center', paddingHorizontal: 8 },
-  headerTitle: { fontFamily: font.medium, fontSize: 17 },
+  headerTitle: { flex: 1, textAlign: 'center', fontFamily: font.medium, fontSize: 17 },
   page: { padding: size.gutter, gap: 20 },
   label: { fontFamily: font.medium, fontSize: size.small },
   file: { borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },

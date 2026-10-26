@@ -103,6 +103,6 @@ const styles = StyleSheet.create({
   button: { height: 14, width: '50%', alignSelf: 'flex-end' },
   name: { fontSize: size.small, textAlign: 'center' },
   modes: { flexDirection: 'row', borderWidth: 1, padding: 3 },
-  mode: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center' },
+  mode: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   modeText: { fontSize: size.body },
 });

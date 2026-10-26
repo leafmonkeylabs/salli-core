@@ -148,7 +148,6 @@ function ServerRow({ known, onScreen, onSwitch, onSignIn, onForget }: { known: K
         onPress={onSwitch}
         style={styles.serverMain}
       >
-        <View style={[styles.radio, { borderColor: onScreen ? theme.text : theme.muted }]}>{onScreen ? <View style={[styles.dot, { backgroundColor: theme.text }]} /> : null}</View>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={[styles.host, known.name ? styles.named : null, { color: theme.text }]} numberOfLines={1}>
             {host}
@@ -159,14 +158,21 @@ function ServerRow({ known, onScreen, onSwitch, onSignIn, onForget }: { known: K
         </View>
       </Pressable>
       {onScreen ? (
-        <Text style={[styles.thisOne, { color: theme.text }]}>{t.thisOne}</Text>
+        <View style={styles.thisOneRow}>
+          <Icon name="check" size={20} colour={theme.text} />
+          <Text style={[styles.thisOne, { color: theme.text }]}>{t.thisOne}</Text>
+        </View>
       ) : !known.signedIn ? (
         <View style={{ alignItems: 'flex-end' }}>
           <Button kind="secondary" label={t.signIn} accessibilityLabel={t.signInTo(host)} onPress={onSignIn} />
-          <Pressable accessibilityRole="button" accessibilityLabel={t.forget(host)} accessibilityHint={t.forgetHelp} onPress={onForget} style={styles.forget}>
-            <Body small muted style={styles.underline}>
-              {t.forgetShort}
-            </Body>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t.forget(host)}
+            accessibilityHint={t.forgetHelp}
+            onPress={onForget}
+            style={[styles.forget, { borderColor: theme.fieldBorder, backgroundColor: theme.chrome, borderRadius: theme.control }]}
+          >
+            <Text style={[styles.forgetText, { color: theme.negative }]}>{t.forgetShort}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -186,10 +192,10 @@ const styles = StyleSheet.create({
   server: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   serverMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
   host: { fontFamily: font.mono, fontSize: size.small },
-  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   thisOne: { fontFamily: font.medium, fontSize: size.small },
-  forget: { minHeight: 32, justifyContent: 'center' },
+  forget: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 14, borderWidth: 1, marginTop: 6 },
+  forgetText: { fontFamily: font.medium, fontSize: size.small },
+  thisOneRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   underline: { textDecorationLine: 'underline' },
   add: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52 },
   addText: { fontFamily: font.medium, fontSize: size.body },
