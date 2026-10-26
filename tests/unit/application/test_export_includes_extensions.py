@@ -41,6 +41,7 @@ def _service(
             ),
             reconciliations=SimpleNamespace(statements=AsyncMock(return_value=[])),
             audit_log=SimpleNamespace(list=AsyncMock(return_value=[])),
+            data_portability=SimpleNamespace(stored_rows=AsyncMock(return_value={})),
         )
 
     return DataPortabilityService(uow, *svcs, exporters=exporters, conversations=conversations)

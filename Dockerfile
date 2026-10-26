@@ -76,6 +76,12 @@ LABEL org.opencontainers.image.title="Salli" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.version="${VERSION}"
 
+# The base image's security fixes published since its digest (OpenSSL's,
+# which the image scan holds it to).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libssl3=3.0.22-1~deb12u2 openssl=3.0.22-1~deb12u2 \
+ && rm -rf /var/lib/apt/lists/*
+
 # An unprivileged user, and the two places it writes: uploaded files, and the
 # secrets `salli-server secrets init` generates on a first run. Compose mounts
 # a named volume on each; a new volume takes this ownership.

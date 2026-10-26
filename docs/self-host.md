@@ -539,6 +539,81 @@ docker compose exec -T salli tar -C /var/lib/salli -xf - files < salli-data.tar
 
 Everyone's sign-ins come back with the database: nobody needs to sign in again.
 
+## Moving your books
+
+A backup moves a whole server. One person's books move on their own, from
+any Salli server to any other (Salli's hosted server to your own, yours to a
+dedicated one, or between servers you run), with an export and a restore.
+Signed in to the old server:
+
+```bash
+salli profile export --archive -o books.zip   # the export, and your uploaded files
+```
+
+Then, on the new server, once the owner has added you (`salli-server members
+add`) and before you add anything there, signed in as you:
+
+```bash
+salli restore books.zip
+```
+
+**Into empty books only.** The restore is refused while your books there
+hold any entry, a lock date, or a row in any other table it writes:
+statements, tax rule sets, computations and returns, capital-market
+assumptions, documents, reminders, budgets, debts, goals, holdings and
+prices, investment policies, subscriptions, insurance, principles and
+decisions, sorting rules, FI scores and briefings. The starter accounts, the
+seeded tags, the digest's preferences and the answers onboarding saved may be
+there: the export's replace them. Only your own sign-in in a Salli client
+restores (the CLI, the console or the app; not a personal access token, nor
+an AI connection), with a recent password where the client asks for one and
+your authenticator code where two-step sign-in is on.
+
+**Checked first, then all at once.** The export's version is checked, then
+its ledger: every entry's hash against its content and the one before it, as
+`salli ledger verify` does. A break refuses the whole restore and names the
+first entry. Everything is then written in one transaction, under your own
+row-level security, or nothing is (files already stored are removed again).
+
+**What moves:** your profile's settings (base currency, tax residency and
+ids, FI assumptions and plan, monthly budget, time zone, when the books
+start, document retention), every account with its type, roles and code,
+every entry and posting as recorded (dates, sources, who posted it and how,
+reversal and correction links, cleared flags, tags), reconciliations and
+statements with their lines, tax rule sets (every version, with its content
+hash and status, the active one active) with computations and return records
+(snapshots and their hashes), capital-market assumptions, documents with
+their files and retention, reminders, budgets, debts, goals and their
+allocations, holdings with their transactions and prices, investment
+policies, subscriptions, insurance, principles and the decision journal (its
+hashes), sorting rules, FI scores, briefings, and the digest's preferences.
+The lock date is set last, once every entry it closes is in.
+
+Your entries are chained again under your id here, since the chain covers
+whose entries they are; who posted each stays as recorded (your id on the
+old server), and a return's `chain_head_hash` follows the new chain. Every
+other hash is kept as it was. Your audit rows from the old server are kept
+apart, as they were, in the restore's record (`rows.restores` in the next
+export), not in this server's chain, which gets one row of its own:
+`books.restore`, naming the export's hash and the chain's head there and here.
+
+**What doesn't:** sign-ins, tokens and AI connections; bank connections and
+your own AI keys (sealed with the old server's keys: connect them again);
+phones for push alerts and the digest's delivery log; conversations with the
+AI; an extension's data. Ids are kept, so one export restores once on a
+server. A file the archive lacks leaves its record without the file, and the
+restore lists it (`files_missing`); a JSON export that refers to files is
+refused, as the archive holds them.
+
+**Versions.** Exports carry `export_version`. Version 1, those made before it,
+can't be restored (they hold no `rows`): export again from an up-to-date
+server. A server restores the versions it knows, up to its own (2), and
+refuses a newer one: update it first.
+
+Exported again from the new server, the books are as they were but for your
+id there (and your files' keys, under your folder), the entries' hashes, the
+profile's times and email, the audit log, and `rows.restores`.
+
 ## Upgrades
 
 `compose.yaml` names one release of the image. To upgrade, take the newer

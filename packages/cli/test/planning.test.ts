@@ -355,6 +355,19 @@ describe('your data and settings', () => {
     expect((await stat(file)).mode & 0o777).toBe(0o600);
   });
 
+  it('exports the archive with your files, and restores one into empty books', async () => {
+    const file = join(dir, 'books.zip');
+    const archived = await run(['profile', 'export', '--archive', '-o', file]);
+    expect(archived.code).toBe(0);
+    expect(await readFile(file, 'latin1')).toBe('PK\u0003\u0004zip');
+    expect((await stat(file)).mode & 0o777).toBe(0o600);
+    expect((await run(['profile', 'export', '--archive', '-o', '-'])).code).toBe(2);
+
+    const restored = await run(['restore', file]);
+    expect(restored.code).toBe(0);
+    expect(restored.stderr).toContain('Restored 42 entries and 1 file; the ledger verifies.');
+  });
+
   it('reads an LLM key from stdin and never prints it', async () => {
     const result = await run(['llm-keys', 'set'], { stdin: 'example-key-value\n' });
     expect(result.code).toBe(0);
