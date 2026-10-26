@@ -3615,6 +3615,28 @@ export type DataExport = {
     notification_deliveries?: Array<{
         [key: string]: unknown;
     }>;
+    /**
+     * Export Version
+     *
+     * The export's format: 2 since it carries `rows`; 1 (or none) before.
+     * A restore takes only versions its server knows (docs/self-host.md,
+     * "Moving your books").
+     */
+    export_version?: number;
+    /**
+     * Rows
+     *
+     * What a restore reads: the stored rows, table by table, exactly as
+     * stored (amounts in minor units; decimals, days and times as text), the
+     * profile and the audit rows among them. `restores` holds each export
+     * restored into these books before, with that server's audit rows
+     * (`audit_rows`), kept apart from this server's chain.
+     */
+    rows?: {
+        [key: string]: Array<{
+            [key: string]: unknown;
+        }>;
+    };
     [key: string]: unknown;
 };
 
@@ -10843,6 +10865,42 @@ export type ReminderList = {
      * Reminders
      */
     reminders: Array<Reminder>;
+};
+
+/**
+ * Restored
+ */
+export type Restored = {
+    /**
+     * Export Hash
+     */
+    export_hash: string;
+    /**
+     * Export Version
+     */
+    export_version: number;
+    /**
+     * Entries
+     */
+    entries: number;
+    /**
+     * Chain Head
+     */
+    chain_head: string | null;
+    /**
+     * Restored
+     */
+    restored: {
+        [key: string]: number;
+    };
+    /**
+     * Files
+     */
+    files: number;
+    /**
+     * Files Missing
+     */
+    files_missing: Array<string>;
 };
 
 /**
@@ -18811,6 +18869,100 @@ export type AccountExportResponses = {
 };
 
 export type AccountExportResponse = AccountExportResponses[keyof AccountExportResponses];
+
+export type AccountExportArchiveData = {
+    body?: never;
+    headers?: {
+        /**
+         * Salli-Two-Step
+         */
+        'salli-two-step'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/onboarding/export/archive';
+};
+
+export type AccountExportArchiveErrors = {
+    /**
+     * `/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password); or the authenticator code in `Salli-Two-Step` is missing or wrong (needed when two-step sign-in is on, and the owner needs two-step on)
+     */
+    403: Problem;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * Too many wrong codes; `Retry-After` says when to try again
+     */
+    429: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AccountExportArchiveError = AccountExportArchiveErrors[keyof AccountExportArchiveErrors];
+
+export type AccountExportArchiveResponses = {
+    /**
+     * The archive, as a file.
+     */
+    200: Blob | File;
+};
+
+export type AccountExportArchiveResponse = AccountExportArchiveResponses[keyof AccountExportArchiveResponses];
+
+export type AccountRestoreData = {
+    body: FileUpload;
+    headers?: {
+        /**
+         * Salli-Two-Step
+         */
+        'salli-two-step'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/onboarding/restore';
+};
+
+export type AccountRestoreErrors = {
+    /**
+     * `/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password); or the authenticator code in `Salli-Two-Step` is missing or wrong (needed when two-step sign-in is on, and the owner needs two-step on)
+     */
+    403: Problem;
+    /**
+     * Your books here aren't empty, or the export is on this server
+     */
+    409: Problem;
+    /**
+     * Larger than a restore takes
+     */
+    413: Problem;
+    /**
+     * Not an export this server can restore, or its ledger doesn't verify
+     */
+    422: Problem;
+    /**
+     * Too many wrong codes; `Retry-After` says when to try again
+     */
+    429: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AccountRestoreError = AccountRestoreErrors[keyof AccountRestoreErrors];
+
+export type AccountRestoreResponses = {
+    /**
+     * Successful Response
+     */
+    200: Restored;
+};
+
+export type AccountRestoreResponse = AccountRestoreResponses[keyof AccountRestoreResponses];
 
 export type AccountDeleteData = {
     body: DeleteAccountRequest;

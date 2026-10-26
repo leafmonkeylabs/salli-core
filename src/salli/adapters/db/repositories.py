@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from salli.adapters.db import portable
 from salli.adapters.db.models import (
     AccessGrantORM,
     AccountORM,
@@ -69,6 +70,7 @@ from salli.adapters.db.models import (
     ReconciliationORM,
     RecurringSubscriptionORM,
     ReminderORM,
+    RestoreORM,
     StatementORM,
     SupportSessionORM,
     TagORM,
@@ -117,6 +119,7 @@ from salli.application.ports import (
     RecurringSubscriptionRepository,
     ReminderRepository,
     RemoteAccount,
+    RestoreCollision,
     RuleRepository,
     SignInGrantRow,
     StatementRepository,
@@ -3223,6 +3226,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # which cascade from it; deleting them by owner after is then a no-op,
         # kept so nothing depends on the cascade alone.
         await _delete(CmaPackORM, CmaPackORM.user_id)
+        await _delete(RestoreORM, RestoreORM.user_id)
         await _delete(TaxRuleSetORM, TaxRuleSetORM.user_id)
         await _delete(TaxRuleSetVersionORM, TaxRuleSetVersionORM.user_id)
         # The audit trail keeps their rows, pseudonymised (core_0046): the
@@ -3268,6 +3272,25 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # column — and nothing else has an FK pointing at it, so it's safe last.
         await _delete(UserProfileORM, UserProfileORM.id)
 
+        return counts
+
+    async def stored_rows(self, user_id: str) -> dict[str, list[dict[str, Any]]]:
+        return await portable.stored_rows(self._s, user_id)
+
+    async def occupied(self, user_id: str) -> list[str]:
+        return await portable.occupied(self._s, user_id)
+
+    async def restore(
+        self, user_id: str, rows: dict[str, list[dict[str, Any]]], profile: dict[str, Any]
+    ) -> dict[str, int]:
+        stray = portable.strays(rows)
+        if stray:
+            raise RestoreCollision(", ".join(stray))
+        try:
+            counts = await portable.write_rows(self._s, user_id, rows, profile)
+            await self._s.flush()
+        except IntegrityError as exc:
+            raise RestoreCollision(type(exc.orig).__name__) from None
         return counts
 
 

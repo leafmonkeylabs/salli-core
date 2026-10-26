@@ -1,6 +1,7 @@
 """
-DataPortabilityService — export everything a user has stored, or permanently
-delete it all. Composes over the already-existing per-domain services for
+DataPortabilityService — export everything a user has stored, restore such
+an export into another person's empty books (on another server), or
+permanently delete it all. Composes over the already-existing per-domain services for
 export (no new reads); delete_account deletes via the dedicated
 DataPortabilityRepository, which handles the constraint-driven table
 ordering (see adapters/db/repositories.py's SQLDataPortabilityRepository),
@@ -9,12 +10,18 @@ then the person's uploaded files and their conversations with the AI.
 
 from __future__ import annotations
 
+import datetime as dt
+import io
+import json
 import logging
+import uuid
+import zipfile
 from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from salli.application.services.reconciliation_service import normal_sign
-from salli.domain.export import plaintext
+from salli.domain.export import plaintext, restore
+from salli.domain.export.restore import ExportRefused
 from salli.domain.money import from_minor
 
 if TYPE_CHECKING:
@@ -22,6 +29,23 @@ if TYPE_CHECKING:
     from salli.extensions import UserDataExporter
 
 _log = logging.getLogger(__name__)
+
+#: The most an archive may unpack to: what a person's books and their files
+#: could plausibly be, and no zip that expands without end.
+MAX_UNPACKED_BYTES = 2 * 1024**3
+
+
+class BooksNotEmpty(Exception):
+    """The person's books here already hold something a restore would mix
+    with: `found` names it (tables, or `lock_date`)."""
+
+    def __init__(self, found: list[str]) -> None:
+        self.found = found
+        super().__init__(
+            "A restore goes into empty books only, and yours here hold: "
+            + ", ".join(found)
+            + ". Restore into a person who has nothing yet."
+        )
 
 
 class DataPortabilityService:
@@ -132,6 +156,7 @@ class DataPortabilityService:
         computations = await self._tax.list_computations(user_id)
 
         data: dict[str, Any] = {
+            "export_version": restore.EXPORT_VERSION,
             "user_id": user_id,
             "profile": await self._profile.get_profile(user_id),
             "accounts": [
@@ -215,9 +240,126 @@ class DataPortabilityService:
         )
         # Where the books and a reconciled statement disagree.
         data["warnings"] = await self._warnings(user_id)
+        # What a restore reads: the stored rows, exactly.
+        async with self._uow_factory() as uow:
+            data["rows"] = await uow.data_portability.stored_rows(user_id)
         for export in self._exporters:
             data.update(await export(user_id))
         return data
+
+    async def export_archive(
+        self, user_id: str, encode: Callable[[dict[str, Any]], bytes]
+    ) -> bytes:
+        """The export (`encode`d as the API sends it) and every stored file
+        it refers to, as one zip: `export.json`, and each file at
+        `files/<its key>`. A file storage can't read is left out, and a
+        restore says so."""
+        data = await self.export_all(user_id)
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("export.json", encode(data))
+            for key in restore.file_keys(data["rows"]) if self._storage else []:
+                assert self._storage is not None
+                try:
+                    archive.writestr(f"files/{key}", await self._storage.download(key))
+                except Exception as exc:  # noqa: BLE001 — the rest still moves
+                    _log.warning("archive_file_unread error=%s", type(exc).__name__)
+        return buffer.getvalue()
+
+    async def restore(self, user_id: str, payload: bytes) -> dict[str, Any]:
+        """Restore a full export (its JSON, or the archive with its files)
+        into this person's books, which must be empty (`occupied`), in one
+        transaction (domain/export/restore.py). Refused (`ExportRefused`) for
+        a version this server doesn't know, a ledger whose hash chain
+        doesn't verify (the first break said), or a JSON export that refers
+        to stored files; `BooksNotEmpty` when theirs aren't."""
+        document, files = _unpack(payload)
+        version = restore.check_version(document)
+        rows = document["rows"]
+        if not isinstance(rows, dict) or not isinstance(document.get("user_id"), str):
+            raise ExportRefused("This isn't a Salli export: it has no rows or no user id.")
+        verified = restore.verify_ledger(rows)
+        if not verified["ok"]:
+            broken = verified["first_break"]
+            raise ExportRefused(
+                f"The export's ledger doesn't verify: entry {broken['seq']} "
+                f"({broken['entry_id']}) fails its hash chain ({broken['reason']})."
+            )
+        keys = restore.file_keys(rows)
+        if keys and files is None:
+            raise ExportRefused(
+                f"This export refers to {len(keys)} stored files: restore the archive, "
+                "which holds them (`salli profile export --archive`)."
+            )
+        await self._refuse_unless_empty(user_id)
+        source: str = document["user_id"]
+        stored: dict[str, str] = {}
+        missing = [k for k in keys if files is None or k not in files or self._storage is None]
+        try:
+            for key in keys:
+                if files is None or key not in files or self._storage is None:
+                    continue
+                # A key is the source's `<user id>/<path>`: the path goes under theirs here.
+                path = key.removeprefix(source + "/")
+                stored[key] = await self._storage.upload(user_id, path, files[key])
+            moved, hashes = restore.rehome(rows, user_id, stored)
+            exported = restore.entries(rows)
+            source_head = exported[-1]["hash"] if exported else None
+            head = hashes.get(source_head) if source_head else None
+            digest = restore.export_hash(document)
+            moved["restores"] = [
+                *moved.get("restores", []),
+                {
+                    "id": str(uuid.uuid4()),
+                    "user_id": user_id,
+                    "export_hash": digest,
+                    "export_version": version,
+                    "source_user_id": source,
+                    "entries": len(exported),
+                    "source_chain_head": source_head,
+                    "chain_head": head,
+                    "audit_rows": rows.get("audit_logs", []),
+                    "restored_at": dt.datetime.now(dt.UTC).isoformat(),
+                },
+            ]
+            profile = (rows.get("user_profiles") or [{}])[0]
+            async with self._uow_factory() as uow:
+                found = await uow.data_portability.occupied(user_id)
+                if found:
+                    raise BooksNotEmpty(found)
+                counts = await uow.data_portability.restore(user_id, moved, profile)
+                await uow.audit_log.log(
+                    user_id,
+                    "books.restore",
+                    {
+                        "export": digest,
+                        "entries": len(exported),
+                        "source_chain_head": source_head,
+                        "chain_head": head,
+                    },
+                    "succeeded",
+                )
+        except BaseException:
+            # Nothing of theirs was stored before: empty books keep no files.
+            if stored and self._storage is not None:
+                await self._storage.delete_user(user_id)
+            raise
+        self._profile.forget(user_id)
+        return {
+            "export_hash": digest,
+            "export_version": version,
+            "entries": len(exported),
+            "chain_head": head,
+            "restored": counts,
+            "files": len(stored),
+            "files_missing": missing,
+        }
+
+    async def _refuse_unless_empty(self, user_id: str) -> None:
+        async with self._uow_factory() as uow:
+            found = await uow.data_portability.occupied(user_id)
+        if found:
+            raise BooksNotEmpty(found)
 
     async def _audit_log(self, user_id: str) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
@@ -356,3 +498,34 @@ class DataPortabilityService:
                 "erase_incomplete user=%s part=%s error=%s", user_id, name, type(exc).__name__
             )
             counts[f"{name}_failed"] = 1
+
+
+def _unpack(payload: bytes) -> tuple[dict[str, Any], dict[str, bytes] | None]:
+    """An export's document, and its archive's files by key (None for a
+    JSON export)."""
+    files: dict[str, bytes] | None = None
+    text = payload
+    if payload[:4] == b"PK\x03\x04":
+        try:
+            with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                members = archive.infolist()
+                if sum(m.file_size for m in members) > MAX_UNPACKED_BYTES:
+                    raise ExportRefused("This archive unpacks to more than a restore takes.")
+                names = {m.filename for m in members}
+                if "export.json" not in names:
+                    raise ExportRefused("This archive holds no export.json.")
+                text = archive.read("export.json")
+                files = {
+                    name.removeprefix("files/"): archive.read(name)
+                    for name in names
+                    if name.startswith("files/") and not name.endswith("/")
+                }
+        except zipfile.BadZipFile as exc:
+            raise ExportRefused("This archive can't be read.") from exc
+    try:
+        document = json.loads(text)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ExportRefused("This isn't a Salli export: it isn't JSON.") from exc
+    if not isinstance(document, dict):
+        raise ExportRefused("This isn't a Salli export.")
+    return document, files

@@ -461,7 +461,7 @@ class CmaPackORM(Base):
     name: Mapped[str] = mapped_column(String(500), nullable=False)
     version: Mapped[str] = mapped_column(String(500), nullable=False)
     content: Mapped[Any] = mapped_column(JSONB, nullable=False)
-    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -1785,6 +1785,30 @@ class AuditLogORM(Base):
     __table_args__ = (
         Index("ix_audit_logs_user_created", "user_id", "created_at"),
         UniqueConstraint("seq", name="uq_audit_logs_seq"),
+    )
+
+
+class RestoreORM(Base):
+    """A full export restored into the person's books here
+    (domain/export/restore.py): which export (its content hash and
+    version), whose books it was on the server it came from, the ledger's
+    chain head there and here, and that server's audit rows of theirs, kept
+    as they were and outside this server's chain (`audit_rows`). Each row of
+    an export restored before comes along with it."""
+
+    __tablename__ = "restores"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    export_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    export_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    entries: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_chain_head: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    chain_head: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    audit_rows: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    restored_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
     )
 
 

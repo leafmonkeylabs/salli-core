@@ -2,10 +2,14 @@
  * Reminders, reports, tax, documents, your profile and data, your own LLM
  * keys, and AI clients connected over MCP.
  */
+import { chmod, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
   accountDelete,
   accountExport,
+  accountExportArchive,
+  accountRestore,
   agentFilesUpload,
   authMe,
   documentsDelete,
@@ -450,14 +454,29 @@ function registerProfile(program: Command, app: App): void {
   profile
     .command('export')
     .description('Download everything Salli stores about you, as one JSON file')
-    .option('-o, --out <file>', 'Where to write it ("-" for stdout; default: salli-export-<date>.json)')
+    .option('-o, --out <file>', 'Where to write it ("-" for stdout; default: salli-export-<date>.json, or .zip)')
+    .option('--archive', 'With your uploaded documents and statements, as one zip: what `salli restore` moves to another server')
     .option('--code <code>', 'Your authenticator code (or a recovery code), when two-step sign-in is on')
     .action(async (opts) => {
       const api = await app.api();
       const code = await secondStep(app, api, opts.code);
+      const stem = `salli-export-${isoDate(app.runtime.now())}`;
+      if (opts.archive) {
+        const path = opts.out ?? `${stem}.zip`;
+        if (path === '-') throw new UsageError('The archive is a zip file: give --out a file name.');
+        const zip = await api.call(accountExportArchive, { timeoutMs: 10 * 60_000, parseAs: 'arrayBuffer', ...code });
+        if (!(zip instanceof ArrayBuffer)) throw new CliError('The server answered without the archive it should have sent.');
+        await writeFile(path, Buffer.from(zip), { mode: 0o600 });
+        await chmod(path, 0o600);
+        app.out.done(
+          { path: resolve(path), bytes: zip.byteLength },
+          `Wrote your data and its files to ${path} (readable only by you).`,
+        );
+        return;
+      }
       const data = await api.call(accountExport, { timeoutMs: 5 * 60_000, ...code });
       const text = `${toJsonText(data)}\n`;
-      await writeOutput(app, text, opts.out ?? `salli-export-${isoDate(app.runtime.now())}.json`, {}, 'your data', { private: true });
+      await writeOutput(app, text, opts.out ?? `${stem}.json`, {}, 'your data', { private: true });
     });
 
   profile
@@ -745,9 +764,45 @@ export function registerMore(program: Command, app: App): void {
   registerTax(program, app);
 }
 
+/** The largest export the server restores (the API's MAX_RESTORE_BYTES). */
+const MAX_RESTORE_BYTES = 512 * 1024 * 1024;
+
+function registerRestore(program: Command, app: App): void {
+  program
+    .command('restore')
+    .argument('<file>', 'An export: `salli profile export --archive`’s zip (with your files), or its JSON')
+    .description('Move your books here: restore a full export from another Salli server into your empty books')
+    .option('--code <code>', 'Your authenticator code (or a recovery code), when two-step sign-in is on')
+    .addHelpText(
+      'after',
+      `
+Your books on this server must be empty (no entries, nothing but the starter
+accounts). The export's ledger is checked against its hash chain first, and
+everything is restored at once, or nothing is.
+
+Examples:
+  $ salli profile export --archive -o books.zip       # signed in to the old server
+  $ salli restore books.zip                            # signed in to the new one`,
+    )
+    .action(async (file, opts) => {
+      const upload = await readUpload(file, MAX_RESTORE_BYTES);
+      const api = await app.api();
+      const code = await secondStep(app, api, opts.code);
+      const result = await api.call(accountRestore, { body: { file: upload }, timeoutMs: 10 * 60_000, ...code });
+      const missing = result.files_missing.length
+        ? ` ${result.files_missing.length} file${result.files_missing.length === 1 ? ' was' : 's were'} not in the archive.`
+        : '';
+      app.out.done(
+        result,
+        `Restored ${result.entries} ${result.entries === 1 ? 'entry' : 'entries'} and ${result.files} ${result.files === 1 ? 'file' : 'files'}; the ledger verifies.${missing}`,
+      );
+    });
+}
+
 /** Your profile and data, documents, LLM keys and MCP clients. */
 export function registerYourData(program: Command, app: App): void {
   registerProfile(program, app);
+  registerRestore(program, app);
   registerDocuments(program, app);
   registerKeysAndMcp(program, app);
 }

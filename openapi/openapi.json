@@ -5254,6 +5254,204 @@
         }
       }
     },
+    "/v1/onboarding/export/archive": {
+      "get": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Export My Archive",
+        "description": "The export with the files it refers to (uploaded documents and\nstatements), as one zip: `export.json`, and each file at\n`files/<its storage key>`. What `restore` takes to move the books to\nanother server.",
+        "operationId": "account.exportArchive",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "salli-two-step",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Salli-Two-Step"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archive, as a file.",
+            "content": {
+              "application/zip": {}
+            }
+          },
+          "403": {
+            "description": "`/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password); or the authenticator code in `Salli-Two-Step` is missing or wrong (needed when two-step sign-in is on, and the owner needs two-step on)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many wrong codes; `Retry-After` says when to try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/restore": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Restore My Data",
+        "description": "Restore a full export (`export`'s JSON, or `export/archive`'s zip\nwith its files) into your books here, which must be empty: no entries,\nand nothing else but the starter accounts, the seeded tags and the\ndigest's preferences, which it replaces. Everything goes in one\ntransaction, or nothing: the ledger's hash chain is checked against the\nexport's first, the entries are chained again as yours, and the lock\ndate is set last. Only your own sign-in in a Salli client may restore,\nwith a recent password where it asks for one.",
+        "operationId": "account.restore",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "salli-two-step",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Salli-Two-Step"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/FileUpload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Restored"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password); or the authenticator code in `Salli-Two-Step` is missing or wrong (needed when two-step sign-in is on, and the owner needs two-step on)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many wrong codes; `Retry-After` says when to try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Your books here aren't empty, or the export is on this server",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Larger than a restore takes",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not an export this server can restore, or its ledger doesn't verify",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/onboarding/account": {
       "delete": {
         "tags": [
@@ -22232,6 +22430,24 @@
             "type": "array",
             "title": "Notification Deliveries",
             "description": "The digest's delivery log as `notifications.deliveries.list` shows\nit: each period's status, items (kinds, counts, dates) and hash."
+          },
+          "export_version": {
+            "type": "integer",
+            "title": "Export Version",
+            "description": "The export's format: 2 since it carries `rows`; 1 (or none) before.\nA restore takes only versions its server knows (docs/self-host.md,\n\"Moving your books\").",
+            "default": 1
+          },
+          "rows": {
+            "additionalProperties": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Rows",
+            "description": "What a restore reads: the stored rows, table by table, exactly as\nstored (amounts in minor units; decimals, days and times as text), the\nprofile and the audit rows among them. `restores` holds each export\nrestored into these books before, with that server's audit rows\n(`audit_rows`), kept apart from this server's chain."
           }
         },
         "additionalProperties": true,
@@ -35622,6 +35838,62 @@
           "reminders"
         ],
         "title": "ReminderList"
+      },
+      "Restored": {
+        "properties": {
+          "export_hash": {
+            "type": "string",
+            "title": "Export Hash"
+          },
+          "export_version": {
+            "type": "integer",
+            "title": "Export Version"
+          },
+          "entries": {
+            "type": "integer",
+            "title": "Entries"
+          },
+          "chain_head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chain Head"
+          },
+          "restored": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Restored"
+          },
+          "files": {
+            "type": "integer",
+            "title": "Files"
+          },
+          "files_missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Files Missing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "export_hash",
+          "export_version",
+          "entries",
+          "chain_head",
+          "restored",
+          "files",
+          "files_missing"
+        ],
+        "title": "Restored"
       },
       "ResumeRequest": {
         "properties": {

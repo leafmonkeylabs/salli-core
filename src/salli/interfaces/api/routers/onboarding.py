@@ -18,17 +18,29 @@ import datetime as dt
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Form, HTTPException, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ConfigDict, Field
 
+from salli.application.permissions import is_first_party
+from salli.application.ports import RestoreCollision
+from salli.application.services.data_portability_service import BooksNotEmpty
 from salli.domain.accounting.models import AccountType, Source
+from salli.domain.export.restore import ExportRefused
 from salli.domain.jurisdiction import MAX_TAX_ID_LENGTH
 from salli.domain.risk.models import RiskCategory
-from salli.interfaces.api.contract import Amount, AmountIn, CountryCode, CurrencyCode, DecimalIn
+from salli.interfaces.api.contract import (
+    Amount,
+    AmountIn,
+    CountryCode,
+    CurrencyCode,
+    DecimalIn,
+    FileUpload,
+)
 from salli.interfaces.api.deps import (
     AppServices,
     CurrentEmail,
+    CurrentPrincipal,
     CurrentUser,
     require_recent_password,
     require_second_step,
@@ -525,6 +537,16 @@ class DataExport(BaseModel):
     notification_deliveries: list[dict[str, Any]] = Field(default_factory=list)
     """The digest's delivery log as `notifications.deliveries.list` shows
     it: each period's status, items (kinds, counts, dates) and hash."""
+    export_version: int = 1
+    """The export's format: 2 since it carries `rows`; 1 (or none) before.
+    A restore takes only versions its server knows (docs/self-host.md,
+    "Moving your books")."""
+    rows: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
+    """What a restore reads: the stored rows, table by table, exactly as
+    stored (amounts in minor units; decimals, days and times as text), the
+    profile and the audit rows among them. `restores` holds each export
+    restored into these books before, with that server's audit rows
+    (`audit_rows`), kept apart from this server's chain."""
 
 
 #: Export and erasure each hand over or end everything: behind the step-up.
@@ -557,6 +579,107 @@ async def export_my_data(user_id: CurrentUser, svc: AppServices) -> DataExport:
     # extensions add, which this model cannot see (a Decimal there is a JSON
     # number, a datetime keeps its "+00:00").
     return DataExport.model_validate(jsonable_encoder(data))
+
+
+def _encoded(data: dict[str, Any]) -> bytes:
+    return DataExport.model_validate(jsonable_encoder(data)).model_dump_json().encode()
+
+
+@router.get(
+    "/export/archive",
+    dependencies=[
+        require_recent_password("Exporting all your data"),
+        require_second_step("Exporting all your data"),
+    ],
+    response_class=Response,
+    responses={
+        **_STEP_UP,
+        200: {"content": {"application/zip": {}}, "description": "The archive, as a file."},
+    },
+)
+async def export_my_archive(user_id: CurrentUser, svc: AppServices) -> Response:
+    """The export with the files it refers to (uploaded documents and
+    statements), as one zip: `export.json`, and each file at
+    `files/<its storage key>`. What `restore` takes to move the books to
+    another server."""
+    archive = await svc.data_portability.export_archive(user_id, _encoded)
+    return Response(
+        archive,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="salli-export.zip"'},
+    )
+
+
+#: The largest export a restore takes, its files included.
+MAX_RESTORE_BYTES = 512 * 1024 * 1024
+
+
+class Restored(BaseModel):
+    #: The restored export's content hash (as the audit row names it), and
+    #: its version.
+    export_hash: str
+    export_version: int
+    #: Entries restored, and the ledger's chain head here.
+    entries: int
+    chain_head: str | None
+    #: Rows written, by table.
+    restored: dict[str, int]
+    #: Stored files restored; and the keys of those the archive lacked
+    #: (their records are kept, without the file).
+    files: int
+    files_missing: list[str]
+
+
+@router.post(
+    "/restore",
+    dependencies=[
+        require_recent_password("Restoring an export"),
+        require_second_step("Restoring an export"),
+    ],
+    responses={
+        **_STEP_UP,
+        409: {"description": "Your books here aren't empty, or the export is on this server"},
+        413: {"description": "Larger than a restore takes"},
+        422: {"description": "Not an export this server can restore, or its ledger doesn't verify"},
+    },
+)
+async def restore_my_data(
+    form: Annotated[FileUpload, Form(media_type="multipart/form-data")],
+    user_id: CurrentUser,
+    principal: CurrentPrincipal,
+    svc: AppServices,
+) -> Restored:
+    """Restore a full export (`export`'s JSON, or `export/archive`'s zip
+    with its files) into your books here, which must be empty: no entries,
+    and nothing else but the starter accounts, the seeded tags and the
+    digest's preferences, which it replaces. Everything goes in one
+    transaction, or nothing: the ledger's hash chain is checked against the
+    export's first, the entries are chained again as yours, and the lock
+    date is set last. Only your own sign-in in a Salli client may restore,
+    with a recent password where it asks for one."""
+    if principal.method == "pat" or not is_first_party(
+        principal.method, first_party_client=principal.first_party_client
+    ):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="Only your own sign-in in a Salli client can restore an export.",
+        )
+    data = await form.file.read(MAX_RESTORE_BYTES + 1)
+    if len(data) > MAX_RESTORE_BYTES:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, detail="Larger than a restore takes")
+    try:
+        result = await svc.data_portability.restore(user_id, data)
+    except BooksNotEmpty as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from None
+    except RestoreCollision:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Some of this export's records are on this server already (restored "
+            "before, perhaps for someone else), or it isn't an export Salli made.",
+        ) from None
+    except ExportRefused as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from None
+    return Restored(**result)
 
 
 class DeleteAccountRequest(BaseModel):

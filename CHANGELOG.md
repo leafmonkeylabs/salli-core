@@ -21,6 +21,22 @@
   decision templates A to Z; lists check the chosen one rather than draw
   radio circles. docs/design/mobile.md's Accessibility has the rules.
 
+- **Move your books to another Salli server.** `salli profile export
+  --archive` (`GET /v1/onboarding/export/archive`) gives the export and your
+  uploaded files as one zip; `salli restore <file>` (`POST
+  /v1/onboarding/restore`) takes it, or the JSON export, into your empty books
+  on another server: the export's ledger is verified against its hash chain
+  first (the first break refuses it), then everything goes in at once, your
+  entries chained again as yours, the lock date last, and the old server's
+  audit rows kept apart from this one's chain, which records
+  `books.restore`. Your own sign-in in a Salli client only, behind the
+  step-up and two-step code. The export now says its `export_version` (2)
+  and carries `rows`, the stored rows a restore reads; version 1 exports
+  can't be restored. core_0053 adds `restores`, and widens
+  `cma_packs.content_hash`, which was too short for the hash it is given, so
+  no capital-market assumptions pack could be imported on Postgres
+  (docs/self-host.md, "Moving your books").
+
 - **The phone moves with purpose.** Sheets rise on a spring over a scrim
   that fades on its own, close when dragged down (a tick as they pass the
   point) and start VoiceOver at their title; buttons, rows, More's tiles and
