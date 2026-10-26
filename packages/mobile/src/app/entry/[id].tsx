@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, LinesTable, Title, Waiting } from '../../kit';
+import { Body, Button, Card, LinesTable, Option, Title, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
 import { success, useReducedMotion } from '../../motion';
 import { Page } from '../../shell';
@@ -173,24 +173,15 @@ export default function Entry() {
           <ScrollView accessibilityRole="radiogroup" style={{ maxHeight: 340 }}>
             {categories.map((a) => {
               const current = a.id === line.account_id;
-              const on = a.id === moveTo;
               return (
-                <Pressable
+                <Option
                   key={a.id}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: on, disabled: current }}
+                  label={a.name}
+                  chosen={a.id === moveTo}
                   disabled={current}
+                  {...(current ? { end: <Body small muted>{t.current}</Body> } : {})}
                   onPress={() => setMoveTo(a.id)}
-                  style={[styles.option, { borderTopColor: theme.rule }]}
-                >
-                  <View style={[styles.radio, { borderColor: on ? theme.button : theme.muted }]}>{on ? <View style={[styles.dot, { backgroundColor: theme.button }]} /> : null}</View>
-                  <Body style={{ flex: 1 }}>{a.name}</Body>
-                  {current ? (
-                    <Body small muted>
-                      {t.current}
-                    </Body>
-                  ) : null}
-                </Pressable>
+                />
               );
             })}
           </ScrollView>
@@ -252,9 +243,6 @@ export default function Entry() {
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8 },
   moveTitle: { fontFamily: font.medium, fontSize: 17 },
-  option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 10, height: 10, borderRadius: 5 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { fontFamily: font.regular, fontSize: 13, paddingHorizontal: 8, paddingVertical: 3, borderWidth: StyleSheet.hairlineWidth },
   mono: { fontFamily: font.mono },

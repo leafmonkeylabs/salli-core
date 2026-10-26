@@ -36,7 +36,7 @@ export default function Join() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.chrome }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.page, { paddingTop: insets.top + 4, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
-        <Pressable accessibilityRole="link" onPress={() => router.back()} style={styles.back}>
+        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
           <Icon name="back" colour={theme.text} />
           <Body>{t.back}</Body>
         </Pressable>
@@ -46,11 +46,11 @@ export default function Join() {
         </View>
 
         <View style={{ gap: 8 }}>
-          <Text nativeID="invitation-label" style={[styles.fieldLabel, { color: theme.text }]}>
+          <Text style={[styles.fieldLabel, { color: theme.text }]}>
             {t.label}
           </Text>
           <TextInput
-            accessibilityLabelledBy="invitation-label"
+            accessibilityLabel={t.label}
             accessibilityHint={t.help}
             value={typed}
             onChangeText={setTyped}

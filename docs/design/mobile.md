@@ -40,7 +40,7 @@ Every figure on screen is the server's, with the date it was true.
 | **Stack** | Expo (React Native), TypeScript. One codebase for iOS and Android. |
 | **Places** | The console's phone bar, unchanged: Home, Cash, Decide, Books, More. Adding an entry is the + on Home and the first action in Books. |
 | **Look** | The brand README, as the console builds it: paper bars, a bone work area, paper cards with a hairline, square corners. On night, night with deep-green cards. |
-| **Touch** | Buttons and rows 48 px; nothing answers to less than 48 × 48. Text follows the phone's text size; rows grow rather than clip. |
+| **Touch** | Buttons and rows 48 pt; nothing answers to less than 44 × 44. Text follows the phone's text size; rows grow and stack rather than clip. See [Accessibility](#accessibility). |
 | **Motion** | Calm and short, on the UI thread; opacity only with Reduce Motion. See [Motion](#motion). |
 | **Discretion** | No amounts in widgets or the app switcher unless the person asks. Digests never carry one. |
 
@@ -312,12 +312,12 @@ the app: core holds no key and runs no model for it.
   the chosen provider; the settings page says so in one line.
 - **Conversations:** the last 20 per server, in a file of the app's own,
   never sent; deleted from Your AI, or with the server when it is forgotten.
-- **Where it opens:** a square button floating above the bar on Home, Cash,
-  Decide and Books (design 22), which opens the AI's page with three
-  starters for that tab; before an AI is set up it opens More → Your AI.
-  Each of those tabs leaves room below its last card so the button never
-  covers it. Kept conversations open from More → Your AI. The page has no
-  heading on screen; Back names the tab it came from.
+- **Where it opens:** a button in the header beside + on Home, Cash, Decide
+  and Books ("Ask Your AI", design AIButtonPlacement; it floated over the
+  bar before, and covered Done buttons and amounts), which opens the AI's
+  page with three starters for that tab; before an AI is set up it opens
+  More → Your AI. Kept conversations open from More → Your AI. The page has
+  no heading on screen; Back names the tab it came from.
 
 ## Motion
 
@@ -338,7 +338,7 @@ can (`CADisableMinimumFrameDurationOnPhone`).
 
 | Token | Motion | With Reduce Motion |
 |---|---|---|
-| Press | Scale 0.98 and opacity 0.85, 80 ms in, 120 ms out, ease-out. Unavailable is 0.45 and still, never what a press looks like. | Opacity only |
+| Press | Scale 0.98 and opacity 0.85, 80 ms in, 120 ms out, ease-out. Unavailable is never dimmed: outlined, its words in the muted ink, and still. | Opacity only |
 | Small change of state | 160 ms, cubic-bezier(0.2, 0, 0, 1) | None, or opacity over 100 ms |
 | Row in or out of a list | The others settle on a spring (stiffness 400, damping 40, mass 1); a new row fades in over 160 ms, a leaving one out over 120 ms | Opacity over 120 ms, nothing moves |
 | Sheet | Rises on a spring (stiffness 500, damping 50, mass 1; about 220 ms) while its scrim fades to 0.4 over 160 ms; leaves in 180 ms, cubic-bezier(0.3, 0, 1, 1), or faster with the drag. Dragged down past 30% of its height, or flicked faster than 800 pt/s, it closes. | Sheet and scrim fade over 150 ms |
@@ -364,6 +364,63 @@ removes the row at once and puts it back if the server refuses), booking's
 confirmation. Still to do: Home's placeholders cross-fading to their
 figures, the figure cross-fade, the chart's reveal, first run's steps and
 the selection tick on chips and pickers.
+
+## Accessibility
+
+From the HIG audit of October 2026 (designs LargeHome, LargeLedger,
+LargeBudget, LargeTabs, LargeMore, KeypadDone, AIButtonPlacement,
+SheetGrabber, DiscardDraft, AddOneSheet, DisabledState,
+NotificationsRefused, DecideEmpty and TargetsAndRows).
+
+**Dynamic Type.** Text follows the phone's text size, up to AX5, and is
+never shrunk to fit (no `adjustsFontSizeToFit` on a figure). The layouts
+answer it through the kit's `useLargeText()` (`src/kit.tsx`), from the
+window's font scale:
+
+- **From xxxL** (a scale of about 1.35, `useLargeText()`): `Row`,
+  `AmountRow`, `LedgerRow` and Home's lines stack, the title first and
+  whole, then its details, then its action; Home's tiles, More's tiles and
+  Books' actions go one to a row; a budget line puts its category on its
+  own line, then Limit, Spent and Over or Left; Home's header keeps + and
+  the AI button on their own line above the server's name; Cash's chart
+  labels only its lowest and highest, and its axis only its first and last
+  days.
+- **From AX1** (about 1.65, `useLargeText('ax')`): a ledger's lines
+  (`LinesTable`) stack, the account over its side and figure. Below that
+  its figure columns grow with the text, never a fixed width.
+- **Capped on purpose:** a place's title at 1.5 times, a section's label at
+  1.7, the hero figure at 1.4, a modal's title at 1.5, chart labels at 1.3,
+  and the tab bar's labels at 1.15 on one line; pressed and held at the
+  accessibility sizes, a tab shows large in the system's Large Content
+  Viewer (`accessibilityShowsLargeContentViewer`). The widgets' fonts scale
+  with the text styles they stand for (`relativeTo:`).
+
+**Targets.** 48 pt for buttons and rows, 44 pt at the least for anything
+that answers a touch (rule tokens, chips, the appearance switch).
+
+**Labels and roles.** Every text field has its own `accessibilityLabel`
+(`accessibilityLabelledBy` is Android's only). Back, and every row that
+opens a place in the app, is a button; a link only opens a page outside it.
+A chart is one image to VoiceOver, its figures in its label. First run's
+steps are a progress bar with its value. A sheet's grabber is a button named
+Close, and VoiceOver's escape closes it (and Add, Import, a budget's limit,
+the picker and the day-by-day sheet).
+
+**Forms.** Number pads share one bar above the keyboard (`useDoneBar()`:
+Previous, Next, Done) and their forms put the keyboard away when dragged.
+Leaving Add, Import, a budget's limit or an automation's rule with
+something typed in it asks "Discard this draft?" first (`useKeepDraft`,
+`src/draft.ts`), the swipe down too. Inside Add, choosing an account or the
+day is pushed within its sheet: one sheet on screen. Choosing one of a list
+marks it with a checkmark at its end, never a radio circle.
+
+**Unavailable, said.** A button that can't be used is outlined, its words
+in the muted ink (7:1), with what it waits for said above it (Add's "Choose
+the account it came out of"); a setting that waits on another says so in
+its place ("Choose a provider first"). Nothing is dimmed to 0.45. When the
+phone's settings refuse notifications, Notifications says so with Open
+Settings. Decide with nothing due lists the server's decision templates A
+to Z, never ranked, each opening in the console.
 
 ## Later
 

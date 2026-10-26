@@ -254,16 +254,26 @@ export const strings = {
     amountPlaceholder: (currency: string) => `12.50 ${currency}`,
     again: (what: string) => `Say again: ${what}`,
     notAnAmount: 'That isn’t an amount. Type it as 12.50.',
-    debit: 'Into (debit)',
-    credit: 'Out of (credit)',
+    debit: 'Went into',
+    credit: 'Came out of',
+    amountIn: (currency: string) => `Amount, ${currency}`,
+    back: 'Add',
+    // What Book it still waits for, said above it (design DisabledState).
+    missing: {
+      description: 'Add a description',
+      amount: 'Add the amount',
+      credit: 'Choose the account it came out of',
+      debit: 'Choose the account it went into',
+      same: 'Choose two different accounts',
+    },
     choose: 'Choose an account',
     plain: (amount: string, from: string, to: string) => `${amount} out of ${from}, into ${to}.`,
     byHand: 'Entered by hand.',
     byModel: 'Drafted by your model; check the accounts.',
     book: 'Book it',
     booking: 'Booking…',
-    pickDebit: 'Into which account',
-    pickCredit: 'Out of which account',
+    pickDebit: 'Went into',
+    pickCredit: 'Came out of',
     find: 'Find an account',
     otherAccounts: 'Your other accounts',
     newOnConsole: 'New accounts are made on the console.',
@@ -289,9 +299,20 @@ export const strings = {
     submit: 'Record the review',
     recordedReview: 'Review recorded.',
     lab: 'Templates and scenarios are in the console.',
+    start: 'Start a decision',
+    startHelp: 'A to Z. Each lays out consequences; you choose.',
+    inConsole: 'Opens in the console.',
     write: 'Write your review',
     cancel: 'Cancel',
   },
+
+  /** The bar over a form's keyboard. */
+  keys: { previous: 'Previous field', next: 'Next field', done: 'Done' },
+
+  /** Leaving a form with something typed in it. */
+  draft: { title: 'Discard this draft?', discard: 'Discard', keep: 'Keep editing' },
+
+  sheet: { close: 'Close' },
 
   later: {
     body: 'This place comes next in the app. Until then it is in the console, on this server.',
@@ -353,7 +374,9 @@ export const strings = {
     title: 'Notifications',
     push: 'Push notifications',
     serverOff: 'Your server sends no push alerts yet; its owner can turn them on.',
-    denied: 'Notifications are off for Salli in this phone’s settings.',
+    denied: 'Notifications are off for Salli in iPhone Settings.',
+    openSettings: 'Open Settings',
+    kept: 'Your choices are kept for when they’re back on.',
     alerts: 'Alerts',
     kinds: { budget_over: 'Over budget', cash_below_zero_ahead: 'Cash low ahead', reminder_due: 'Reminders due' },
     quiet: 'Quiet hours',
@@ -378,6 +401,11 @@ export const strings = {
     of: (spent: string, available: string) => `${spent} of ${available}`,
     rollover: (amount: string) => `Rollover ${amount}`,
     monthGone: 'Month gone',
+    // A line stacked at large text (design LargeBudget).
+    limitLabel: 'Limit',
+    spentLabel: 'Spent',
+    overLabel: 'Over',
+    leftLabel: 'Left',
     edit: 'Edit budget',
     which: 'Which category',
     trend: (months: string) => `Spending, last ${months} months`,
@@ -771,6 +799,9 @@ export const strings = {
     save: 'Save',
     removeKey: 'Remove the key',
     needKey: 'Add the key first.',
+    choose: 'Choose',
+    needProvider: 'Choose a provider first',
+    needKeyFirst: 'Add the API key first',
     loadingModels: 'Asking for the models…',
     connectFailed: (why: string) => `Couldn’t connect: ${why}`,
     // The conversation
@@ -787,7 +818,7 @@ export const strings = {
     failed: (why: string) => `Something went wrong: ${why}`,
     notReady: 'Your AI isn’t set up yet.',
     setUp: 'Set up Your AI',
-    open: 'Your AI',
+    open: 'Ask Your AI',
     openSetUp: 'Set up Your AI',
     startWith: 'Start with',
     // Starters for the tab the AI was opened from (design 22).

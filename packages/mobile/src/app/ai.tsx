@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { listModels } from '../ai/agent';
 import { useYourAI } from '../ai/store';
-import { Body, Button, Card, CardHead, Icon, Toggle } from '../kit';
+import { Body, Button, Card, CardHead, Icon, Option, Toggle, useLargeText } from '../kit';
 import { PROVIDERS, providerOf, type Model, type ProviderId } from '../lib/ai';
 import { displayMoment } from '../lib/display';
 import { Page } from '../shell';
@@ -44,9 +44,9 @@ export default function YourAISettings() {
       {ai.enabled ? (
         <>
           <Card style={{ paddingVertical: 0 }}>
-            <SettingRow label={t.provider} value={provider?.name ?? t.notSet} onPress={() => setOpen('provider')} />
-            <SettingRow label={t.key} value={ai.keyEnd ? `••••${ai.keyEnd}` : t.notSet} mono={Boolean(ai.keyEnd)} disabled={!provider} onPress={() => setOpen('key')} />
-            <SettingRow label={t.model} value={ai.model ?? t.notSet} disabled={!ai.keyEnd} onPress={() => setOpen('model')} />
+            <SettingRow label={t.provider} value={provider?.name ?? t.choose} unset={!provider} onPress={() => setOpen('provider')} />
+            <SettingRow label={t.key} value={ai.keyEnd ? `••••${ai.keyEnd}` : t.notSet} unset={!ai.keyEnd} mono={Boolean(ai.keyEnd)} {...(!provider ? { needs: t.needProvider } : {})} onPress={() => setOpen('key')} />
+            <SettingRow label={t.model} value={ai.model ?? t.notSet} unset={!ai.model} {...(!provider ? { needs: t.needProvider } : !ai.keyEnd ? { needs: t.needKeyFirst } : {})} onPress={() => setOpen('model')} />
             <View style={[styles.row, { minHeight: 56 }]}>
               <Text style={[styles.label, { color: theme.muted }]}>{t.tools}</Text>
               {ai.connectedSince ? (
@@ -78,7 +78,7 @@ export default function YourAISettings() {
               ai.conversations.map((c, i) => (
                 <Pressable
                   key={c.id}
-                  accessibilityRole="link"
+                  accessibilityRole="button"
                   onPress={() => router.push({ pathname: '/agent', params: { id: c.id } })}
                   style={[styles.conversation, i < ai.conversations.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}
                 >
@@ -107,19 +107,30 @@ export default function YourAISettings() {
   );
 }
 
-function SettingRow({ label, value, mono, disabled, onPress }: { label: string; value: string; mono?: boolean; disabled?: boolean; onPress: () => void }) {
+/**
+ * A setting, its value at its end. One that waits on another says what it
+ * needs under its name, in the muted ink, and opens nothing: never dimmed
+ * (design DisabledState).
+ */
+function SettingRow({ label, value, mono, unset, needs, onPress }: { label: string; value: string; mono?: boolean; unset?: boolean; needs?: string; onPress: () => void }) {
   const theme = useTheme();
+  // At large text the value goes under its name, so neither breaks inside a word.
+  const large = useLargeText();
+  const rule = { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth };
+  if (needs) {
+    return (
+      <View accessible accessibilityLabel={`${label}: ${needs}`} accessibilityState={{ disabled: true }} style={[styles.waiting, rule]}>
+        <Text style={[styles.waitingLabel, { color: theme.muted }]}>{label}</Text>
+        <Body small muted>
+          {needs}
+        </Body>
+      </View>
+    );
+  }
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${label}: ${value}`}
-      accessibilityState={{ disabled: Boolean(disabled) }}
-      disabled={disabled}
-      onPress={onPress}
-      style={[styles.row, { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth, opacity: disabled ? 0.5 : 1 }]}
-    >
-      <Text style={[styles.label, { color: theme.muted }]}>{label}</Text>
-      <Text style={[styles.value, { color: theme.text, fontFamily: mono ? font.mono : font.regular }]} numberOfLines={1}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} onPress={onPress} style={[styles.row, rule, large ? styles.rowLarge : null]}>
+      <Text style={[styles.label, { color: theme.text }, large ? { flexBasis: '100%' } : null]}>{label}</Text>
+      <Text style={[styles.value, { color: unset ? theme.muted : theme.text, fontFamily: mono ? font.mono : font.regular }]} numberOfLines={1}>
         {value}
       </Text>
       <Icon name="chevron" size={16} colour={theme.muted} />
@@ -135,17 +146,10 @@ function Heading({ children }: { children: string }) {
 }
 
 function Choices<V extends string>({ options, chosen, onPick }: { options: readonly { id: V; name: string }[]; chosen: V | undefined; onPick: (id: V) => void }) {
-  const theme = useTheme();
   return (
     <View accessibilityRole="radiogroup">
       {options.map((o) => {
-        const on = o.id === chosen;
-        return (
-          <Pressable key={o.id} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => onPick(o.id)} style={[styles.option, { borderBottomColor: theme.rule }]}>
-            <View style={[styles.radio, { borderColor: on ? theme.text : theme.muted }]}>{on ? <View style={[styles.dot, { backgroundColor: theme.text }]} /> : null}</View>
-            <Body style={on ? { fontFamily: font.medium } : undefined}>{o.name}</Body>
-          </Pressable>
-        );
+        return <Option key={o.id} label={o.name} chosen={o.id === chosen} onPress={() => onPick(o.id)} />;
       })}
     </View>
   );
@@ -233,12 +237,12 @@ function ModelSheet({ visible, onClose }: { visible: boolean; onClose: () => voi
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 0 },
   label: { flex: 1, fontFamily: font.regular, fontSize: size.body },
+  rowLarge: { flexWrap: 'wrap', paddingVertical: 8, rowGap: 2 },
+  waiting: { justifyContent: 'center', gap: 2, minHeight: 64, paddingVertical: 8 },
+  waitingLabel: { fontFamily: font.regular, fontSize: size.body },
   value: { fontFamily: font.regular, fontSize: size.body, flexShrink: 1 },
   title: { flex: 1, fontFamily: font.regular, fontSize: size.body },
   conversation: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },
-  option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, borderBottomWidth: StyleSheet.hairlineWidth },
-  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4 },
   sheetTitle: { fontFamily: font.medium, fontSize: size.heading },
   input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontFamily: font.mono, fontSize: size.body },
 });

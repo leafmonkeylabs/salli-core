@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, Money, Waiting } from '../../kit';
+import { Body, Button, Card, Money, Waiting, useDoneBar } from '../../kit';
 import { amountParts, displayMonth, wholeDigits } from '../../lib/display';
 import { Page } from '../../shell';
 import { Sheet, SheetTitle } from '../../sheet';
@@ -54,8 +54,8 @@ export default function Goals() {
                     <Body small muted style={{ flex: 1 }}>
                       {g.target_date ? t.by(displayMonth(g.target_date)) : t.noDate}
                     </Body>
-                    <Pressable accessibilityRole="button" accessibilityLabel={t.fundLabel(g.name)} onPress={() => setFunding(g)} style={styles.fund}>
-                      <Text style={[styles.fundText, { color: theme.chart }]}>{t.fund}</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel={t.fundLabel(g.name)} onPress={() => setFunding(g)} style={[styles.fund, { backgroundColor: theme.button2, borderRadius: theme.control }]}>
+                      <Text style={[styles.fundText, { color: theme.button2Text }]}>{t.fund}</Text>
                     </Pressable>
                   </View>
                 </Pressable>
@@ -123,16 +123,17 @@ function GoalSheet({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const exact = normalizeAmountInput(amount);
+  const done = useDoneBar(true);
   const input = [styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   return (
     <Sheet visible={!!goal} onClose={onClose} label={existing ? existing.name : t.newGoal}>
       <SheetTitle style={[styles.title, { color: theme.text }]}>
         {existing ? existing.name : t.newGoal}
       </SheetTitle>
-      <TextInput value={name} onChangeText={setName} placeholder={t.goalName} placeholderTextColor={theme.muted} accessibilityLabel={t.goalName} style={input} />
+      <TextInput {...done.field('name')} value={name} onChangeText={setName} placeholder={t.goalName} placeholderTextColor={theme.muted} accessibilityLabel={t.goalName} style={input} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <TextInput value={amount} onChangeText={setAmount} placeholder={t.target} placeholderTextColor={theme.muted} keyboardType="decimal-pad" accessibilityLabel={t.target} style={[...input, { flex: 1 }]} />
-        <TextInput value={year} onChangeText={setYear} placeholder={t.byYear} placeholderTextColor={theme.muted} keyboardType="number-pad" accessibilityLabel={t.byYear} style={[...input, { flex: 1 }]} />
+        <TextInput {...done.field('amount')} value={amount} onChangeText={setAmount} placeholder={t.target} placeholderTextColor={theme.muted} keyboardType="decimal-pad" accessibilityLabel={t.target} style={[...input, { flex: 1 }]} />
+        <TextInput {...done.field('year')} value={year} onChangeText={setYear} placeholder={t.byYear} placeholderTextColor={theme.muted} keyboardType="number-pad" accessibilityLabel={t.byYear} style={[...input, { flex: 1 }]} />
       </View>
       {problem ? <Body alert>{problem}</Body> : null}
       <Button
@@ -149,6 +150,7 @@ function GoalSheet({
         }}
       />
       {onDelete ? <Button kind="tertiary" label={t.delete} onPress={onDelete} /> : null}
+      {done.bar}
     </Sheet>
   );
 }
@@ -163,6 +165,7 @@ function FundSheet({ goal, onClose, onSaved }: { goal: Goal | undefined; onClose
   const [typed, setTyped] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | undefined>(undefined);
+  const done = useDoneBar(true);
   const valueOf = (id: string) => typed[id] ?? current.data?.allocations.find((a) => a.account_id === id)?.allocated_amount ?? '';
 
   return (
@@ -174,6 +177,7 @@ function FundSheet({ goal, onClose, onSaved }: { goal: Goal | undefined; onClose
         <View key={a.id} style={styles.fundRow}>
           <Body style={{ flex: 1 }}>{a.name}</Body>
           <TextInput
+            {...done.field(a.id)}
             value={valueOf(a.id)}
             onChangeText={(v) => setTyped((now) => ({ ...now, [a.id]: v }))}
             placeholder="0.00"
@@ -208,6 +212,7 @@ function FundSheet({ goal, onClose, onSaved }: { goal: Goal | undefined; onClose
             .finally(() => setBusy(false));
         }}
       />
+      {done.bar}
     </Sheet>
   );
 }
@@ -217,7 +222,7 @@ const styles = StyleSheet.create({
   goalHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   figure: { fontFamily: font.regular, fontSize: size.body, fontVariant: ['tabular-nums'] },
   track: { height: 6 },
-  fund: { minHeight: 36, justifyContent: 'center', paddingLeft: 12 },
+  fund: { minHeight: size.target, minWidth: 72, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
   fundText: { fontFamily: font.medium, fontSize: size.small },
   title: { fontFamily: font.medium, fontSize: size.heading },
   input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },

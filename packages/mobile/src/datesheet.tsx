@@ -14,6 +14,19 @@ const t = strings.add;
 
 export function DateSheet({ visible, value, onPick, onClose }: { visible: boolean; value: string; onPick: (iso: string) => void; onClose: () => void }) {
   const theme = useTheme();
+  return (
+    <Sheet visible={visible} onClose={onClose} label={t.pickDay}>
+      <SheetTitle style={[styles.title, { color: theme.text }]}>
+        {t.date}
+      </SheetTitle>
+      <DayChooser value={value} onPick={onPick} />
+    </Sheet>
+  );
+}
+
+/** The days to choose from: drawn in the sheet, or pushed inside one already open (Add), so one sheet is on screen. */
+export function DayChooser({ value, onPick }: { value: string; onPick: (iso: string) => void }) {
+  const theme = useTheme();
   const today = todayIso();
   const yesterday = addDays(today, -1);
   const [chosen, setChosen] = useState(value);
@@ -29,10 +42,7 @@ export function DateSheet({ visible, value, onPick, onClose }: { visible: boolea
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} label={t.pickDay}>
-      <SheetTitle style={[styles.title, { color: theme.text }]}>
-        {t.date}
-      </SheetTitle>
+    <>
       <View accessibilityRole="radiogroup" style={styles.quick}>
         {quick.map((q) => {
           const on = q.iso === chosen;
@@ -91,7 +101,7 @@ export function DateSheet({ visible, value, onPick, onClose }: { visible: boolea
         })}
       </View>
       <Button label={t.useDay(displayDay(chosen))} onPress={() => onPick(chosen)} />
-    </Sheet>
+    </>
   );
 }
 

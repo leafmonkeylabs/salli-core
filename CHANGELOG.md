@@ -4,6 +4,23 @@
 
 ### Added
 
+- **The phone at every text size, and to VoiceOver.** From xxxL rows stack
+  their title over their details, Home's and More's tiles and Books'
+  actions go one to a row, a budget line puts its category on its own line
+  and a ledger's figure columns grow (stacking from AX1); figures are never
+  shrunk to fit, the tab bar's labels stay on one line with the Large
+  Content Viewer, and the widgets' text scales. Every field has a name,
+  in-app rows are buttons, nothing answers to less than 44 pt, sheets have
+  a grabber and close on VoiceOver's escape, and first run's steps say
+  their progress. Number pads share a Previous, Next and Done bar; leaving
+  Add, Import, a budget's limit or a rule with something typed asks
+  "Discard this draft?"; Add chooses an account or a day inside its own
+  sheet. The AI button moves into the header beside +; unavailable buttons
+  say what they wait for instead of dimming; Notifications offers Open
+  Settings when the phone refuses them; Decide with nothing due lists the
+  decision templates A to Z; lists check the chosen one rather than draw
+  radio circles. docs/design/mobile.md's Accessibility has the rules.
+
 - **Move your books to another Salli server.** `salli profile export
   --archive` (`GET /v1/onboarding/export/archive`) gives the export and your
   uploaded files as one zip; `salli restore <file>` (`POST

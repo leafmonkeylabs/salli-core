@@ -5,9 +5,9 @@ import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../api';
-import { Body, Card, Choice, SectionLabel, Toggle, Waiting } from '../kit';
+import { Body, Button, Card, Choice, Icon, SectionLabel, Toggle, Waiting } from '../kit';
 import { storeKeyOf } from '../lib/servers';
 import { Sheet } from '../sheet';
 import { Page } from '../shell';
@@ -27,6 +27,8 @@ const QUIET = { start: '22:00', end: '08:00' };
  * Expo push token (`POST /v1/devices`); off removes it. Which alerts come
  * and the quiet hours (in the person's time zone) are their preferences on
  * the server, for every phone of theirs; and how one reads on the lock screen.
+ * Once the phone's settings refuse them, it says so with a way to Settings
+ * (design NotificationsRefused), read again whenever the app comes back.
  */
 export default function NotificationsScreen() {
   const theme = useTheme();
@@ -45,6 +47,8 @@ export default function NotificationsScreen() {
   // The device this phone registered as, kept on the phone.
   const mine = useQuery({ queryKey: [api.server, 'push.device'], queryFn: async () => (await SecureStore.getItemAsync(key)) ?? '' });
   const on = !!mine.data && !!devices.data?.devices.some((d) => d.id === mine.data);
+  const permission = useQuery({ queryKey: [api.server, 'push.permission'], queryFn: () => Notifications.getPermissionsAsync() });
+  const refused = permission.data?.status === 'denied';
 
   const turn = useMutation({
     mutationFn: async (next: boolean) => {
@@ -67,6 +71,15 @@ export default function NotificationsScreen() {
     <Page title={t.title} back={{ label: strings.more.title, onPress: () => (router.canGoBack() ? router.back() : router.replace('/more')) }}>
       {devices.data ? (
         <>
+          {refused ? (
+            <Card style={{ gap: 12 }}>
+              <View style={styles.refused}>
+                <Icon name="silent" size={22} colour={theme.text} />
+                <Body style={{ flex: 1 }}>{t.denied}</Body>
+              </View>
+              <Button kind="secondary" label={t.openSettings} onPress={() => void Linking.openSettings()} />
+            </Card>
+          ) : null}
           <Card style={{ paddingVertical: 0 }}>
             <Toggle
               label={t.push}
@@ -76,7 +89,7 @@ export default function NotificationsScreen() {
               onChange={(next) => turn.mutate(next)}
             />
           </Card>
-          {turn.error ? <Body alert>{turn.error.message}</Body> : null}
+          {turn.error && !refused ? <Body alert>{turn.error.message}</Body> : null}
           {prefs.data ? (
             <>
               <Card style={{ paddingBottom: 4 }}>
@@ -92,6 +105,11 @@ export default function NotificationsScreen() {
                   </View>
                 ))}
               </Card>
+              {refused ? (
+                <Body small muted>
+                  {t.kept}
+                </Body>
+              ) : null}
               <Card style={{ gap: 8 }}>
                 <SectionLabel>{t.quiet}</SectionLabel>
                 <Toggle label={t.quietOn} help={t.quietHelp} value={!!quiet} disabled={save.isPending} onChange={(next) => save.mutate({ quiet_hours: next ? QUIET : null })} />
@@ -160,6 +178,7 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  refused: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   kind: { justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth },
   times: { flexDirection: 'row', gap: 12 },
   time: { borderWidth: 1, minHeight: 48, minWidth: 110, paddingHorizontal: 12, paddingVertical: 6, justifyContent: 'center' },

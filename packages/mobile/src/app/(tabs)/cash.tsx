@@ -5,7 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensio
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 import { useRead } from '../../api';
-import { AmountRow, Body, Button, Card, CardHead, LedgerRow, Row, Waiting } from '../../kit';
+import { AmountRow, Body, Button, Card, CardHead, LedgerRow, Row, Waiting, useLargeText } from '../../kit';
 import { placeLabels, stepChart } from '../../lib/chart';
 import { amountParts, displayDate, displayDay, wholeDigits } from '../../lib/display';
 import { Page } from '../../shell';
@@ -29,7 +29,7 @@ export default function Cash() {
   const chartHeight = 180;
 
   return (
-    <Page underAI title={t.title} onRefresh={() => Promise.all([forecast.refetch(), budget.refetch()])}>
+    <Page ai="cash" title={t.title} onRefresh={() => Promise.all([forecast.refetch(), budget.refetch()])}>
       <Card style={{ gap: 10 }}>
         <CardHead label={data ? t.forecast(String(data.daily.length - 1)) : t.forecast('60')} {...(data ? { end: t.low(wholeDigits(data.lowest, data.currency), displayDay(data.lowest_date)) } : {})} />
         {data ? (
@@ -106,10 +106,13 @@ export default function Cash() {
 /**
  * The next days as a step line. Its gridlines sit at the highest and lowest
  * days, and its labels are those days', today's and the last day's own
- * balances: no value on it is one Salli didn't send.
+ * balances: no value on it is one Salli didn't send. At large text only the
+ * lowest and highest are labelled, and the axis has only its first and last
+ * days. VoiceOver reads it as one image, with its figures said.
  */
 function Chart({ data, width, height }: { data: CashForecast; width: number; height: number }) {
   const theme = useTheme();
+  const large = useLargeText();
   const code = data.currency;
   const money = (amount: string): string => formatAmount(amount, code, { display: 'none' });
   const chart = stepChart(data.daily, { date: data.lowest_date, balance: data.lowest }, width, height, 10);
@@ -127,7 +130,7 @@ function Chart({ data, width, height }: { data: CashForecast; width: number; hei
   const seen = new Set<number>();
   const labels = placeLabels(
     wanted.flatMap((w) => {
-      if (!w.point || seen.has(w.index)) return [];
+      if (!w.point || seen.has(w.index) || (large && (w.key === 'end' || w.key === 'start'))) return [];
       seen.add(w.index);
       return [{ key: w.key, x: w.point.x, y: w.point.y, text: w.text, ...(w.below ? { below: true } : {}) }];
     }),
@@ -139,7 +142,8 @@ function Chart({ data, width, height }: { data: CashForecast; width: number; hei
 
   return (
     <View style={{ gap: 6 }}>
-      <Svg width={width} height={height} accessibilityLabel={t.chartLabel(money(data.today), money(data.lowest), displayDate(data.lowest_date), money(data.end_balance))}>
+      <View accessible accessibilityRole="image" accessibilityLabel={t.chartLabel(money(data.today), money(data.lowest), displayDate(data.lowest_date), money(data.end_balance))}>
+      <Svg width={width} height={height}>
         {high && chart.highIndex !== chart.lowIndex ? <Line x1={0} x2={width} y1={high.y} y2={high.y} stroke={theme.rule} strokeWidth={1} /> : null}
         <Line x1={0} x2={width} y1={chart.low.y} y2={chart.low.y} stroke={theme.rule} strokeWidth={1} />
         {chart.zero !== undefined ? <Line x1={0} x2={width} y1={chart.zero} y2={chart.zero} stroke={theme.text} strokeWidth={1} /> : null}
@@ -152,9 +156,10 @@ function Chart({ data, width, height }: { data: CashForecast; width: number; hei
           </SvgText>
         ))}
       </Svg>
-      <View style={styles.axis}>
+      </View>
+      <View style={styles.axis} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <Text style={[styles.axisText, { color: theme.muted }]}>{displayDay(data.start)}</Text>
-        {mid ? <Text style={[styles.axisText, { color: theme.muted }]}>{displayDay(mid.date)}</Text> : null}
+        {mid && !large ? <Text style={[styles.axisText, { color: theme.muted }]}>{displayDay(mid.date)}</Text> : null}
         <Text style={[styles.axisText, { color: theme.muted }]}>{displayDay(data.end)}</Text>
       </View>
     </View>
@@ -167,7 +172,7 @@ function DayByDay({ data, visible, onClose }: { data: CashForecast; visible: boo
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: theme.chrome }}>
+      <View style={{ flex: 1, backgroundColor: theme.chrome }} onAccessibilityEscape={onClose}>
         <View style={[styles.header, { borderBottomColor: theme.rule }]}>
           <View style={styles.headerButton} />
           <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.text }]}>

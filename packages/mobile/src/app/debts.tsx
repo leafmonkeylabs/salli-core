@@ -76,7 +76,7 @@ export default function Debts() {
                 return debt.account_id ? (
                   <Pressable
                     key={debt.debt_id}
-                    accessibilityRole="link"
+                    accessibilityRole="button"
                     onPress={() =>
                       router.push({
                         pathname: '/account/[id]',

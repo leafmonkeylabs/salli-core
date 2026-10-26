@@ -15,9 +15,10 @@ import { useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../api';
-import { Body, Button, Card, CardHead, Icon, LinesTable } from '../kit';
-import { DateSheet } from '../datesheet';
-import { Picker } from '../picker';
+import { Body, Button, Card, CardHead, Icon, LinesTable, useDoneBar } from '../kit';
+import { DayChooser } from '../datesheet';
+import { useKeepDraft } from '../draft';
+import { AccountList } from '../picker';
 import { displayDate, todayIso } from '../lib/display';
 import { recentOf } from '../lib/entries';
 import { strings } from '../strings';
@@ -25,6 +26,8 @@ import { font, size, useTheme } from '../theme';
 
 const t = strings.add;
 type Side = 'debit' | 'credit';
+/** What Add shows: its form, or pushed inside it an account or the day to choose (one sheet on screen). */
+type Showing = 'form' | Side | 'date';
 
 export default function Add() {
   const theme = useTheme();
@@ -45,9 +48,10 @@ export default function Add() {
   const [drafted, setDrafted] = useState(false);
   // The hand-filled form: opened by the person, or by a server with no model.
   const [byHand, setByHand] = useState(false);
-  const [picking, setPicking] = useState<Side | undefined>(undefined);
+  const [showing, setShowing] = useState<Showing>('form');
   const [date, setDate] = useState(todayIso);
-  const [dating, setDating] = useState(false);
+  const done = useDoneBar();
+  const keep = useKeepDraft(said.trim() !== '' || drafted || description.trim() !== '' || amount.trim() !== '');
 
   const draft = useMutation({
     mutationFn: (text: string) => api.call(entriesParse, { body: { text } }),
@@ -83,6 +87,7 @@ export default function Add() {
       // The account the money moved in (what you own or owe), for its new balance on the entry.
       const held = (id: string | undefined) => accounts.data?.find((a) => a.id === id && (a.type === 'asset' || a.type === 'liability'));
       const money = held(credit) ?? held(debit);
+      keep.done();
       router.replace({ pathname: '/entry/[id]', params: { id: entry.id, booked: '1', ...(money ? { account: money.id } : {}) } });
     },
   });
@@ -91,21 +96,78 @@ export default function Add() {
   const ready = !!exact && !!debit && !!credit && debit !== credit && description.trim().length > 0;
   // 503: the server has no model to draft with; anything else is said as the server said it.
   const noModel = draft.error instanceof SalliApiError && draft.error.status === 503;
+  // What Book it still waits for, said above it rather than only drawn unavailable.
+  const missing = !description.trim()
+    ? t.missing.description
+    : !exact
+      ? amount.trim()
+        ? t.notAnAmount
+        : t.missing.amount
+      : !credit
+        ? t.missing.credit
+        : !debit
+          ? t.missing.debit
+          : debit === credit
+            ? t.missing.same
+            : undefined;
+  const pick = (side: Side) => setShowing(side);
+
+  if (showing !== 'form') {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.chrome }} onAccessibilityEscape={() => setShowing('form')}>
+        <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top, borderBottomColor: theme.rule }]}>
+          <Pressable accessibilityRole="button" onPress={() => setShowing('form')} style={[styles.headerButton, styles.back]}>
+            <Icon name="back" colour={theme.text} />
+            <Body max={1.5}>{t.back}</Body>
+          </Pressable>
+          <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={[styles.headerTitle, { color: theme.text }]}>
+            {showing === 'date' ? t.date : showing === 'debit' ? t.pickDebit : t.pickCredit}
+          </Text>
+          <View style={styles.headerButton} />
+        </View>
+        <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24, gap: 12 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
+          {showing === 'date' ? (
+            <DayChooser
+              value={date}
+              onPick={(day) => {
+                setDate(day);
+                setShowing('form');
+              }}
+            />
+          ) : (
+            <AccountList
+              accounts={accounts.data ?? []}
+              // Into: where money went (spending, mostly); out of: what it came from.
+              likely={showing === 'debit' ? ['expense', 'asset'] : ['asset', 'liability']}
+              except={showing === 'debit' ? (credit ?? null) : (debit ?? null)}
+              chosen={showing === 'debit' ? debit : credit}
+              {...(trial.data ? { balances: { currency: trial.data.currency, of: trial.data.balances } } : {})}
+              onPick={(id) => {
+                if (showing === 'debit') setDebit(id);
+                else setCredit(id);
+                setShowing('form');
+              }}
+            />
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.chrome }}>
+    <View style={{ flex: 1, backgroundColor: theme.chrome }} onAccessibilityEscape={() => router.back()}>
       {/* A sheet on iOS sits below the status bar; full screen elsewhere, it needs the inset. */}
       <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top, borderBottomColor: theme.rule }]}>
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <Body>{t.cancel}</Body>
+          <Body max={1.5}>{t.cancel}</Body>
         </Pressable>
-        <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.text }]}>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={[styles.headerTitle, { color: theme.text }]}>
           {t.title}
         </Text>
         <View style={styles.headerButton} />
       </View>
 
-      <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
         <View style={{ gap: 10 }}>
           <TextInput
             accessibilityLabel={t.say}
@@ -145,16 +207,20 @@ export default function Add() {
 
         {byHand ? (
           <Card style={{ gap: 14, backgroundColor: theme.input }}>
-            <DraftHead date={date} onPress={() => setDating(true)} />
+            <DraftHead date={date} onPress={() => setShowing('date')} />
             <Field label={t.description}>
               <TextInput
+                {...done.field('description')}
+                accessibilityLabel={t.description}
                 value={description}
                 onChangeText={setDescription}
                 style={[styles.input, { backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
               />
             </Field>
-            <Field label={t.amount} {...(amount && !exact ? { help: t.notAnAmount } : {})}>
+            <Field label={t.amountIn(currency)} {...(amount && !exact ? { help: t.notAnAmount } : {})}>
               <TextInput
+                {...done.field('amount')}
+                accessibilityLabel={t.amountIn(currency)}
                 value={amount}
                 placeholder={t.amountPlaceholder(currency)}
                 placeholderTextColor={theme.muted}
@@ -164,8 +230,8 @@ export default function Add() {
                 style={[styles.input, styles.amountInput, { backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
               />
             </Field>
-            <AccountField label={t.debit} value={name(debit)} onPress={() => setPicking('debit')} />
-            <AccountField label={t.credit} value={name(credit)} onPress={() => setPicking('credit')} />
+            <AccountField label={t.credit} value={name(credit)} unset={!credit} onPress={() => pick('credit')} />
+            <AccountField label={t.debit} value={name(debit)} unset={!debit} onPress={() => pick('debit')} />
             {ready ? (
               <Body small muted>
                 {t.plain(formatAmount(exact, currency), name(credit), name(debit))}
@@ -175,7 +241,7 @@ export default function Add() {
         ) : drafted ? (
           // The design's draft: the entry as it would be booked, each account changeable in place.
           <Card style={{ gap: 8, backgroundColor: theme.input }}>
-            <DraftHead date={date} onPress={() => setDating(true)} />
+            <DraftHead date={date} onPress={() => setShowing('date')} />
             <Text
               accessibilityLabel={exact && debit && credit ? `${description}. ${t.plain(formatAmount(exact, currency), name(credit), name(debit))} ${t.byModel}` : description}
               style={[styles.draftTitle, { color: theme.text }]}
@@ -187,8 +253,8 @@ export default function Add() {
                 currency={currency}
                 changeLabel={t.changeAccount}
                 lines={[
-                  { key: 'debit', account: name(debit), side: 'debit', amount: exact ?? amount, currency, onChange: () => setPicking('debit') },
-                  { key: 'credit', account: name(credit), side: 'credit', amount: exact ?? amount, currency, onChange: () => setPicking('credit') },
+                  { key: 'debit', account: name(debit), side: 'debit', amount: exact ?? amount, currency, onChange: () => pick('debit') },
+                  { key: 'credit', account: name(credit), side: 'credit', amount: exact ?? amount, currency, onChange: () => pick('credit') },
                 ]}
               />
             </View>
@@ -197,7 +263,15 @@ export default function Add() {
 
         {book.error ? <Body alert>{book.error.message}</Body> : null}
         {byHand || drafted ? (
-          <Button label={book.isPending ? t.booking : t.book} busy={book.isPending} disabled={!ready || book.isPending} onPress={() => book.mutate()} />
+          <View style={{ gap: 10 }}>
+            {missing && !book.isPending ? (
+              <View style={styles.missing}>
+                <Icon name="info" size={20} colour={theme.muted} />
+                <Body style={{ flex: 1 }}>{missing}</Body>
+              </View>
+            ) : null}
+            <Button label={book.isPending ? t.booking : t.book} busy={book.isPending} disabled={!ready || book.isPending} {...(missing ? { accessibilityHint: missing } : {})} onPress={() => book.mutate()} />
+          </View>
         ) : null}
         {byHand && drafted ? (
           <Button kind="tertiary" label={t.useDraft} onPress={() => setByHand(false)} />
@@ -206,31 +280,7 @@ export default function Add() {
         ) : null}
       </ScrollView>
 
-      <DateSheet
-        key={dating ? 'open' : 'closed'}
-        visible={dating}
-        value={date}
-        onClose={() => setDating(false)}
-        onPick={(day) => {
-          setDate(day);
-          setDating(false);
-        }}
-      />
-      <Picker
-        title={picking === 'debit' ? t.pickDebit : picking === 'credit' ? t.pickCredit : undefined}
-        {...(description.trim() ? { subtitle: exact ? `${description.trim()} · ${formatAmount(exact, currency)}` : description.trim() } : {})}
-        accounts={accounts.data ?? []}
-        // Into: where money went (spending, mostly); out of: what it came from.
-        likely={picking === 'debit' ? ['expense', 'asset'] : ['asset', 'liability']}
-        except={picking === 'debit' ? (credit ?? null) : (debit ?? null)}
-        chosen={picking === 'debit' ? debit : credit}
-        onClose={() => setPicking(undefined)}
-        onPick={(id) => {
-          if (picking === 'debit') setDebit(id);
-          else setCredit(id);
-          setPicking(undefined);
-        }}
-      />
+      {done.bar}
     </View>
   );
 }
@@ -265,7 +315,7 @@ function Field({ label, help, children }: { label: string; help?: string; childr
   );
 }
 
-function AccountField({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
+function AccountField({ label, value, unset, onPress }: { label: string; value: string; unset: boolean; onPress: () => void }) {
   const theme = useTheme();
   return (
     <Field label={label}>
@@ -275,8 +325,10 @@ function AccountField({ label, value, onPress }: { label: string; value: string;
         onPress={onPress}
         style={[styles.input, styles.choose, { backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder }]}
       >
-        <Body>{value}</Body>
-        <Icon name="down" size={16} colour={theme.muted} />
+        <Body muted={unset} style={{ flex: 1 }}>
+          {value}
+        </Body>
+        <Icon name="chevron" size={16} colour={theme.muted} />
       </Pressable>
     </Field>
   );
@@ -285,11 +337,13 @@ function AccountField({ label, value, onPress }: { label: string; value: string;
 const styles = StyleSheet.create({
   say: { minHeight: 52, fontSize: 17 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, minHeight: 40, justifyContent: 'center', maxWidth: '100%' },
+  chip: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center', maxWidth: '100%' },
   chipText: { fontFamily: font.regular, fontSize: size.small },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
   headerButton: { minHeight: size.target, minWidth: 72, justifyContent: 'center', paddingHorizontal: 8 },
-  headerTitle: { fontFamily: font.medium, fontSize: 17 },
+  headerTitle: { flex: 1, textAlign: 'center', fontFamily: font.medium, fontSize: 17 },
+  back: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 0 },
+  missing: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   page: { padding: size.gutter, gap: 16 },
   label: { fontFamily: font.medium, fontSize: size.small },
   input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },

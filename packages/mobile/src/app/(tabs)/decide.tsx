@@ -1,11 +1,12 @@
-import { decisionsReview, decisionsReviewsDue, type DueReview } from '@leafmonkeylabs/salli-sdk';
+import { decisionsReview, decisionsReviewsDue, decisionsTemplatesList, type DueReview } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, CardHead, Money, Waiting } from '../../kit';
+import { Body, Button, Card, CardHead, Money, Row, Waiting } from '../../kit';
 import { shares } from '../../lib/chart';
 import { amountParts, displayDate, displayDay } from '../../lib/display';
+import { useSession } from '../../session';
 import { Page } from '../../shell';
 import { Sheet, SheetTitle } from '../../sheet';
 import { strings } from '../../strings';
@@ -20,7 +21,7 @@ export default function Decide() {
   const [recorded, setRecorded] = useState<readonly DueReview[]>([]);
   const shown = due.data ? [...due.data.reviews.filter((r) => !recorded.some((d) => d.id === r.id)), ...recorded] : [];
   return (
-    <Page underAI title={t.title} onRefresh={() => due.refetch()}>
+    <Page ai="decide" title={t.title} onRefresh={() => due.refetch()}>
       {due.data ? (
         shown.length ? (
           shown.map((review) => (
@@ -32,14 +33,45 @@ export default function Decide() {
             />
           ))
         ) : (
-          <Card>
-            <Body muted>{t.noneDue}</Body>
-          </Card>
+          <>
+            <Card>
+              <Body muted>{t.noneDue}</Body>
+            </Card>
+            <Start />
+          </>
         )
       ) : (
         <Waiting query={due} what="decisions" />
       )}
     </Page>
+  );
+}
+
+/**
+ * Nothing due (design DecideEmpty): the server's decision templates, A to Z
+ * and never ranked, each opening its page in the console, where a decision
+ * is started.
+ */
+function Start() {
+  const templates = useRead('decisions.templates', decisionsTemplatesList);
+  const { session } = useSession();
+  const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
+  const shown = [...(templates.data?.templates ?? [])].sort((a, b) => a.title.localeCompare(b.title));
+  if (!shown.length) return null;
+  return (
+    <Card style={{ paddingBottom: 4 }}>
+      <CardHead label={t.start} help={t.startHelp} />
+      {shown.map((template, i) => (
+        <Row
+          key={template.id}
+          title={template.title}
+          detail={template.summary}
+          hint={t.inConsole}
+          {...(consoleUrl ? { onPress: () => void Linking.openURL(`${consoleUrl}/decide/templates/${template.id}`) } : {})}
+          last={i === shown.length - 1}
+        />
+      ))}
+    </Card>
   );
 }
 

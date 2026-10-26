@@ -18,7 +18,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Card, CardHead, Icon, LedgerRow, Money, Row, Waiting, offsetOf } from '../../kit';
+import { Body, Card, CardHead, Icon, LedgerRow, Money, Row, Waiting, offsetOf, useLargeText } from '../../kit';
 import { displayRange, monthNameOf, todayIso } from '../../lib/display';
 import { useSession } from '../../session';
 import { Page } from '../../shell';
@@ -36,11 +36,13 @@ export default function Books() {
   const statements = useRead('statements.list', statementsList, { query: { limit: 200 } });
   const waiting = (statements.data?.statements ?? []).filter((s) => s.status === 'pending');
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
+  // At large text the actions and places go one to a row (design LargeMore).
+  const large = useLargeText();
 
   return (
-    <Page underAI title={t.title} onRefresh={() => Promise.all([accounts.refetch(), sheet.refetch(), forecast.refetch(), statements.refetch()])}>
-      <View style={styles.actions}>
-        <Pressable accessibilityRole="button" accessibilityLabel={t.addLabel} onPress={() => router.push('/add')} style={[styles.action, { backgroundColor: theme.button, borderRadius: theme.control }, offsetOf(theme)]}>
+    <Page ai="books" title={t.title} onRefresh={() => Promise.all([accounts.refetch(), sheet.refetch(), forecast.refetch(), statements.refetch()])}>
+      <View style={[styles.actions, large ? styles.column : null]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t.addLabel} onPress={() => router.push('/add')} style={[styles.action, large ? styles.whole : null, { backgroundColor: theme.button, borderRadius: theme.control }, offsetOf(theme)]}>
           <Icon name="plus" size={18} colour={theme.buttonText} />
           <Text style={[styles.actionText, { color: theme.buttonText }]}>{t.add}</Text>
         </Pressable>
@@ -48,7 +50,7 @@ export default function Books() {
           accessibilityRole="button"
           accessibilityLabel={strings.imports.importFile}
           onPress={() => router.push('/import')}
-          style={[styles.action, { backgroundColor: theme.button2, borderColor: theme.button2Border, borderWidth: 1, borderRadius: theme.control }, offsetOf(theme)]}
+          style={[styles.action, large ? styles.whole : null, { backgroundColor: theme.button2, borderColor: theme.button2Border, borderWidth: 1, borderRadius: theme.control }, offsetOf(theme)]}
         >
           <Icon name="upload" size={18} colour={theme.button2Text} />
           <Text style={[styles.actionText, { color: theme.button2Text }]}>{t.importShort}</Text>
@@ -59,18 +61,18 @@ export default function Books() {
 
       <Spending />
 
-      <View style={[styles.places, { backgroundColor: theme.card, borderColor: theme.rule, borderRadius: theme.radius, overflow: 'hidden' }]}>
+      <View style={[styles.places, large ? styles.column : null, { backgroundColor: theme.card, borderColor: theme.rule, borderRadius: theme.radius, overflow: 'hidden' }]}>
         <Pressable
-          accessibilityRole="link"
+          accessibilityRole="button"
           onPress={() => router.push('/entries')}
-          style={[styles.place, consoleUrl ? { borderRightColor: theme.rule, borderRightWidth: StyleSheet.hairlineWidth } : null]}
+          style={[styles.place, large ? styles.whole : null, consoleUrl ? (large ? { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth } : { borderRightColor: theme.rule, borderRightWidth: StyleSheet.hairlineWidth }) : null]}
         >
           <Icon name="more" size={20} colour={theme.text} />
           <Body>{t.entries}</Body>
         </Pressable>
         {consoleUrl ? (
           // Rules are made and changed in the console: the link opens its page.
-          <Pressable accessibilityRole="link" accessibilityLabel={t.rulesLabel} onPress={() => void Linking.openURL(`${consoleUrl}/books/rules`)} style={styles.place}>
+          <Pressable accessibilityRole="link" accessibilityLabel={t.rulesLabel} onPress={() => void Linking.openURL(`${consoleUrl}/books/rules`)} style={[styles.place, large ? styles.whole : null]}>
             <Icon name="external" size={18} colour={theme.text} />
             <Body>{t.rules}</Body>
           </Pressable>
@@ -112,14 +114,14 @@ function Queue({ waiting, names }: { waiting: readonly BankStatement[]; names: R
   return (
     <View style={[{ backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: theme.cardBorderWidth < 1 ? StyleSheet.hairlineWidth : theme.cardBorderWidth, borderRadius: theme.radius }, offsetOf(theme)]}>
       <Pressable
-        accessibilityRole="link"
+        accessibilityRole="button"
         accessibilityLabel={count === undefined ? strings.imports.queue : t.queueSpoken(count, waiting.length)}
         {...(waiting.length > 1 ? { accessibilityState: { expanded: shown } } : {})}
         onPress={open}
         style={styles.queue}
       >
         <View style={[styles.badge, { backgroundColor: theme.text, borderRadius: Math.min(theme.control, 10) }]}>
-          <Text style={[styles.badgeText, { color: theme.card }]}>{count ?? '–'}</Text>
+          <Text maxFontSizeMultiplier={1.5} style={[styles.badgeText, { color: theme.card }]}>{count ?? '–'}</Text>
         </View>
         <Body style={{ flex: 1 }}>{t.queue(count ?? 0, waiting.length)}</Body>
         <Icon name={waiting.length > 1 && shown ? 'down' : 'chevron'} size={16} colour={theme.muted} />
@@ -144,6 +146,7 @@ function Queue({ waiting, names }: { waiting: readonly BankStatement[]; names: R
 /** Spending this month: one bar split by category, the largest four named with their amounts, the rest as Other. */
 function Spending() {
   const theme = useTheme();
+  const large = useLargeText();
   const spending = useRead('insights.spending', insightsSpending, { query: { months: 1, by: 'category' } });
   const lines = spending.data?.lines ?? [];
   if (!spending.data || !lines.length) return null;
@@ -166,10 +169,10 @@ function Spending() {
         {restShare ? <View style={{ flex: restShare, backgroundColor: theme.rule }} /> : null}
       </View>
       {shown.map((line, i) => (
-        <View key={line.key} style={styles.legend}>
+        <View key={line.key} style={[styles.legend, large ? styles.legendLarge : null]}>
           <View style={[styles.swatch, { backgroundColor: theme.chart, opacity: shades[i], borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
-          <Body style={{ flex: 1 }}>{line.key}</Body>
-          <Money amount={line.total} currency={spending.data.currency} />
+          <Body style={large ? { flexGrow: 1, flexShrink: 0 } : { flex: 1 }}>{line.key}</Body>
+          <Money amount={line.total} currency={spending.data.currency} style={large ? { flexGrow: 1, textAlign: 'right' } : undefined} />
         </View>
       ))}
       {rest.length ? (
@@ -245,11 +248,14 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8 },
   action: { flex: 1, minHeight: size.target, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
   actionText: { fontFamily: font.medium, fontSize: size.body },
+  column: { flexDirection: 'column' },
+  whole: { flexGrow: 0, flexBasis: 'auto', paddingVertical: 8 },
+  legendLarge: { flexWrap: 'wrap' },
   places: { flexDirection: 'row', borderWidth: StyleSheet.hairlineWidth },
   place: { flex: 1, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
   group: { fontFamily: font.medium, marginTop: 8 },
   queue: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, minHeight: 60 },
-  badge: { minWidth: 32, height: 32, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  badge: { minWidth: 32, minHeight: 32, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontFamily: font.semibold, fontSize: size.body, fontVariant: ['tabular-nums'] },
   stack: { flexDirection: 'row', height: 14, overflow: 'hidden' },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 32 },
