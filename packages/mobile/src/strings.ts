@@ -30,6 +30,10 @@ export const strings = {
     salli: 'Salli’s server',
     salliBody: 'We run it, back it up and keep it updated.',
     salliNote: 'By invitation during the pilot',
+    salliNoteOpen: 'Sign up, or use an invitation',
+    signingUp: 'Opening Salli’s sign-up…',
+    haveInvitation: 'Have an invitation?',
+    haveAccount: 'Already have an account? Sign in',
     own: 'Your own server',
     ownBody: 'Self-hosted, free. Type its address next.',
     hosting: 'Where Salli’s server is, and who can see what',
@@ -313,6 +317,16 @@ export const strings = {
   draft: { title: 'Discard this draft?', discard: 'Discard', keep: 'Keep editing' },
 
   sheet: { close: 'Close' },
+
+  /** Panels: pages the server describes. Its words are the server's; these are the app's only. */
+  panel: {
+    loading: 'Loading…',
+    cantShow: 'This page can’t be shown.',
+    empty: 'Nothing to show.',
+    tryAgain: 'Try again',
+    notNow: 'Not now',
+    opensBrowser: 'Opens in your browser',
+  },
 
   later: {
     body: 'This place comes next in the app. Until then it is in the console, on this server.',

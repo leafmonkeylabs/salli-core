@@ -106,3 +106,12 @@ function isMeta(value: unknown): value is Meta {
   const meta = value as Partial<Meta>;
   return typeof meta.api_version === 'string' && typeof meta.oauth === 'object' && meta.oauth !== null;
 }
+
+/**
+ * Salli's own server, as the app's build names it (`EXPO_PUBLIC_HOSTED_SERVER`):
+ * its address, or undefined when the build names none or names a bad one, in
+ * which case the first screen keeps to invitations.
+ */
+export function hostedServerOf(configured: string | undefined): string | undefined {
+  return configured ? serverUrlOf(configured) : undefined;
+}

@@ -10,6 +10,7 @@ import { AppearanceProvider } from '../appearance';
 import { ApiProvider } from '../api';
 import { Glance } from '../glance';
 import { Inbox } from '../inbox';
+import { Offer } from '../offer';
 import { PhoneProvider } from '../phone';
 import { SessionProvider, useSession } from '../session';
 import { useTheme } from '../theme';
@@ -77,6 +78,7 @@ function Navigator() {
           <Stack.Screen name="budget/[id]" options={{ presentation: 'modal' }} />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="filing" />
+          <Stack.Screen name="panel/[id]" />
           <Stack.Screen name="first-run" options={{ gestureEnabled: false }} />
         </Stack.Protected>
         {/* Signed out, the way in; signed in, the way to add another server. */}
@@ -87,6 +89,7 @@ function Navigator() {
       </Stack>
       <Glance />
       <Inbox />
+      {signedIn ? <Offer /> : null}
     </>
   );
 }

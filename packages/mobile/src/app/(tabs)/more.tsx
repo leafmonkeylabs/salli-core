@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { cardOf, Icon, Press, useLargeText, type IconName } from '../../kit';
+import { usePanelPlaces } from '../../panel';
 import { useYourAI } from '../../ai/store';
 import { useAppearance } from '../../appearance';
 import { providerOf } from '../../lib/ai';
@@ -25,6 +26,7 @@ export default function More() {
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
   const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
 
+  const places = [...usePanelPlaces('more'), ...usePanelPlaces('settings')];
   const large = useLargeText();
   const status = !ai.enabled ? strings.ai.off : (ai.model ?? strings.ai.notSet);
   return (
@@ -38,6 +40,10 @@ export default function More() {
         <Tile icon="independence" title={strings.fi.title} onPress={() => router.push('/fi')} />
         <Tile icon="attention" title={strings.attention.title} onPress={() => router.push('/attention')} />
         <Tile icon="message" title={strings.notifications.title} onPress={() => router.push('/notifications')} />
+        {/* Pages the server describes, titled by it. */}
+        {places.map((panel) => (
+          <Tile key={panel.id} icon="settings" title={panel.title} onPress={() => router.push({ pathname: '/panel/[id]', params: { id: panel.id } })} />
+        ))}
         {consoleUrl
           ? PLACES.map((place) => (
               <Tile

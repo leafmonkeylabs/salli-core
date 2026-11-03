@@ -5,12 +5,13 @@
  * live in the keychain (iOS) or the keystore (Android), one item a server,
  * never anywhere else; the index of servers beside them holds no secret.
  */
-import { authMe, createClient, oauth, profileGet, SalliApiError, type SalliClient } from '@leafmonkeylabs/salli-sdk';
+import { authMe, createClient, oauth, offerOf, profileGet, SalliApiError, type SalliClient } from '@leafmonkeylabs/salli-sdk';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { conversationsFile } from './ai/files';
+import { announceOffer } from './offer-store';
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from './lib/pkce';
 import { checkServer, type AppSignIn, type ServerCheck } from './lib/server';
 import { forgotten, labelOf, listOf, named, remembered, storeKeyOf, withoutServer, withServer, type ServerIndex } from './lib/servers';
@@ -66,7 +67,7 @@ export type Session =
 interface SessionApi {
   session: Session;
   /** Signs in to a server and puts it on screen; the others stay signed in. */
-  signIn(server: string, signIn: AppSignIn, consoleUrl: string | null): Promise<SignInResult>;
+  signIn(server: string, signIn: AppSignIn, consoleUrl: string | null, entry?: 'signup'): Promise<SignInResult>;
   /** Puts another signed-in server on screen. */
   switchTo(server: string): Promise<void>;
   /** Signs out of the server on screen, on the server too; the next one left comes on screen. */
@@ -143,7 +144,12 @@ function clientFor(stored: Stored, onTokens: (tokens: oauth.StoredTokens) => voi
   });
   // A phone away from its server should say so in seconds, not half a minute:
   // a read gives up after READ_TIMEOUT_MS (an upload sets its own).
-  return createClient({ server: stored.server, auth: tokens, userAgent: USER_AGENT, timeoutMs: READ_TIMEOUT_MS });
+  // Any call a server refuses with an offer shows it, once, whichever screen made the call.
+  const onApiError = (error: SalliApiError) => {
+    const offer = offerOf(error.body);
+    if (offer) announceOffer(stored.server, offer);
+  };
+  return createClient({ server: stored.server, auth: tokens, userAgent: USER_AGENT, timeoutMs: READ_TIMEOUT_MS, onApiError });
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -216,14 +222,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [show]);
 
   const signIn = useCallback(
-    async (server: string, signIn: AppSignIn, consoleUrl: string | null): Promise<SignInResult> => {
+    async (server: string, signIn: AppSignIn, consoleUrl: string | null, entry?: 'signup'): Promise<SignInResult> => {
       const verifier = tokenOf(Crypto.getRandomBytes(32));
       const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, {
         encoding: Crypto.CryptoEncoding.BASE64,
       });
       const state = tokenOf(Crypto.getRandomBytes(16));
       const url = authorizationUrlOf({
-        authorizationEndpoint: signIn.authorizationEndpoint,
+        // Sign-up is the server's own page, which carries the same request through and back to the callback.
+        authorizationEndpoint: entry === 'signup' ? `${server}/signup` : signIn.authorizationEndpoint,
         clientId: signIn.clientId,
         redirectUri: signIn.redirectUri,
         challenge: base64UrlOf(digest),
