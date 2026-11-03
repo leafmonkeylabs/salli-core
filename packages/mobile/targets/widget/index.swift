@@ -125,7 +125,7 @@ struct WaitingView: View {
             .padding(.bottom, 8)
           if let glance, !entry.old {
             ForEach(lines, id: \.self) { line in
-              Rectangle().fill(look.rule).frame(height: 1)
+              Capsule().fill(look.rule).frame(height: 1)
               Text(line)
                 .font(.custom("Geist-Regular", size: 14, relativeTo: .subheadline))
                 .foregroundStyle(look.ink)
@@ -141,7 +141,7 @@ struct WaitingView: View {
           Spacer(minLength: 0)
           if let glance {
             Text(glance.host)
-              .font(.custom("GeistMono-Regular", size: 11, relativeTo: .caption2))
+              .font(.custom("GeistMono-Regular", size: 12, relativeTo: .caption))
               .foregroundStyle(look.muted)
               .lineLimit(1)
               .truncationMode(.middle)
@@ -154,7 +154,7 @@ struct WaitingView: View {
   }
 }
 
-/** The brand's mark: the logo's four bars (docs/brand/assets), in ledger green. */
+/** The brand's mark: the logo's four bars (docs/brand/assets), their ends round, in green. */
 struct Mark: View {
   var colour: Color = Color("mark")
   var body: some View {
@@ -165,7 +165,7 @@ struct Mark: View {
       let sy = box.size.height / 80.4
       ZStack(alignment: .topLeading) {
         ForEach(0..<bars.count, id: \.self) { i in
-          Rectangle()
+          Capsule()
             .fill(colour)
             .frame(width: bars[i].2 * sx, height: 28.71 * sy)
             .offset(x: bars[i].0 * sx, y: bars[i].1 * sy)

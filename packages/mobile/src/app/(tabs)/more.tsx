@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
-import { Linking, StyleSheet, Text, View } from 'react-native';
-import { cardOf, Icon, Press, useLargeText, type IconName } from '../../kit';
+import { Linking } from 'react-native';
+import type { ReactNode } from 'react';
+import { Icon, Row, Section, Surface, type IconName } from '../../kit';
 import { usePanelPlaces } from '../../panel';
 import { useYourAI } from '../../ai/store';
 import { useAppearance } from '../../appearance';
@@ -8,7 +9,7 @@ import { providerOf } from '../../lib/ai';
 import { useSession, labelIn } from '../../session';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
-import { font, size, useTheme } from '../../theme';
+import { size, useTheme } from '../../theme';
 
 const t = strings.more;
 
@@ -27,78 +28,77 @@ export default function More() {
   const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
 
   const places = [...usePanelPlaces('more'), ...usePanelPlaces('settings')];
-  const large = useLargeText();
   const status = !ai.enabled ? strings.ai.off : (ai.model ?? strings.ai.notSet);
   return (
     <Page title={t.title}>
-      {/* Remounted when the text size crosses into large, so each tile takes its new width. */}
-      <View key={large ? 'large' : 'regular'} style={styles.grid}>
-        <Tile icon="spark" title={strings.ai.title} status={status} hint={ai.model ? `${ai.model} · ${providerOf(ai.provider)?.name ?? ''}` : undefined} onPress={() => router.push('/ai')} />
-        <Tile icon="message" title={t.automationsPlace} hint={t.automationsBody} onPress={() => router.push('/automations')} />
-        <Tile icon="appearance" title={strings.appearance.title} status={strings.appearance.names[appearance.theme]} onPress={() => router.push('/appearance')} />
-        <Tile icon="server" title={t.serversShort} status={host} hint={t.serversBody(host)} onPress={() => router.push('/sign-ins')} />
-        <Tile icon="independence" title={strings.fi.title} onPress={() => router.push('/fi')} />
-        <Tile icon="attention" title={strings.attention.title} onPress={() => router.push('/attention')} />
-        <Tile icon="message" title={strings.notifications.title} onPress={() => router.push('/notifications')} />
-        {/* Pages the server describes, titled by it. */}
-        {places.map((panel) => (
-          <Tile key={panel.id} icon="settings" title={panel.title} onPress={() => router.push({ pathname: '/panel/[id]', params: { id: panel.id } })} />
-        ))}
-        {consoleUrl
-          ? PLACES.map((place) => (
-              <Tile
+      <Group>
+        <Item icon="spark" title={strings.ai.title} detail={status} hint={ai.model ? `${ai.model} · ${providerOf(ai.provider)?.name ?? ''}` : undefined} onPress={() => router.push('/ai')} />
+        <Item icon="message" title={t.automationsPlace} detail={t.automationsBody} onPress={() => router.push('/automations')} />
+        <Item icon="appearance" title={strings.appearance.title} detail={strings.appearance.names[appearance.theme]} onPress={() => router.push('/appearance')} />
+        <Item icon="attention" title={strings.notifications.title} onPress={() => router.push('/notifications')} last />
+      </Group>
+
+      <Section title={t.groups.books}>
+        <Group>
+          <Item icon="independence" title={strings.fi.title} onPress={() => router.push('/fi')} />
+          <Item icon="attention" title={strings.attention.title} onPress={() => router.push('/attention')} last={!places.length} />
+          {/* Pages the server describes, titled by it. */}
+          {places.map((panel, i) => (
+            <Item key={panel.id} icon="settings" title={panel.title} onPress={() => router.push({ pathname: '/panel/[id]', params: { id: panel.id } })} last={i === places.length - 1} />
+          ))}
+        </Group>
+      </Section>
+
+      <Section title={t.groups.server}>
+        <Group>
+          <Item icon="server" title={t.serversPlace} detail={host} hint={t.serversBody(host)} onPress={() => router.push('/sign-ins')} last />
+        </Group>
+      </Section>
+
+      {consoleUrl ? (
+        <Section title={t.groups.console}>
+          <Group>
+            {PLACES.map((place, i) => (
+              <Item
                 key={place.key}
                 icon={place.icon}
                 title={t.places[place.key].title}
-                label={t.inConsole(t.places[place.key].title)}
-                hint={t.places[place.key].body}
+                detail={t.places[place.key].body}
+                hint={t.inConsole(t.places[place.key].title)}
                 external
                 onPress={() => void Linking.openURL(`${consoleUrl}${place.path}`)}
+                last={i === PLACES.length - 1}
               />
-            ))
-          : null}
-      </View>
+            ))}
+          </Group>
+        </Section>
+      ) : null}
     </Page>
   );
 }
 
-/** A place as a tile: its icon, its title, and a word on how it stands; one in the console says so with ↗. */
-function Tile({ icon, title, status, label, hint, external, onPress }: { icon: IconName; title: string; status?: string; label?: string; hint?: string; external?: boolean; onPress: () => void }) {
-  const theme = useTheme();
-  // At large text, one tile to a row, its title on two lines at most and its status whole (design LargeMore).
-  const large = useLargeText();
+/** A grouped list: one surface, its rows set in from the edges, a line between them. */
+function Group({ children }: { children: ReactNode }) {
   return (
-    <Press
-      accessibilityRole={external ? 'link' : 'button'}
-      accessibilityLabel={[label ?? title, status].filter(Boolean).join(', ')}
-      {...(hint ? { accessibilityHint: hint } : {})}
-      onPress={onPress}
-      style={[styles.tile, large ? styles.tileLarge : null, cardOf(theme)]}
-    >
-      <View style={styles.tileTop}>
-        <Icon name={icon} size={24} colour={theme.text} />
-        {external ? <Icon name="external" size={14} colour={theme.muted} /> : null}
-      </View>
-      <View style={{ gap: 2 }}>
-        {/* Twice its size at most, so a place's one-word name never breaks inside (design LargeMore). */}
-        <Text maxFontSizeMultiplier={2} style={[styles.tileTitle, { color: theme.text }]} numberOfLines={large ? 2 : 1}>
-          {title}
-        </Text>
-        {status ? (
-          <Text maxFontSizeMultiplier={2} style={[styles.tileStatus, { color: theme.muted }]} numberOfLines={large ? undefined : 1}>
-            {status}
-          </Text>
-        ) : null}
-      </View>
-    </Press>
+    <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
+      {children}
+    </Surface>
   );
 }
 
-const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tile: { flexBasis: '48%', flexGrow: 1, minHeight: 104, padding: 14, justifyContent: 'space-between', gap: 14 },
-  tileLarge: { flexBasis: '100%', minHeight: 0, padding: 16, gap: 6 },
-  tileTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  tileTitle: { fontFamily: font.medium, fontSize: size.body },
-  tileStatus: { fontFamily: font.regular, fontSize: 13 },
-});
+/** A place as a row: an icon on a tile, its title, a word on how it stands; one in the console says so with an arrow. */
+function Item({ icon, title, detail, hint, external, last, onPress }: { icon: IconName; title: string; detail?: string; hint?: string; external?: boolean; last?: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <Row
+      icon={icon}
+      title={title}
+      {...(detail ? { detail } : {})}
+      {...(hint ? { hint } : {})}
+      {...(external ? { action: <Icon name="external" size={16} colour={theme.muted} /> } : {})}
+      {...(last ? { last } : {})}
+      onPress={onPress}
+    />
+  );
+}
+

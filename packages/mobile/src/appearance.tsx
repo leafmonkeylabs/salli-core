@@ -1,10 +1,9 @@
 /**
  * Appearance (designs 23 to 25): the theme this phone draws Salli in, kept
- * on the phone. Its colours, corners and icons change at once; its type is
+ * on the phone. Its colours and icons change at once; its type is
  * the one the app opened with (theme.ts, `openedWith`). The app icon follows
  * where the phone allows it.
  */
-import { BricolageGrotesque_400Regular, BricolageGrotesque_600SemiBold, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
 import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold } from '@expo-google-fonts/geist';
 import { GeistMono_400Regular } from '@expo-google-fonts/geist-mono';
 import { PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_700Bold } from '@expo-google-fonts/plus-jakarta-sans';
@@ -20,7 +19,6 @@ import { AppearanceContext, font, openedWith } from './theme';
 const FILES = {
   geist: [Geist_400Regular, Geist_500Medium, Geist_600SemiBold],
   bold: [SpaceGrotesk_400Regular, SpaceGrotesk_500Medium, SpaceGrotesk_700Bold],
-  sticker: [BricolageGrotesque_400Regular, BricolageGrotesque_600SemiBold, BricolageGrotesque_800ExtraBold],
   aurora: [PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_700Bold],
 } as const;
 

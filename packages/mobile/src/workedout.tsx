@@ -6,8 +6,8 @@
  * the app adds and takes away nothing.
  */
 import { isZeroAmount, type SafeToSpend } from '@leafmonkeylabs/salli-sdk';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Money } from './kit';
+import { StyleSheet, Text, View } from 'react-native';
+import { Button, Money, radii, shape } from './kit';
 import { amountParts, displayDay } from './lib/display';
 import { Sheet, SheetTitle } from './sheet';
 import { strings } from './strings';
@@ -26,9 +26,7 @@ export function WorkedOut({ safe, visible, onClose }: { safe: SafeToSpend; visib
         <SheetTitle style={[styles.title, { color: theme.text }]}>
           {t.title}
         </SheetTitle>
-        <Pressable accessibilityRole="button" onPress={onClose} style={styles.done}>
-          <Text style={[styles.doneText, { color: theme.text }]}>{t.done}</Text>
-        </Pressable>
+        <Button small kind="secondary" label={t.done} onPress={onClose} />
       </View>
       <Text style={[styles.note, { color: theme.muted }]}>{safe.next_income ? t.window(safe.next_income.description, displayDay(safe.until)) : t.window30}</Text>
       <Text
@@ -37,7 +35,7 @@ export function WorkedOut({ safe, visible, onClose }: { safe: SafeToSpend; visib
       >
         {t.path(shown(cash), shown(everyday), displayDay(safe.low_point_date))}
       </Text>
-      <View>
+      <View style={{ marginTop: 4 }}>
         <Part label={t.lowestRow(displayDay(safe.low_point_date))} amount={safe.low_point} currency={currency} />
         <Part label={t.cushion} amount={safe.cushion} currency={currency} less />
         {isZeroAmount(safe.held_for_goals) ? null : <Part label={t.goals} amount={safe.held_for_goals} currency={currency} less />}
@@ -68,7 +66,7 @@ function Part({ label, amount, currency, less, total }: { label: string; amount:
     <View
       accessible
       accessibilityLabel={less ? t.less(label, spoken) : `${label}: ${spoken}`}
-      style={[styles.part, { borderTopColor: total ? theme.text : theme.rule, borderTopWidth: total ? 1 : StyleSheet.hairlineWidth }]}
+      style={[styles.part, total ? [shape(radii.tile), styles.total, { backgroundColor: theme.fill }] : { borderTopColor: theme.line, borderTopWidth: StyleSheet.hairlineWidth }]}
     >
       <Text style={[styles.label, { color: theme.text }, weight]}>{label}</Text>
       <View style={styles.amount}>
@@ -80,11 +78,10 @@ function Part({ label, amount, currency, less, total }: { label: string; amount:
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { fontFamily: font.medium, fontSize: 20 },
-  done: { minHeight: size.target, minWidth: size.target, justifyContent: 'center', alignItems: 'flex-end' },
-  doneText: { fontFamily: font.medium, fontSize: size.body },
-  note: { fontFamily: font.regular, fontSize: 15 },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  title: { fontFamily: font.semibold, fontSize: size.title, flexShrink: 1 },
+  note: { fontFamily: font.regular, fontSize: size.small, lineHeight: size.small * 1.5 },
+  total: { paddingHorizontal: 12, marginTop: 8 },
   part: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, minHeight: 48, paddingVertical: 12 },
   label: { flexShrink: 1, fontFamily: font.regular, fontSize: size.body },
   amount: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },

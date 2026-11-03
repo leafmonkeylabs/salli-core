@@ -1,9 +1,9 @@
 import { authSignInsList } from '@leafmonkeylabs/salli-sdk';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRead } from '../api';
-import { Body, Button, Card, CardHead, Icon, Toggle } from '../kit';
+import { Body, Button, Field, Icon, Press, Section, Surface, Toggle, radii, shape } from '../kit';
 import { displayDateTime } from '../lib/display';
 import { labelOf } from '../lib/servers';
 import { usePhone } from '../phone';
@@ -11,7 +11,7 @@ import { labelIn, useSession, type Known } from '../session';
 import { Sheet, SheetTitle } from '../sheet';
 import { Page } from '../shell';
 import { strings } from '../strings';
-import { font, size, useTheme } from '../theme';
+import { font, size, space, useTheme } from '../theme';
 
 const t = strings.servers;
 const p = strings.phone;
@@ -37,61 +37,67 @@ export default function SignIns() {
 
   return (
     <Page title={t.page} back={{ label: t.back, onPress: () => (router.canGoBack() ? router.back() : router.replace('/more')) }}>
-      <Card style={{ paddingVertical: 12 }}>
-        <CardHead label={t.yours} />
-        <View accessibilityRole="radiogroup">
-          {session.known.map((known) => (
-            <ServerRow
-              key={known.server}
-              known={known}
-              onScreen={known.server === session.server}
-              onSwitch={() => void switchTo(known.server)}
-              onSignIn={() => router.push({ pathname: '/connect', params: { server: known.server } })}
-              onForget={() => void forgetServer(known.server)}
+      <Section title={t.yours}>
+        <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
+          <View accessibilityRole="radiogroup">
+            {session.known.map((known, i) => (
+              <ServerRow
+                key={known.server}
+                known={known}
+                last={i === session.known.length - 1}
+                onScreen={known.server === session.server}
+                onSwitch={() => void switchTo(known.server)}
+                onSignIn={() => router.push({ pathname: '/connect', params: { server: known.server } })}
+                onForget={() => void forgetServer(known.server)}
+              />
+            ))}
+          </View>
+        </Surface>
+        <Press accessibilityRole="button" onPress={() => router.push('/welcome')} style={[styles.add, shape(radii.field), { backgroundColor: theme.fill }]}>
+          <Icon name="plus" size={20} colour={theme.green} />
+          <Text style={[styles.addText, { color: theme.green }]}>{t.add}</Text>
+        </Press>
+      </Section>
+
+      <View style={{ marginTop: space.s16 }}>
+        <Section title={p.title}>
+          <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
+            <Toggle label={p.lock(how)} help={phone.unlockWith ? p.lockHelpShort : p.noLock} value={phone.settings.lock} disabled={!phone.unlockWith} onChange={(on) => void phone.setLock(on)} />
+          </Surface>
+        </Section>
+      </View>
+
+      <View style={{ marginTop: space.s16 }}>
+        <Section title={t.signedInCard}>
+          <Surface style={{ gap: space.s12 }}>
+            <Press highlight accessibilityRole="button" accessibilityLabel={`${t.name}: ${name ?? t.noName}`} onPress={() => setNaming(true)} style={styles.nameRow}>
+              <Text style={[styles.nameLabel, { color: theme.muted }]}>{t.name}</Text>
+              <Text style={[styles.nameValue, { color: name ? theme.text : theme.muted }]} numberOfLines={1}>
+                {name ?? t.noName}
+              </Text>
+              <Icon name="chevron" size={16} colour={theme.muted} />
+            </Press>
+            {mine ? (
+              <Text accessibilityLabel={t.since(displayDateTime(new Date(mine.started_at)), mine.client_name ?? 'Salli app')} style={[styles.since, { color: theme.muted }]}>
+                {t.sinceShort(displayDateTime(new Date(mine.started_at)))}
+              </Text>
+            ) : null}
+            <Button
+              kind="secondary"
+              label={strings.more.signOut(host)}
+              busy={leaving === session.server}
+              disabled={leaving === session.server}
+              onPress={() => {
+                setLeaving(session.server);
+                void signOut();
+              }}
             />
-          ))}
-        </View>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/welcome')} style={styles.add}>
-          <Icon name="plus" size={20} colour={theme.chart} />
-          <Text style={[styles.addText, { color: theme.chart }]}>{t.add}</Text>
-        </Pressable>
-      </Card>
-
-      <Card style={{ paddingVertical: 4 }}>
-        <View style={{ paddingTop: 8 }}>
-          <CardHead label={p.title} />
-        </View>
-        <Toggle label={p.lock(how)} help={phone.unlockWith ? p.lockHelpShort : p.noLock} value={phone.settings.lock} disabled={!phone.unlockWith} onChange={(on) => void phone.setLock(on)} />
-      </Card>
-
-      <Card style={{ gap: 12 }}>
-        <CardHead label={t.signedInCard} />
-        <Pressable accessibilityRole="button" accessibilityLabel={`${t.name}: ${name ?? t.noName}`} onPress={() => setNaming(true)} style={styles.nameRow}>
-          <Text style={[styles.nameLabel, { color: theme.muted }]}>{t.name}</Text>
-          <Text style={[styles.nameValue, { color: name ? theme.text : theme.muted }]} numberOfLines={1}>
-            {name ?? t.noName}
-          </Text>
-          <Icon name="chevron" size={16} colour={theme.muted} />
-        </Pressable>
-        {mine ? (
-          <Text accessibilityLabel={t.since(displayDateTime(new Date(mine.started_at)), mine.client_name ?? 'Salli app')} style={[styles.since, { color: theme.muted }]}>
-            {t.sinceShort(displayDateTime(new Date(mine.started_at)))}
-          </Text>
-        ) : null}
-        <Button
-          kind="secondary"
-          label={strings.more.signOut(host)}
-          busy={leaving === session.server}
-          disabled={leaving === session.server}
-          onPress={() => {
-            setLeaving(session.server);
-            void signOut();
-          }}
-        />
-        <Body small muted>
-          {session.servers.length > 1 ? strings.more.signOutNoteOthers : strings.more.signOutNote}
-        </Body>
-      </Card>
+            <Body small muted>
+              {session.servers.length > 1 ? strings.more.signOutNoteOthers : strings.more.signOutNote}
+            </Body>
+          </Surface>
+        </Section>
+      </View>
       <NameSheet
         // Opened afresh each time, with the name as it is now.
         key={naming ? 'open' : 'closed'}
@@ -115,17 +121,15 @@ function NameSheet({ visible, address, name, onClose, onSave }: { visible: boole
         {t.nameTitle}
       </SheetTitle>
       <Text style={[styles.address, { color: theme.muted }]}>{address}</Text>
-      <TextInput
+      <Field
         value={typed}
         onChangeText={setTyped}
         onSubmitEditing={() => onSave(typed)}
         placeholder={t.namePlaceholder}
-        placeholderTextColor={theme.muted}
         accessibilityLabel={t.name}
         accessibilityHint={t.nameHelp}
         autoFocus
         returnKeyType="done"
-        style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
       />
       <Button label={t.save} onPress={() => onSave(typed)} />
       {name ? <Button kind="tertiary" label={t.useAddress} onPress={() => onSave('')} /> : null}
@@ -133,14 +137,15 @@ function NameSheet({ visible, address, name, onClose, onSave }: { visible: boole
   );
 }
 
-function ServerRow({ known, onScreen, onSwitch, onSignIn, onForget }: { known: Known; onScreen: boolean; onSwitch: () => void; onSignIn: () => void; onForget: () => void }) {
+function ServerRow({ known, onScreen, last, onSwitch, onSignIn, onForget }: { known: Known; onScreen: boolean; last?: boolean; onSwitch: () => void; onSignIn: () => void; onForget: () => void }) {
   const theme = useTheme();
   const host = labelOf(known.server, known.name);
   // Named, its address shows under the name: the one place it still does.
   const who = t.who([known.name ? hostOf(known.server) : '', known.email ?? '', known.currency ?? '', known.signedIn ? t.signedInNow : t.signedOut]);
   return (
-    <View style={[styles.server, { borderBottomColor: theme.rule }]}>
-      <Pressable
+    <View style={[styles.server, last ? null : { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth }]}>
+      <Press
+        highlight
         accessibilityRole="radio"
         accessibilityState={{ checked: onScreen, disabled: !known.signedIn }}
         accessibilityLabel={`${host}, ${who}`}
@@ -156,24 +161,24 @@ function ServerRow({ known, onScreen, onSwitch, onSignIn, onForget }: { known: K
             {who}
           </Body>
         </View>
-      </Pressable>
+      </Press>
       {onScreen ? (
         <View style={styles.thisOneRow}>
-          <Icon name="check" size={20} colour={theme.text} />
-          <Text style={[styles.thisOne, { color: theme.text }]}>{t.thisOne}</Text>
+          <Icon name="check" size={20} colour={theme.green} />
+          <Text style={[styles.thisOne, { color: theme.green }]}>{t.thisOne}</Text>
         </View>
       ) : !known.signedIn ? (
         <View style={{ alignItems: 'flex-end' }}>
-          <Button kind="secondary" label={t.signIn} accessibilityLabel={t.signInTo(host)} onPress={onSignIn} />
-          <Pressable
+          <Button kind="secondary" small label={t.signIn} accessibilityLabel={t.signInTo(host)} onPress={onSignIn} />
+          <Press
             accessibilityRole="button"
             accessibilityLabel={t.forget(host)}
             accessibilityHint={t.forgetHelp}
             onPress={onForget}
-            style={[styles.forget, { borderColor: theme.fieldBorder, backgroundColor: theme.chrome, borderRadius: theme.control }]}
+            style={[styles.forget, shape(radii.pill), { backgroundColor: theme.redTint }]}
           >
-            <Text style={[styles.forgetText, { color: theme.negative }]}>{t.forgetShort}</Text>
-          </Pressable>
+            <Text style={[styles.forgetText, { color: theme.red }]}>{t.forgetShort}</Text>
+          </Press>
         </View>
       ) : null}
     </View>
@@ -185,18 +190,16 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: size.target },
   nameLabel: { fontFamily: font.regular, fontSize: size.body },
   nameValue: { flex: 1, textAlign: 'right', fontFamily: font.regular, fontSize: size.body },
-  sheetTitle: { fontFamily: font.medium, fontSize: size.heading },
+  sheetTitle: { fontFamily: font.semibold, fontSize: size.title },
   address: { fontFamily: font.mono, fontSize: size.small },
-  input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
   since: { fontFamily: font.regular, fontSize: size.small },
-  server: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  server: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8 },
   serverMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
   host: { fontFamily: font.mono, fontSize: size.small },
   thisOne: { fontFamily: font.medium, fontSize: size.small },
-  forget: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 14, borderWidth: 1, marginTop: 6 },
+  forget: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 16, marginTop: 6 },
   forgetText: { fontFamily: font.medium, fontSize: size.small },
   thisOneRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  underline: { textDecorationLine: 'underline' },
-  add: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52 },
+  add: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: size.control },
   addText: { fontFamily: font.medium, fontSize: size.body },
 });

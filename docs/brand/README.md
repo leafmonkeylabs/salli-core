@@ -164,6 +164,8 @@ Never redraw it by eye. Use the files.
 
 ## Colour
 
+> The phone app has its own roles since November 2026 (ground, surface, fill, line, ink, muted, green, green tint, red, red tint, a side each for day and night): [docs/design/mobile.md](../design/mobile.md#the-look-v2). Bone, sand and oxblood below belong to the console, the site and print; the app no longer uses them.
+
 | Token | Hex | Use |
 |---|---|---|
 | **Paper** | `#F6F3EC` | The page. Salli is warm paper, not white. |
@@ -277,7 +279,7 @@ values is `packages/console/src/styles/tokens.css`.
 - **Grid:** 12 columns with 24 px gutters, content up to 1200 px wide. Leave
   generous space: 96–128 px between sections on the website, 32–48 px in the
   app.
-- **Corners are square.** Buttons, fields, selects, cards, panels, tables,
+- **Corners are square** on the console and the website. (The phone app is the exception: from November 2026 it uses the v2 look in [docs/design/mobile.md](../design/mobile.md#the-look-v2), with soft corners from one scale, a new palette and floating bars; this section's palette below is the brand's, for the console, the site and print.) Buttons, fields, selects, cards, panels, tables,
   dialogs, popovers, menus, toasts, badges, chips, code blocks, tooltips and
   the focus ring have no radius; chart bars and boxes have none either. Only
   what is a circle by meaning stays round: a chart's dot, a radio button's

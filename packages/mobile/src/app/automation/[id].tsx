@@ -2,10 +2,10 @@ import { accountsList } from '@leafmonkeylabs/salli-sdk';
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useRead } from '../../api';
 import { Drafted, useAutomations } from '../../automations';
-import { Body, Button, Card, CardHead, Toggle } from '../../kit';
+import { Body, Button, Chip, Field as KitField, Notice, Section, Segmented, Surface, Toggle } from '../../kit';
 import { readWith, type AutomationRule, type DateOrder } from '../../lib/automations';
 import { todayIso } from '../../lib/display';
 import { useKeepDraft } from '../../draft';
@@ -85,7 +85,7 @@ export default function AutomationRuleEditor() {
 
   return (
     <Page title={existing ? t.editTitle : t.newTitle} back={{ label: t.cancel, onPress: leave }}>
-      <Card style={{ gap: 14 }}>
+      <Surface style={{ gap: 16 }}>
         <Field label={t.name} value={rule.name} onChange={(name) => set({ name })} placeholder={t.namePlaceholder} />
         <Field label={t.senders} help={t.sendersHelp} value={senders} onChange={setSenders} placeholder="EXAMPLEBANK" mono />
         <Field label={t.sample} help={t.sampleHelp} value={sample} onChange={setSample} placeholder={t.samplePlaceholder} multiline />
@@ -103,15 +103,9 @@ export default function AutomationRuleEditor() {
             // The parts a pattern can read, each added where the pattern ends.
             <View style={styles.tokens}>
               {TOKENS.map((token) => (
-                <Pressable
-                  key={token}
-                  accessibilityRole="button"
-                  accessibilityLabel={t.insert(token)}
-                  onPress={() => set({ pattern: `${rule.pattern}${rule.pattern && !rule.pattern.endsWith(' ') ? ' ' : ''}${token}` })}
-                  style={[styles.token, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 999) }]}
-                >
-                  <Text style={[styles.tokenText, { color: theme.text }]}>{token}</Text>
-                </Pressable>
+                <View key={token} accessibilityLabel={t.insert(token)}>
+                  <Chip role="button" label={token} onPress={() => set({ pattern: `${rule.pattern}${rule.pattern && !rule.pattern.endsWith(' ') ? ' ' : ''}${token}` })} />
+                </View>
               ))}
             </View>
           ) : null}
@@ -119,20 +113,21 @@ export default function AutomationRuleEditor() {
             <Button kind="secondary" label={t.useSample} onPress={() => set({ pattern: sample.trim() })} />
           ) : null}
         </View>
-      </Card>
+      </Surface>
 
-      <Card style={{ gap: 12 }}>
-        <CardHead label={t.preview} />
-        {reading === undefined ? (
-          <Body muted>{t.noSample}</Body>
-        ) : typeof reading === 'string' ? (
-          <Body alert>{reading}</Body>
-        ) : (
-          <Drafted draft={reading} account={account} />
-        )}
-      </Card>
+      <Section title={t.preview}>
+        <Surface style={{ gap: 12 }}>
+          {reading === undefined ? (
+            <Body muted>{t.noSample}</Body>
+          ) : typeof reading === 'string' ? (
+            <Notice tone="warn">{reading}</Notice>
+          ) : (
+            <Drafted draft={reading} account={account} />
+          )}
+        </Surface>
+      </Section>
 
-      <Card style={{ gap: 14 }}>
+      <Surface style={{ gap: 16 }}>
         <Choice
           label={t.fields.direction}
           options={[
@@ -146,12 +141,12 @@ export default function AutomationRuleEditor() {
           <Text style={[styles.label, { color: theme.text }]}>{t.account}</Text>
           <Button kind="secondary" label={account?.name ?? t.chooseAccount} onPress={() => setPicking(true)} />
         </View>
-      </Card>
+      </Surface>
 
-      <Card style={{ paddingVertical: 4 }}>
+      <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
         <Toggle label={t.advanced} value={advanced} onChange={setAdvanced} />
         {advanced ? (
-          <View style={{ gap: 14, paddingBottom: 12 }}>
+          <View style={{ gap: 16, paddingBottom: 16 }}>
             <Toggle label={t.regex} help={t.regexToggleHelp} value={rule.kind === 'regex'} onChange={(on) => set({ kind: on ? 'regex' : 'template' })} />
             <Choice
               label={t.dateOrder}
@@ -170,7 +165,7 @@ export default function AutomationRuleEditor() {
             />
           </View>
         ) : null}
-      </Card>
+      </Surface>
 
       <View style={{ gap: 6 }}>
         {missing && rule.name.trim() ? (
@@ -201,57 +196,29 @@ export default function AutomationRuleEditor() {
 
 /** A field; its help is VoiceOver's, and on screen too only where it is `shown`. */
 function Field({ label, help, shown, value, onChange, placeholder, multiline, mono }: { label: string; help?: string; shown?: boolean; value: string; onChange: (text: string) => void; placeholder?: string; multiline?: boolean; mono?: boolean }) {
-  const theme = useTheme();
   return (
-    <View style={{ gap: 6 }}>
-      <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={theme.muted}
-        multiline={multiline}
-        autoCapitalize="none"
-        autoCorrect={false}
-        accessibilityLabel={label}
-        accessibilityHint={help}
-        style={[
-          styles.input,
-          multiline ? styles.multiline : null,
-          { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text, fontFamily: mono ? font.mono : font.regular },
-        ]}
-      />
-      {help && shown ? (
-        <Body small muted>
-          {help}
-        </Body>
-      ) : null}
-    </View>
+    <KitField
+      label={label}
+      value={value}
+      onChangeText={onChange}
+      {...(placeholder ? { placeholder } : {})}
+      {...(multiline ? { multiline } : {})}
+      {...(mono ? { mono } : {})}
+      {...(help ? { accessibilityHint: help } : {})}
+      {...(help && shown ? { help } : {})}
+      autoCapitalize="none"
+      autoCorrect={false}
+    />
   );
 }
 
-/** Two or three choices side by side, one chosen: square, as the kit's switches. */
+/** Two or three choices side by side, one chosen: the kit's capsule. */
 function Choice<V extends string>({ label, options, value, onChange }: { label: string; options: [V, string][]; value: V; onChange: (value: V) => void }) {
   const theme = useTheme();
   return (
     <View style={{ gap: 6 }}>
       <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-      <View accessibilityRole="radiogroup" accessibilityLabel={label} style={[styles.choices, { borderColor: theme.fieldBorder }]}>
-        {options.map(([option, text], i) => {
-          const on = option === value;
-          return (
-            <Pressable
-              key={option}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on }}
-              onPress={() => onChange(option)}
-              style={[styles.choice, { backgroundColor: on ? theme.text : theme.card, borderLeftColor: theme.fieldBorder, borderLeftWidth: i ? 1 : 0 }]}
-            >
-              <Text style={[styles.choiceText, { color: on ? theme.card : theme.text, fontFamily: on ? font.medium : font.regular }]}>{text}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <Segmented label={label} options={options.map(([id, text]) => ({ id, text }))} value={value} onChange={onChange} />
     </View>
   );
 }
@@ -260,13 +227,6 @@ function Choice<V extends string>({ label, options, value, onChange }: { label: 
 const TOKENS = ['{amount}', '{payee}', '{date}', '{ref}', '{skip}'] as const;
 
 const styles = StyleSheet.create({
-  tokens: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  token: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center' },
-  tokenText: { fontFamily: font.mono, fontSize: 13 },
+  tokens: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   label: { fontFamily: font.medium, fontSize: size.small },
-  input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontSize: size.body },
-  multiline: { minHeight: 96, paddingVertical: 12, textAlignVertical: 'top' },
-  choices: { flexDirection: 'row', borderWidth: 1 },
-  choice: { flex: 1, minHeight: size.target, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  choiceText: { fontSize: size.small },
 });

@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Button, Icon } from './kit';
+import { Button, Chip, Icon, radii, shape } from './kit';
 import { addDays, addMonths, displayDate, displayDay, monthGrid, monthNameOf, todayIso } from './lib/display';
 import { Sheet, SheetTitle } from './sheet';
 import { strings } from './strings';
@@ -44,23 +44,12 @@ export function DayChooser({ value, onPick }: { value: string; onPick: (iso: str
   return (
     <>
       <View accessibilityRole="radiogroup" style={styles.quick}>
-        {quick.map((q) => {
-          const on = q.iso === chosen;
-          return (
-            <Pressable
-              key={q.label}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on }}
-              onPress={() => pick(q.iso)}
-              style={[styles.quickButton, { borderColor: on ? theme.button : theme.rule, backgroundColor: on ? theme.button : theme.chrome, borderRadius: Math.min(theme.control, 12) }]}
-            >
-              <Text style={[styles.quickText, { color: on ? theme.buttonText : theme.text }]}>{q.label}</Text>
-            </Pressable>
-          );
-        })}
+        {quick.map((q) => (
+          <Chip key={q.label} label={q.label} selected={q.iso === chosen} onPress={() => pick(q.iso)} />
+        ))}
       </View>
       <View style={styles.monthRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel={monthNameOf(`${addMonths(month, -1)}-01`)} onPress={() => setMonth(addMonths(month, -1))} style={styles.arrow}>
+        <Pressable accessibilityRole="button" accessibilityLabel={monthNameOf(`${addMonths(month, -1)}-01`)} onPress={() => setMonth(addMonths(month, -1))} style={[styles.arrow, shape(radii.pill), { backgroundColor: theme.fill }]}>
           <Icon name="back" colour={theme.text} />
         </Pressable>
         <Text style={[styles.monthText, { color: theme.text }]}>{`${monthNameOf(`${month}-01`)} ${month.slice(0, 4)}`}</Text>
@@ -70,9 +59,9 @@ export function DayChooser({ value, onPick }: { value: string; onPick: (iso: str
           accessibilityState={{ disabled: atLatest }}
           disabled={atLatest}
           onPress={() => setMonth(addMonths(month, 1))}
-          style={[styles.arrow, { opacity: atLatest ? 0.35 : 1 }]}
+          style={[styles.arrow, shape(radii.pill), { backgroundColor: theme.fill }, atLatest ? { backgroundColor: 'transparent' } : null]}
         >
-          <Icon name="chevron" colour={theme.text} />
+          <Icon name="chevron" colour={atLatest ? theme.muted : theme.text} />
         </Pressable>
       </View>
       <View style={styles.grid}>
@@ -93,9 +82,12 @@ export function DayChooser({ value, onPick }: { value: string; onPick: (iso: str
               accessibilityState={{ selected: on, disabled: later }}
               disabled={later}
               onPress={() => setChosen(iso)}
-              style={[styles.cell, styles.day, on ? { backgroundColor: theme.button } : iso === today ? { borderWidth: 1, borderColor: theme.muted } : null]}
+              style={[styles.cell, styles.day]}
             >
-              <Text style={[styles.dayText, { color: on ? theme.buttonText : later ? theme.fieldBorder : theme.text, fontFamily: on ? font.medium : font.regular }]}>{iso.slice(8).replace(/^0/, '')}</Text>
+              {/* The chosen day is a filled circle; today a ring. */}
+              <View style={[styles.circle, shape(radii.pill), on ? { backgroundColor: theme.button } : iso === today ? { borderWidth: 1.5, borderColor: theme.green } : null]}>
+                <Text style={[styles.dayText, { color: on ? theme.buttonText : later ? theme.muted : theme.text, fontFamily: on ? font.medium : font.regular }]}>{iso.slice(8).replace(/^0/, '')}</Text>
+              </View>
             </Pressable>
           );
         })}
@@ -106,16 +98,15 @@ export function DayChooser({ value, onPick }: { value: string; onPick: (iso: str
 }
 
 const styles = StyleSheet.create({
-  title: { fontFamily: font.medium, fontSize: 17 },
+  title: { fontFamily: font.semibold, fontSize: size.title },
   quick: { flexDirection: 'row', gap: 8 },
-  quickButton: { flex: 1, minHeight: size.target, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  quickText: { fontFamily: font.medium, fontSize: size.body },
   monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   arrow: { minWidth: size.target, minHeight: size.target, alignItems: 'center', justifyContent: 'center' },
   monthText: { fontFamily: font.medium, fontSize: size.body },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: `${100 / 7}%`, alignItems: 'center', justifyContent: 'center' },
-  weekday: { fontFamily: font.regular, fontSize: 12, textAlign: 'center', paddingBottom: 4 },
-  day: { minHeight: 44 },
+  weekday: { fontFamily: font.regular, fontSize: size.caption, textAlign: 'center', paddingBottom: 4 },
+  day: { minHeight: 48 },
+  circle: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   dayText: { fontSize: size.body, fontVariant: ['tabular-nums'] },
 });

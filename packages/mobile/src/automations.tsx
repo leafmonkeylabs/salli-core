@@ -83,7 +83,7 @@ export function Drafted({ draft, account }: { draft: Draft; account: Account | u
   return (
     <View>
       {facts.map(([label, value]) => (
-        <View key={label} accessible style={[styles.fact, { borderBottomColor: theme.rule }]}>
+        <View key={label} accessible style={[styles.fact, { borderBottomColor: theme.line }]}>
           <Body small muted style={{ width: 96 }}>
             {label}
           </Body>

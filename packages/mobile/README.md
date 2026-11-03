@@ -52,8 +52,9 @@ before the old one could be used again.
 
 - **Every word in `src/strings.ts`,** in the brand's voice: British English,
   sentence case, no exclamation marks, nothing that ranks or urges.
-- **Colours only from `src/theme.ts`,** the brand's tables with the console's
-  light and night roles. Square corners; 48 px to touch.
+- **Colours, corners and shadows only from `src/theme.ts`:** the v2 roles for
+  day and night, one radius scale through `shape()` (no raw `borderRadius`),
+  depth from `elevation()`. 20 px from every edge; 48 px to touch.
 - **The logo is the outlined file** (`src/brand/logo.ts`, from
   `docs/brand/assets`), never retyped.
 - **Pinned dependencies,** exact versions, at the Expo SDK's own

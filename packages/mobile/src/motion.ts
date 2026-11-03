@@ -7,6 +7,7 @@
  * that form is marked to run even with the setting on; the full forms keep
  * Reanimated's own ReduceMotion.System, which skips them.
  */
+import * as Haptics from 'expo-haptics';
 import { Easing, FadeIn, FadeInUp, FadeOut, LinearTransition, ReduceMotion, useReducedMotion, type WithSpringConfig } from 'react-native-reanimated';
 
 export { useReducedMotion };
@@ -42,3 +43,10 @@ export function listMotion(reduced: boolean) {
 export function success(reduced: boolean) {
   return reduced ? FadeIn.duration(150).reduceMotion(ReduceMotion.Never) : FadeInUp.duration(200).withInitialValues({ transform: [{ translateY: 8 }] });
 }
+
+/** A light tap on a tab, a segment, a switch and a chip; a firmer one when an entry is booked or posted. A phone without haptics ignores them. */
+export const haptic = {
+  select: () => void Haptics.selectionAsync().catch(() => undefined),
+  success: () => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined),
+  warn: () => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => undefined),
+};

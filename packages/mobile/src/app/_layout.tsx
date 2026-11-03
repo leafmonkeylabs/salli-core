@@ -50,7 +50,7 @@ function Navigator() {
   return (
     <>
       <StatusBar style={theme.dark ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.work } }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.ground } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="oauth/callback" />
         <Stack.Protected guard={signedIn}>

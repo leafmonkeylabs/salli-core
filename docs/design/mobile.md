@@ -39,10 +39,79 @@ Every figure on screen is the server's, with the date it was true.
 | **Identity** | Bundle and application id `money.salli.app`, the reverse of salli.money. |
 | **Stack** | Expo (React Native), TypeScript. One codebase for iOS and Android. |
 | **Places** | The console's phone bar, unchanged: Home, Cash, Decide, Books, More. Adding an entry is the + on Home and the first action in Books. |
-| **Look** | The brand README, as the console builds it: paper bars, a bone work area, paper cards with a hairline, square corners. On night, night with deep-green cards. |
+| **Look** | The v2 look ([below](#the-look-v2)): warm neutrals, one calm green, soft continuous corners from one scale, depth from shadow instead of outlines, a floating tab bar. One look by default; Ledger Rounded is folded into Ledger and Sticker is retired. |
 | **Touch** | Buttons and rows 48 pt; nothing answers to less than 44 × 44. Text follows the phone's text size; rows grow and stack rather than clip. See [Accessibility](#accessibility). |
 | **Motion** | Calm and short, on the UI thread; opacity only with Reduce Motion. See [Motion](#motion). |
 | **Discretion** | No amounts in widgets or the app switcher unless the person asks. Digests never carry one. |
+
+## The look (v2)
+
+Approved November 2026 (the Foundations and Parts boards). The app sits in
+`src/theme.ts` (tokens), `src/kit.tsx` (parts), `src/shell.tsx` and
+`src/sheet.tsx` (the frame); screens are made only from those. The console and
+the website keep the brand README's square corners; the phone does not.
+
+**Colour.** Ten roles a side, and nothing else is coloured:
+
+| Role | Day | Night | Use |
+|---|---|---|---|
+| ground | `#F3F2EF` | `#0E1110` | Behind cards |
+| surface | `#FFFFFF` | `#171B19` | Cards, sheets, bars |
+| fill | `#EFEEEA` | `#232825` | Fields, chips, quiet buttons, bar tracks |
+| line | `#ECEBE7` | white 7% | Between rows only |
+| ink (`text`) | `#18201C` | `#ECEFEC` | Text, amounts, the main button |
+| muted | `#5F6661` | `#9BA39D` | Labels, details |
+| green | `#2E6A55` | `#7CC0A5` | The current place, progress, links, the forecast line |
+| green tint | `#E4EFE9` | `#1F3A30` | The selected tab, chosen chips, notes |
+| red | `#A8483A` | `#E58E7C` | Below zero, over budget, overdue |
+| red tint | `#F8E9E5` | `#3B2622` | Behind a warning |
+
+Amounts are ink: money out keeps its brackets and stays ink, so a list of
+payments is never a wall of red (`Money tone="red"` is for a fact that needs
+the person). Bone, sand, oxblood and the solid green key-figure tile are
+retired. Contrast is held by `test/theme.test.ts` (ink 7:1, the rest 4.5:1 on
+their grounds and tints).
+
+**Shape.** One scale, for every theme: 6 (tags, swatches), 10 (icon tiles),
+14 (fields), 20 (cards, lists), 26 (the key-figure card), 32 (sheet tops) and
+a pill (buttons, chips, bars, the tab bar). `shape(r)` adds
+`borderCurve: 'continuous'`; no style sets `borderRadius` any other way
+(`test/shape.test.ts`). A theme may change colour and type, never shape.
+Icons have round caps and joins on a 24 grid, strokes of 1.75; the logo's bars
+get round ends in the app.
+
+**Depth.** Shadow, never an outline: `flat`, `card`, `floating` (the tab bar,
+menus) and `sheet` (cast upward), from `elevation()`. On night a surface is
+lighter and carries a 1 px highlight along its top edge instead of a shadow.
+
+**Space and type.** 20 from every screen edge, 20 inside a card (24 in the
+key-figure card), 12 between cards, 28 between sections, 10 from a heading to
+its card; 4, 8, 12, 16, 20, 24, 32 and 40 and nothing else. Geist (Geist Mono
+for addresses): large title 32, key figure 46 (its decimals at half size and
+muted, the figure still exactly the server's), title 22, headline 17, body 16,
+detail 14, label 13, caption 12; nothing under 12. Section headings sit
+outside their cards in sentence case, with no marker and "See all" beside them.
+Buttons and fields are 52 tall; every target stays 48.
+
+**The parts.** `Surface`/`Card`, `Section`, `Field` (filled, borderless, a
+green ring while typing, red when wrong, words under it), `Chip`, `Tag`,
+`Badge`, `Segmented` (a capsule track, a sliding thumb, a selection haptic),
+`Notice` (tinted, with an icon, no outline), `Skeleton` (the final shape,
+softly pulsing, still under Reduce Motion), `Toggle` (a capsule switch),
+`ProgressBar` and `Ring` (round ends), and `Press` on every row (a highlight
+that Reduce Motion keeps). Unavailable is filled and muted, never dimmed.
+
+**The frame.** The tab bar floats as a blurred capsule inset 16 from each side
+with the current place in a green-tint pill, its labels 12 (the Large Content
+Viewer stays). The header carries the server as a pill, with the AI button and
++ as 40 circles whose targets are 48. Tabs have a large title that scrolls
+with the page. Sheets have 32 top corners, a grabber and a shadow cast up.
+
+**Themes.** Ledger is the look above, day and night. Bold and Aurora are
+colour and type choices on the same shapes. A stored `ledgerRounded` or
+`sticker` setting becomes `ledger` (`lib/appearance.ts`). The widgets take the
+same palette from the snapshot, round their lines, bars and low-point ring, and
+sit in the system's own 22 pt container.
 
 ## What stays with the console and the CLI
 
@@ -167,7 +236,7 @@ total is shown, since the app adds no money.
   Settings: each opens the console's page until the app has it) and then
   **Servers and sign-in**: the servers, this phone's lock and discretion,
   and this sign-in with when it started (`auth.signIns.list`). Its
-  switches are the kit's square `Toggle`, as the design draws them.
+  switches are the kit's capsule `Toggle`, as the design draws them.
 
 ## Importing a statement
 

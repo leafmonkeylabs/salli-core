@@ -80,14 +80,24 @@ struct Spark: View {
         )
       }
       ZStack {
+        // The area under the line fades to nothing; the line is 2 wide with round ends and joins.
+        Path { path in
+          guard !points.isEmpty else { return }
+          path.move(to: CGPoint(x: at(0).x, y: h))
+          for i in points.indices { path.addLine(to: at(i)) }
+          path.addLine(to: CGPoint(x: at(points.count - 1).x, y: h))
+          path.closeSubpath()
+        }
+        .fill(LinearGradient(colors: [colour.opacity(0.22), colour.opacity(0)], startPoint: .top, endPoint: .bottom))
         Path { path in
           guard !points.isEmpty else { return }
           path.move(to: at(0))
           for i in points.indices.dropFirst() { path.addLine(to: at(i)) }
         }
-        .stroke(colour, lineWidth: 1.5)
+        .stroke(colour, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+        // The low point is a ring.
         if let low, points.indices.contains(low) {
-          Circle().fill(colour).frame(width: 7, height: 7).position(at(low))
+          Circle().stroke(colour, lineWidth: 2).frame(width: 9, height: 9).position(at(low))
         }
       }
     }

@@ -2,13 +2,13 @@ import { remindersList, remindersSeedFilingCalendar } from '@leafmonkeylabs/sall
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useApi, useRead } from '../api';
-import { Body, Button, Card, SectionLabel, Waiting } from '../kit';
+import { Body, Button, Card, Chip, Notice, SectionLabel, Waiting } from '../kit';
 import { displayDay, todayIso } from '../lib/display';
 import { Page } from '../shell';
 import { strings } from '../strings';
-import { font, size, useTheme } from '../theme';
+import { useTheme } from '../theme';
 
 const t = strings.attention;
 
@@ -38,25 +38,22 @@ export default function Filing() {
           {years.map((y) => {
             const on = y === year;
             return (
-              <Pressable
+              <Chip
                 key={y}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: on }}
+                label={String(y)}
+                selected={on}
                 onPress={() => {
                   setYear(y);
                   seed.reset();
                 }}
-                style={[styles.chip, { borderColor: on ? theme.text : theme.rule, backgroundColor: on ? theme.text : theme.card, borderRadius: Math.min(theme.control, 999) }]}
-              >
-                <Text style={[styles.chipText, { color: on ? theme.work : theme.text }]}>{y}</Text>
-              </Pressable>
+              />
             );
           })}
         </View>
         <SectionLabel>{t.inReminders(filing.length)}</SectionLabel>
         {reminders.data ? (
           filing.map((r, i) => (
-            <View key={r.id} style={[styles.row, i < filing.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}>
+            <View key={r.id} style={[styles.row, i < filing.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}>
               <Body style={{ flex: 1 }}>{r.kind}</Body>
               <Body small muted>
                 {displayDay(r.due_date)}
@@ -66,8 +63,8 @@ export default function Filing() {
         ) : (
           <Waiting query={reminders} what="your reminders" />
         )}
-        {seed.data ? <Body alert>{t.seeded(seed.data.created, seed.data.updated.length, seed.data.removed.length)}</Body> : null}
-        {seed.error ? <Body alert>{seed.error.message}</Body> : null}
+        {seed.data ? <Notice tone="good">{t.seeded(seed.data.created, seed.data.updated.length, seed.data.removed.length)}</Notice> : null}
+        {seed.error ? <Notice tone="warn">{seed.error.message}</Notice> : null}
         <Button label={t.bringUpToDate(year)} busy={seed.isPending} disabled={seed.isPending} onPress={() => seed.mutate()} />
       </Card>
       <Body small muted>
@@ -79,7 +76,5 @@ export default function Filing() {
 
 const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
-  chipText: { fontFamily: font.regular, fontSize: size.body, fontVariant: ['tabular-nums'] },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
 });
