@@ -42,7 +42,7 @@ export function accountPanel(requested: boolean): unknown {
                 label: 'Tell us what you need',
                 fields: [
                   { name: 'size', label: 'People', type: 'number', required: true },
-                  { name: 'kind', label: 'Kind', type: 'select', options: ['Household', 'Practice'], required: false },
+                  { name: 'kind', label: 'Kind', type: 'select', options: [{ value: 'Household', label: 'Household' }, { value: 'Practice', label: 'Practice' }], required: false },
                   { name: 'note', label: 'Anything else', type: 'text', required: false },
                 ],
                 submit: { label: 'Send', method: 'POST', path: '/v1/example/requests', then: 'refresh' },
@@ -61,7 +61,7 @@ export class PanelsState {
   refuse: Answer | undefined;
 
   answer({ method, path }: Recorded): Answer | undefined {
-    if (method === 'GET' && path === '/v1/panels') return { status: 200, body: PANEL_LIST };
+    if (method === 'GET' && path === '/v1/panels') return { status: 200, body: { panels: PANEL_LIST } };
     if (method === 'GET' && path === '/v1/panels/account') return { status: 200, body: accountPanel(this.requested) };
     if (method === 'GET' && path === '/v1/panels/move') return { status: 200, body: { schema: 'salli.panel/1', id: 'move', title: 'Move your books', sections: [], note: 'Nothing to show yet.' } };
     if (method === 'GET' && path.startsWith('/v1/panels/')) return { status: 404, body: { type: 'about:blank', title: 'Not Found', status: 404, detail: 'No such panel' } };

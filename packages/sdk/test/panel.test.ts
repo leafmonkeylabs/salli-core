@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createClient } from '../src/client';
 import { SalliApiError } from '../src/errors';
-import { formBody, isApiPath, missingFields, offerOf, parsePanel, parsePanelList, type PanelField } from '../src/panel';
+import { formBody, isApiPath, missingFields, offerOf, parsePanel, type PanelField } from '../src/panel';
 import { sendJson, startServer, type TestServer } from './helpers/server';
 
 let server: TestServer | undefined;
@@ -52,13 +52,14 @@ describe('parsePanel', () => {
       { kind: 'action', label: 'Escapes', action: { ...action, path: '/v1/../admin' } },
       { kind: 'action', label: 'Wrong verb', action: { ...action, method: 'GET' } },
       { kind: 'form', label: 'No fields', fields: [], submit: { label: 'Go', method: 'POST', path: '/v1/x', then: 'close' } },
-      { kind: 'form', label: 'Empty select', fields: [{ name: 'a', label: 'A', type: 'select', required: false }], submit: { label: 'Go', method: 'POST', path: '/v1/x', then: 'close' } },
+      { kind: 'form', label: 'Empty select', fields: [{ name: 'a', label: 'A', type: 'select', options: ['plain'], required: false }], submit: { label: 'Go', method: 'POST', path: '/v1/x', then: 'close' } },
       { kind: 'unknown', label: 'Future' },
+      { kind: 'action', label: 'Null body', action: { ...action, body: null } },
       { kind: 'text' },
       { kind: 'text', label: 'Kept' },
     ];
     const panel = parsePanel({ ...document, sections: [{ heading: null, rows, footnote: null }] });
-    expect(panel?.sections[0]?.rows).toEqual([{ kind: 'text', label: 'Kept' }]);
+    expect(panel?.sections[0]?.rows.map((r) => r.label)).toEqual(['Null body', 'Kept']);
   });
 });
 
@@ -89,16 +90,6 @@ describe('forms', () => {
     expect(missingFields(fields, { a: '  ', b: '2' })).toEqual(['a']);
     expect(missingFields(fields, { a: 'x' })).toEqual([]);
     expect(formBody(fields, { a: ' x ', b: '' })).toEqual({ a: 'x' });
-  });
-});
-
-describe('parsePanelList', () => {
-  it('reads an array or a wrapped list, skipping what has no id or title', () => {
-    const items = [{ id: 'a', title: 'A', entry: 'more' }, { id: 'b' }, { id: '../c', title: 'C' }, { id: 'd', title: 'D' }];
-    const expected = [{ id: 'a', title: 'A', entry: 'more' }, { id: 'd', title: 'D', entry: undefined }];
-    expect(parsePanelList(items)).toEqual(expected);
-    expect(parsePanelList({ panels: items })).toEqual(expected);
-    expect(parsePanelList('x')).toEqual([]);
   });
 });
 

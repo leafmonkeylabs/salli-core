@@ -85,7 +85,7 @@ export class MockApi {
       if (answer) return answer;
     }
     const { method, path } = request;
-    if (method === 'GET' && path === '/v1/meta') return { status: 200, body: { ...metaAt(this.origin, this.extensions), ...(this.panels ? { panels: true } : {}) } };
+    if (method === 'GET' && path === '/v1/meta') return { status: 200, body: { ...metaAt(this.origin, this.extensions), panels: Boolean(this.panels) } };
     if (method === 'POST' && path === '/mcp/oauth/token') {
       this.issued += 1;
       return {

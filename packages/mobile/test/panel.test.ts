@@ -1,3 +1,4 @@
+import type { PanelEntry } from '@leafmonkeylabs/salli-sdk';
 import { describe, expect, it } from 'vitest';
 import { announceOffer, onOffer, type Offered } from '../src/offer-store';
 import { offerIsFor, panelPathOf, placesOf } from '../src/lib/panel';
@@ -7,10 +8,10 @@ import { authorizationUrlOf } from '../src/lib/pkce';
 const offer = { title: 'T', detail: 'D', label: 'L', panel: 'upgrade' };
 
 describe('panel places', () => {
-  const list = [
+  const list: PanelEntry[] = [
     { id: 'a', title: 'A', entry: 'more' },
     { id: 'b', title: 'B', entry: 'settings' },
-    { id: 'c', title: 'C', entry: undefined },
+    { id: 'c', title: 'C', entry: null },
     { id: 'd', title: 'D', entry: 'more' },
   ];
   it('lists each entry’s panels in the server’s order', () => {

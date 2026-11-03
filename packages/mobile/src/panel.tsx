@@ -6,12 +6,12 @@
  * row has words to confirm with) and then refreshes the panel or closes it;
  * a form sends what was typed. A refusal is shown in the row that asked.
  */
-import { describeDetail, formBody, missingFields, parsePanel, parsePanelList, SalliApiError, type Panel, type PanelEntry, type PanelField, type PanelRow, type PanelSection } from '@leafmonkeylabs/salli-sdk';
+import { describeDetail, formBody, missingFields, panelsList, panelsShow, parsePanel, SalliApiError, type PanelDocument, type PanelEntry, type PanelField, type PanelRow, type PanelSection } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useApi } from './api';
+import { useApi, useRead } from './api';
 import { Body, Button, Card, Choice, Icon, Press, SectionLabel, useLargeText } from './kit';
 import { placesOf } from './lib/panel';
 import { strings } from './strings';
@@ -23,15 +23,14 @@ const t = strings.panel;
 function usePanelsOn(): boolean {
   const api = useApi();
   const meta = useQuery({ queryKey: [api.server, 'meta'], queryFn: () => api.meta(), staleTime: 5 * 60_000 });
-  return (meta.data as { panels?: unknown } | undefined)?.panels === true;
+  return meta.data?.panels === true;
 }
 
 /** The panels the server lists (title and where each is placed), when it has any. */
 export function usePanelList(): PanelEntry[] {
-  const api = useApi();
   const on = usePanelsOn();
-  const list = useQuery({ enabled: on, queryKey: [api.server, 'panels.list'], queryFn: async () => parsePanelList(await api.send({ method: 'GET', path: '/v1/panels' })) });
-  return on ? (list.data ?? []) : [];
+  const list = useRead('panels.list', panelsList, undefined, { enabled: on });
+  return on ? (list.data?.panels ?? []) : [];
 }
 
 /** The panels placed at `entry`, for More's and Settings' rows. */
@@ -43,8 +42,8 @@ export function usePanelPlaces(entry: 'more' | 'settings'): PanelEntry[] {
 export function usePanel(id: string) {
   const api = useApi();
   return useQuery({
-    queryKey: [api.server, 'panel', id],
-    queryFn: async () => parsePanel(await api.send({ method: 'GET', path: `/v1/panels/${id}` })) ?? null,
+    queryKey: [api.server, 'panels.show', id],
+    queryFn: async () => parsePanel(await api.call(panelsShow, { path: { panel_id: id } })) ?? null,
   });
 }
 
@@ -55,7 +54,7 @@ function whyOf(error: unknown): string {
 }
 
 /** The panel's sections as cards, then its note. `after` is told what a row's `then` asks for. */
-export function PanelView({ panel, after }: { panel: Panel; after: (then: 'refresh' | 'close') => void }) {
+export function PanelView({ panel, after }: { panel: PanelDocument; after: (then: 'refresh' | 'close') => void }) {
   const theme = useTheme();
   return (
     <>
@@ -192,7 +191,7 @@ function FormRow({ row, after, rule }: { row: Extract<PanelRow, { kind: 'form' }
 function Field({ field, value, onChange }: { field: PanelField; value: string; onChange: (value: string) => void }) {
   const theme = useTheme();
   if (field.type === 'select') {
-    return <Choice list label={field.label} options={(field.options ?? []).map((o) => ({ id: o, text: o }))} chosen={value || undefined} onPick={onChange} />;
+    return <Choice list label={field.label} options={(field.options ?? []).map((o) => ({ id: o.value, text: o.label }))} chosen={value || undefined} onPick={onChange} />;
   }
   return (
     <View style={{ gap: 6 }}>
@@ -227,7 +226,7 @@ function Why({ error, onAgain }: { error: unknown; onAgain: () => void }) {
 export function useRefreshPanels(id: string) {
   const api = useApi();
   const queryClient = useQueryClient();
-  return () => Promise.all([queryClient.invalidateQueries({ queryKey: [api.server, 'panel', id] }), queryClient.invalidateQueries({ queryKey: [api.server, 'panels.list'] })]);
+  return () => Promise.all([queryClient.invalidateQueries({ queryKey: [api.server, 'panels.show', id] }), queryClient.invalidateQueries({ queryKey: [api.server, 'panels.list'] })]);
 }
 
 const styles = StyleSheet.create({

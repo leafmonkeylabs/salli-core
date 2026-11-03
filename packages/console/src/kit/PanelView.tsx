@@ -5,7 +5,7 @@
  * ask with, a form sends what was typed, and a refusal shows in the row that
  * asked. What an action does afterwards (`then`) is the page's to carry out.
  */
-import { formBody, missingFields, type Panel, type PanelField, type PanelRow, type PanelSection } from '@leafmonkeylabs/salli-sdk';
+import { formBody, missingFields, type PanelDocument, type PanelField, type PanelRow, type PanelSection } from '@leafmonkeylabs/salli-sdk';
 import { useState } from 'react';
 import { useWrite } from '../api';
 import { strings } from '../strings';
@@ -15,9 +15,9 @@ import { ProblemView } from './Problem';
 
 type After = (then: 'refresh' | 'close') => void;
 const t = strings.panel;
-const READS = ['panels.get', 'panels.list'];
+const READS = ['panels.show', 'panels.list'];
 
-export function PanelView({ panel, after }: { panel: Panel; after: After }) {
+export function PanelView({ panel, after }: { panel: PanelDocument; after: After }) {
   return (
     <>
       <div className="grid">
@@ -147,7 +147,7 @@ function FieldView({ field, value, onChange, error }: { field: PanelField; value
         onChange={onChange}
         isRequired={field.required}
         error={error}
-        options={[{ value: '', label: t.choose }, ...(field.options ?? []).map((o) => ({ value: o, label: o }))]}
+        options={[{ value: '', label: t.choose }, ...field.options ?? []]}
       />
     );
   }

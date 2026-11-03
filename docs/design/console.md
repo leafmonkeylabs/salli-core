@@ -657,7 +657,7 @@ This is the generic page that stands in for a separate web portal.
   More on a phone, titled by the server; nothing is asked of a server that
   does not say `panels: true`.
 - **Through the SDK only:** a panel's document and an action go through
-  `client.send` (`useGet`, `useWrite`), whose path the SDK's `parsePanel` has
+  `client.send` (`useWrite`; reads are `panelsList` and `panelsShow`), whose path the SDK's `parsePanel` has
   checked is under `/v1/`; a document that is not `salli.panel/1` is refused
   as "This page can't be shown", and a row it cannot draw safely is left out.
 - **Tests:** `test/panels.test.tsx` (every row kind, the confirmation, the

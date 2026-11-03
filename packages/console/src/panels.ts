@@ -4,17 +4,17 @@
  * `panels: true` in /v1/meta has some; the console draws what each says
  * (kit/PanelView.tsx) and adds no word of its own.
  */
-import { parsePanel, parsePanelList, type Panel, type PanelEntry } from '@leafmonkeylabs/salli-sdk';
-import type { UseQueryResult } from '@tanstack/react-query';
-import { useGet, useSession } from './api';
+import { panelsList, panelsShow, parsePanel, type PanelDocument, type PanelEntry } from '@leafmonkeylabs/salli-sdk';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useApi, useRead, useSession } from './api';
 import type { NavigationItem } from './extensions';
 
 /** The panels the server lists; none while it says it has none. */
 export function usePanelEntries(): PanelEntry[] {
   const session = useSession();
-  const on = (session.meta as { panels?: unknown } | undefined)?.panels === true;
-  const list = useGet('panels.list', '/v1/panels', parsePanelList, { enabled: on });
-  return on ? (list.data ?? []) : [];
+  const on = session.meta?.panels === true;
+  const list = useRead('panels.list', panelsList, undefined, { enabled: on });
+  return on ? (list.data?.panels ?? []) : [];
 }
 
 /** The panels as places in the navigation, titled by the server. */
@@ -23,9 +23,13 @@ export function usePanelNavigation(): NavigationItem[] {
 }
 
 /** One panel's document: null when the server's is not one the console can draw. */
-export function usePanel(id: string): UseQueryResult<Panel | null, Error> {
-  return useGet('panels.get', `/v1/panels/${id}`, (value) => parsePanel(value) ?? null);
+export function usePanel(id: string): UseQueryResult<PanelDocument | null, Error> {
+  const api = useApi();
+  return useQuery({
+    queryKey: ['panels.show', id],
+    queryFn: async ({ signal }) => parsePanel(await api.call(panelsShow, { path: { panel_id: id }, signal })) ?? null,
+  });
 }
 
 /** The reads a panel action changes. */
-export const PANEL_READS = ['panels.get', 'panels.list'];
+export const PANEL_READS = ['panels.show', 'panels.list'];

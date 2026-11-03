@@ -19,7 +19,7 @@ export interface PanelField {
   name: string;
   label: string;
   type: 'text' | 'number' | 'select';
-  options?: string[];
+  options?: Array<{ value: string; label: string }>;
   required: boolean;
 }
 
@@ -35,7 +35,7 @@ export interface PanelSection {
   footnote: string | null;
 }
 
-export interface Panel {
+export interface PanelDocument {
   schema: 'salli.panel/1';
   id: string;
   title: string;
@@ -88,8 +88,8 @@ function actionOf(value: unknown): PanelAction | undefined {
   const m = method(value.method);
   const after = then(value.then);
   if (!m || !after || !isApiPath(value.path)) return undefined;
-  if (value.body !== undefined && !isObj(value.body)) return undefined;
-  return { method: m, path: value.path, ...(value.body ? { body: value.body } : {}), then: after };
+  if (value.body !== undefined && value.body !== null && !isObj(value.body)) return undefined;
+  return { method: m, path: value.path, ...(isObj(value.body) ? { body: value.body } : {}), then: after };
 }
 
 function fieldOf(value: unknown): PanelField | undefined {
@@ -97,10 +97,11 @@ function fieldOf(value: unknown): PanelField | undefined {
   const name = str(value.name);
   const label = str(value.label);
   if (!name || !label || (value.type !== 'text' && value.type !== 'number' && value.type !== 'select')) return undefined;
-  let options: string[] | undefined;
+  let options: Array<{ value: string; label: string }> | undefined;
   if (value.type === 'select') {
-    if (!Array.isArray(value.options) || !value.options.length || !value.options.every((o) => typeof o === 'string' && o !== '')) return undefined;
-    options = value.options as string[];
+    const given = Array.isArray(value.options) ? value.options.map((o) => (isObj(o) && str(o.value) && str(o.label) ? { value: o.value as string, label: o.label as string } : undefined)) : [];
+    if (!given.length || given.some((o) => !o)) return undefined;
+    options = given as Array<{ value: string; label: string }>;
   }
   return { name, label, type: value.type, ...(options ? { options } : {}), required: value.required === true };
 }
@@ -134,7 +135,7 @@ function rowOf(value: unknown): PanelRow | undefined {
 }
 
 /** A panel document, or undefined when it is not a `salli.panel/1`. */
-export function parsePanel(value: unknown): Panel | undefined {
+export function parsePanel(value: unknown): PanelDocument | undefined {
   if (!isObj(value) || value.schema !== 'salli.panel/1' || !Array.isArray(value.sections)) return undefined;
   const id = str(value.id);
   const title = str(value.title);
@@ -169,22 +170,4 @@ export function formBody(fields: readonly PanelField[], values: Readonly<Record<
 /** The names of the required fields still empty. */
 export function missingFields(fields: readonly PanelField[], values: Readonly<Record<string, string>>): string[] {
   return fields.filter((field) => field.required && !(values[field.name] ?? '').trim()).map((field) => field.name);
-}
-
-/** The panels a list names, whatever shape of list the server sends (an array, or `{panels: [...]}`). */
-export interface PanelEntry {
-  id: string;
-  title: string;
-  entry: string | undefined;
-}
-
-export function parsePanelList(value: unknown): PanelEntry[] {
-  const list = Array.isArray(value) ? value : isObj(value) && Array.isArray(value.panels) ? value.panels : [];
-  const out: PanelEntry[] = [];
-  for (const item of list) {
-    if (!isObj(item) || !isPanelId(item.id)) continue;
-    const title = str(item.title);
-    if (title) out.push({ id: item.id, title, entry: str(item.entry) });
-  }
-  return out;
 }
