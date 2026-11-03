@@ -5,9 +5,9 @@ import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../api';
-import { Body, Button, Card, Choice, Icon, SectionLabel, Toggle, Waiting } from '../kit';
+import { Body, Button, Choice, Icon, Notice, Press, Section, Surface, Toggle, Waiting, radii, shape } from '../kit';
 import { storeKeyOf } from '../lib/servers';
 import { Sheet } from '../sheet';
 import { Page } from '../shell';
@@ -72,15 +72,11 @@ export default function NotificationsScreen() {
       {devices.data ? (
         <>
           {refused ? (
-            <Card style={{ gap: 12 }}>
-              <View style={styles.refused}>
-                <Icon name="silent" size={22} colour={theme.text} />
-                <Body style={{ flex: 1 }}>{t.denied}</Body>
-              </View>
-              <Button kind="secondary" label={t.openSettings} onPress={() => void Linking.openSettings()} />
-            </Card>
+            <Notice tone="warn" icon="silent" action={<Button small kind="secondary" label={t.openSettings} onPress={() => void Linking.openSettings()} />}>
+              {t.denied}
+            </Notice>
           ) : null}
-          <Card style={{ paddingVertical: 0 }}>
+          <Surface pad={false} style={styles.list}>
             <Toggle
               label={t.push}
               {...(devices.data.push_enabled ? {} : { help: t.serverOff })}
@@ -88,14 +84,14 @@ export default function NotificationsScreen() {
               disabled={!devices.data.push_enabled || turn.isPending || mine.isLoading}
               onChange={(next) => turn.mutate(next)}
             />
-          </Card>
-          {turn.error && !refused ? <Body alert>{turn.error.message}</Body> : null}
+          </Surface>
+          {turn.error && !refused ? <Notice tone="warn">{turn.error.message}</Notice> : null}
           {prefs.data ? (
             <>
-              <Card style={{ paddingBottom: 4 }}>
-                <SectionLabel>{t.alerts}</SectionLabel>
-                {KINDS.map((kind) => (
-                  <View key={kind} style={[styles.kind, { borderTopColor: theme.line }]}>
+              <Section title={t.alerts}>
+              <Surface pad={false} style={styles.list}>
+                {KINDS.map((kind, i) => (
+                  <View key={kind} style={[styles.kind, i < KINDS.length - 1 ? { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth } : null]}>
                     <Toggle
                       label={t.kinds[kind]}
                       value={chosen.includes(kind)}
@@ -104,33 +100,35 @@ export default function NotificationsScreen() {
                     />
                   </View>
                 ))}
-              </Card>
+              </Surface>
+              </Section>
               {refused ? (
                 <Body small muted>
                   {t.kept}
                 </Body>
               ) : null}
-              <Card style={{ gap: 8 }}>
-                <SectionLabel>{t.quiet}</SectionLabel>
+              <Section title={t.quiet}>
+              <Surface pad={false} style={[styles.list, { gap: 8 }]}>
                 <Toggle label={t.quietOn} help={t.quietHelp} value={!!quiet} disabled={save.isPending} onChange={(next) => save.mutate({ quiet_hours: next ? QUIET : null })} />
                 {quiet ? (
                   <View style={styles.times}>
                     {(['start', 'end'] as const).map((end) => (
-                      <Pressable
+                      <Press
                         key={end}
                         accessibilityRole="button"
                         accessibilityLabel={`${t[end]} ${quiet[end]}`}
                         onPress={() => setEditing(end)}
-                        style={[styles.time, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, borderRadius: Math.min(theme.control, 12) }]}
+                        style={[styles.time, shape(radii.field), { backgroundColor: theme.fill }]}
                       >
                         <Text style={[styles.small, { color: theme.muted }]}>{t[end]}</Text>
                         <Text style={[styles.clock, { color: theme.text }]}>{quiet[end]}</Text>
-                      </Pressable>
+                      </Press>
                     ))}
                   </View>
                 ) : null}
-              </Card>
-              {save.error ? <Body alert>{save.error.message}</Body> : null}
+              </Surface>
+              </Section>
+              {save.error ? <Notice tone="warn">{save.error.message}</Notice> : null}
               <Sheet visible={!!editing && !!quiet} onClose={() => setEditing(undefined)} label={editing ? t[editing] : t.quiet}>
                 {editing && quiet ? (
                   <Choice
@@ -148,11 +146,10 @@ export default function NotificationsScreen() {
           ) : (
             <Waiting query={prefs} what="your alerts" />
           )}
-          <View style={{ gap: 8 }}>
-            <SectionLabel>{t.lockScreen}</SectionLabel>
-            <View accessible accessibilityLabel={`${t.sampleTitle} ${t.sampleBody}`} style={[styles.lock, { backgroundColor: theme.text }]}>
-              <View style={[styles.note, { backgroundColor: theme.surface }]}>
-                <View style={[styles.appIcon, { backgroundColor: theme.button }]}>
+          <Section title={t.lockScreen}>
+            <View accessible accessibilityLabel={`${t.sampleTitle} ${t.sampleBody}`} style={[styles.lock, shape(radii.card), { backgroundColor: theme.text }]}>
+              <View style={[styles.note, shape(radii.field), { backgroundColor: theme.surface }]}>
+                <View style={[styles.appIcon, shape(radii.tile), { backgroundColor: theme.button }]}>
                   <Text style={[styles.appLetter, { color: theme.buttonText }]}>S</Text>
                 </View>
                 <View style={{ flex: 1 }}>
@@ -168,7 +165,7 @@ export default function NotificationsScreen() {
             <Body small muted>
               {t.noAmounts}
             </Body>
-          </View>
+          </Section>
         </>
       ) : (
         <Waiting query={devices} what="push alerts" />
@@ -178,17 +175,17 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  refused: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  kind: { justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth },
+  list: { paddingHorizontal: size.pad },
+  kind: { justifyContent: 'center' },
   times: { flexDirection: 'row', gap: 12 },
-  time: { borderWidth: 1, minHeight: 48, minWidth: 110, paddingHorizontal: 12, paddingVertical: 6, justifyContent: 'center' },
+  time: { minHeight: 52, minWidth: 110, paddingHorizontal: 12, paddingVertical: 6, justifyContent: 'center' },
   clock: { fontFamily: font.regular, fontSize: size.body, fontVariant: ['tabular-nums'] },
   lock: { paddingVertical: 16, paddingHorizontal: 12 },
-  note: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 10, paddingHorizontal: 12, opacity: 0.94 },
-  appIcon: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  note: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', paddingVertical: 12, paddingHorizontal: 14, opacity: 0.94 },
+  appIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   appLetter: { fontFamily: font.semibold, fontSize: 14 },
   noteTop: { flexDirection: 'row', justifyContent: 'space-between' },
-  small: { fontFamily: font.regular, fontSize: 13 },
+  small: { fontFamily: font.regular, fontSize: size.label },
   noteTitle: { fontFamily: font.medium, fontSize: size.body },
-  noteBody: { fontFamily: font.regular, fontSize: 14 },
+  noteBody: { fontFamily: font.regular, fontSize: size.small },
 });
