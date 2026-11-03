@@ -68,6 +68,17 @@ export const strings = {
     close: 'Close',
   },
 
+  /** Pages the server describes as panels: its words are the server's, these are the console's only. */
+  panel: {
+    notNow: 'Not now',
+    required: 'Required',
+    opensNewTab: 'Opens in a new tab',
+    cantShow: 'This page can’t be shown.',
+    nothing: 'Nothing to show.',
+    loadingWhat: 'this page',
+    choose: 'Choose…',
+  },
+
   chips: {
     wholeId: 'the whole id',
   },

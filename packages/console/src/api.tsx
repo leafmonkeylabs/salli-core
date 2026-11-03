@@ -86,6 +86,19 @@ export function useRead<F extends Operation>(
   });
 }
 
+/**
+ * Reads a path no generated function names (a panel's document), through the
+ * SDK's `send`, and parses what comes back; keyed by `name` like `useRead`.
+ */
+export function useGet<T>(name: string, path: string, parse: (value: unknown) => T, config: { enabled?: boolean } = {}): UseQueryResult<T, Error> {
+  const api = useApi();
+  return useQuery({
+    queryKey: [name, path],
+    queryFn: async ({ signal }) => parse(await api.send({ method: 'GET', path, signal })),
+    ...(config.enabled === undefined ? {} : { enabled: config.enabled }),
+  });
+}
+
 export interface WriteOptions<I, R> {
   /** Operation names whose reads this write changes. */
   invalidate?: string[];

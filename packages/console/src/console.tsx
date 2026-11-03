@@ -141,6 +141,7 @@ const WHERE: ConsoleRoute[] = [
   { path: '/attention', load: () => import('./pages/attention/Attention') },
   { path: '/fi', load: () => import('./pages/fi/Fi') },
   { path: '/more', load: () => import('./pages/more/More') },
+  { path: '/panel/$id', load: () => import('./pages/panel/Panel') },
 ];
 
 /**
