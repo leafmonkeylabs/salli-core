@@ -319,6 +319,53 @@ the app: core holds no key and runs no model for it.
   More → Your AI. Kept conversations open from More → Your AI. The page has
   no heading on screen; Back names the tab it came from.
 
+## Panels
+
+A server may describe pages of its own as **panels** (`salli.panel/1`,
+`GET /v1/panels`, `GET /v1/panels/{id}`; `/v1/meta` says `panels: true`), and
+the app draws them. Strictly what is sent: the app has no words of its own
+beyond "Done", "Try again" and "Not now", and no knowledge of what a panel is
+for.
+
+- **The screen** (`src/app/panel/[id].tsx`, `src/panel.tsx`): a normal pushed
+  screen, titled by the server, sections as cards (heading as the section label,
+  footnote under the card), then the document's note. Text rows are a label
+  and a value (stacked from xxxL), a link row opens its https page in the
+  secure browser sheet (a link to VoiceOver, hint "Opens in your browser"), an
+  action row is a button (secondary for a DELETE) under its detail, a form is
+  labelled fields (a number field takes the decimal pad and stays a string; a
+  select is a checked list) and a button that waits until the required ones are
+  filled. Buttons and fields are 48 pt and follow the text size; the page is
+  pulled down to read again.
+- **An action** with `confirm` asks in the system alert, in the server's
+  words, with "Not now". Then the request goes to the path the row names
+  (`client.send`, only under `/v1/`), and `then` reads the page again
+  (`refresh`: this is how "requested" shows) or goes back (`close`). A
+  refusal is the server's own sentence, shown in the row that asked with Try
+  again; a page that cannot be read says so with Try again.
+- **Bad documents:** `parsePanel` (packages/sdk/src/panel.ts) refuses a document
+  that is not `salli.panel/1`, and leaves out a row it cannot draw safely
+  (a link that is not https, an action outside `/v1/`, a method but POST or
+  DELETE, an unknown kind of row).
+- **More** lists a tile for each panel the server places at `more`, and
+  `settings` (the app has no Settings screen of its own; the console's is a link),
+  titled by it, only when `/v1/meta` says panels exist.
+- **The offer sheet** (design PlanLimit; `src/offer.tsx`, `src/offer-store.ts`):
+  any call that fails with a problem carrying `offer {title, detail, label,
+  panel}` opens one generic sheet (the title, the detail, the label's button
+  to the panel, "Not now"). It is hooked once, in the session's client
+  (`onApiError`), so no screen handles it, and shows only for the server on
+  screen.
+- **Signing up on Salli's server.** When the build names it
+  (`EXPO_PUBLIC_HOSTED_SERVER`, unset by default) the first screen's "Salli's
+  server" opens `<server>/signup?...` (the query the authorization endpoint
+  takes: the app's client, redirect, PKCE challenge, state, resource) in the
+  secure browser sheet. The page, which is the server's, carries the person
+  through its steps and back to `money.salli.app:/oauth/callback`; the app
+  exchanges the code as for any sign-in and goes to Home (First run, for a
+  new book). "Have an invitation?" (the invitation Join) and "Already have an
+  account? Sign in" stay beside it. Unset, it goes to the invitation Join.
+
 ## Motion
 
 Built with Reanimated, gesture-handler and expo-haptics; the tokens are in

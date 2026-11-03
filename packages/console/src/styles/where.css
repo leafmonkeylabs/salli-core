@@ -86,3 +86,32 @@
 .assumption .form {
   max-width: 560px;
 }
+
+/* A panel the server describes (kit/PanelView.tsx). */
+.panel-text {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.panel-detail,
+.panel-action > p {
+  display: block;
+}
+
+.panel-action {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.panel-form-title {
+  font-size: var(--size-body);
+  font-weight: 500;
+}
+
+.panel-note {
+  padding: 12px 16px;
+  border: 1px solid var(--c-rule);
+  background: var(--c-well);
+}

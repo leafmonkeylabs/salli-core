@@ -19,6 +19,7 @@ import { Count } from '../kit/chips';
 import { Icon, type IconName } from '../kit/Icon';
 import { Logo } from '../kit/Logo';
 import { Popover } from '../kit/Popover';
+import { usePanelNavigation } from '../panels';
 import { usePreferences } from '../preferences';
 import { strings } from '../strings';
 import { ShellContext, type ShellPage } from './context';
@@ -210,7 +211,9 @@ const BAR_ICONS: Record<string, IconName> = { '/': 'home', '/cash': 'cash', '/de
 export function Shell() {
   const session = useSession();
   const router = useRouter();
-  const { navigation } = useConsoleExtensions();
+  const { navigation: added } = useConsoleExtensions();
+  const panels = usePanelNavigation();
+  const navigation = useMemo(() => [...added, ...panels], [added, panels]);
   const { side, setSide } = usePreferences();
   const main = useRef<HTMLElement>(null);
   const wide = useMedia('(min-width: 1081px)');

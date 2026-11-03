@@ -56,6 +56,20 @@ export {
   type FormatDecimalOptions,
   type FormatRatioOptions,
 } from './money';
+export {
+  formBody,
+  isApiPath,
+  isPanelId,
+  missingFields,
+  offerOf,
+  parsePanel,
+  type Offer,
+  type PanelDocument,
+  type PanelAction,
+  type PanelField,
+  type PanelRow,
+  type PanelSection,
+} from './panel';
 export { parseEventData, readServerSentEvents, type EventSourceMessage } from './sse';
 export {
   parseAgentEvent,

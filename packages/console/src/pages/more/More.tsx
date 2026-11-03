@@ -6,10 +6,12 @@
 import { Link } from '@tanstack/react-router';
 import { useConsoleExtensions } from '../../console-context';
 import { Page } from '../../kit/layout';
+import { usePanelNavigation } from '../../panels';
 import { strings } from '../../strings';
 
 export function More() {
-  const { navigation } = useConsoleExtensions();
+  const { navigation: added } = useConsoleExtensions();
+  const navigation = [...added, ...usePanelNavigation()];
   const places = [
     { to: '/tax', label: strings.nav.tax },
     { to: '/attention', label: strings.nav.attention },

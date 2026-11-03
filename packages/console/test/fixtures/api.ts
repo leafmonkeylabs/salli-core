@@ -11,6 +11,7 @@ import { ME, metaAt, ORIGIN, PROFILE, SIGN_INS } from './auth';
 import * as home from './home';
 import { BooksState, SettingsState, TaxState } from './c4-api';
 import { LabState } from './lab-api';
+import { PanelsState } from './panels';
 import { WhereState } from './where-api';
 
 export interface Answer {
@@ -68,6 +69,8 @@ export class MockApi {
   tax = new TaxState();
   /** Tokens, AI connections, digests and your data (c4-api.ts). */
   settings = new SettingsState();
+  /** Panels the server describes (panels.ts); undefined: a server with none. */
+  panels: PanelsState | undefined;
   issued = 0;
 
   constructor(origin: string = ORIGIN) {
@@ -82,7 +85,7 @@ export class MockApi {
       if (answer) return answer;
     }
     const { method, path } = request;
-    if (method === 'GET' && path === '/v1/meta') return { status: 200, body: metaAt(this.origin, this.extensions) };
+    if (method === 'GET' && path === '/v1/meta') return { status: 200, body: { ...metaAt(this.origin, this.extensions), panels: Boolean(this.panels) } };
     if (method === 'POST' && path === '/mcp/oauth/token') {
       this.issued += 1;
       return {
@@ -94,6 +97,8 @@ export class MockApi {
     if (!request.authorization) return { status: 401, body: problem(401, 'Not signed in') };
     if (method === 'GET' && path === '/v1/auth/me') return { status: 200, body: this.me };
     if (method === 'GET' && path in this.reads) return { status: 200, body: this.reads[path] };
+    const described = this.panels?.answer(request);
+    if (described) return described;
     const stands = this.where.answer(request);
     // An assumption set changes the FI score, which Home reads too.
     if (stands && method === 'PATCH' && path === '/v1/fi/assumptions' && stands.status === 200) this.reads['/v1/fi/score'] = this.where.score;

@@ -56,6 +56,8 @@ export interface SalliClientOptions {
   signal?: AbortSignal;
   /** Called after every request (for logging). */
   onResponse?: (log: RequestLog) => void;
+  /** Called once for each call that fails with an API error, before it is thrown (for a client's one place to react to a problem). */
+  onApiError?: (error: SalliApiError) => void;
 }
 
 // The generated functions are generic in whether they throw, which makes
@@ -107,6 +109,12 @@ export interface SalliClient {
    * `SalliApiError` before any event.
    */
   events(request: StreamRequest): AsyncGenerator<EventSourceMessage, void, undefined>;
+  /**
+   * Calls a path the API serves that no generated function names, as a panel's
+   * action or a read of its document does: the answer's JSON, or undefined for
+   * no content. Throws as `call` does.
+   */
+  send(request: { method: 'GET' | 'POST' | 'DELETE'; path: string; body?: unknown; signal?: AbortSignal }): Promise<unknown>;
   /** `GET /v1/meta`: what the server is and how to sign in to it. */
   meta(options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<Meta>;
 }
@@ -276,7 +284,11 @@ export function createClient(options: SalliClientOptions): SalliClient {
       ...(combined ? { signal: combined } : {}),
       client,
     })) as Settled;
-    if (result.error !== undefined) throw toError(result, timeout, ms, cancel);
+    if (result.error !== undefined) {
+      const error = toError(result, timeout, ms, cancel);
+      if (error instanceof SalliApiError) options.onApiError?.(error);
+      throw error;
+    }
     return result;
   }
 
@@ -306,6 +318,15 @@ export function createClient(options: SalliClientOptions): SalliClient {
       if (!stream || typeof (stream as { getReader?: unknown }).getReader !== 'function') return;
       const signals = [options.signal, signal].filter((s): s is AbortSignal => s !== undefined);
       yield* readServerSentEvents(stream, signals.length > 1 ? AbortSignal.any(signals) : signals[0]);
+    },
+
+    async send({ method, path, body, signal }) {
+      const request: SdkFunction = ({ client: _client, ...rest }: Record<string, unknown>) => client.request({ ...rest, method, url: path } as never);
+      const result = await invoke(request, [{ ...(body !== undefined ? { body } : {}), ...(signal ? { signal } : {}) }], {
+        headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+      });
+      if (result.response?.status === 204) return undefined;
+      return result.data;
     },
 
     meta(metaOptions = {}) {
