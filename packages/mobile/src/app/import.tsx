@@ -4,14 +4,14 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../api';
-import { Body, Button, Icon } from '../kit';
+import { Body, Button, Icon, Notice, Press, Tag } from '../kit';
 import { useKeepDraft } from '../draft';
 import { Picker } from '../picker';
 import { strings } from '../strings';
-import { font, size, useTheme } from '../theme';
+import { font, radii, shape, size, useTheme } from '../theme';
 
 const t = strings.imports;
 /** The most the server reads (`salli import`, the console). */
@@ -75,10 +75,10 @@ export default function Import() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface }} onAccessibilityEscape={() => router.back()}>
-      <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top, borderBottomColor: theme.line }]}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
+      <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top }]}>
+        <Press accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
           <Body max={1.5}>{t.cancel}</Body>
-        </Pressable>
+        </Press>
         <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={[styles.headerTitle, { color: theme.text }]}>
           {t.title}
         </Text>
@@ -88,7 +88,7 @@ export default function Import() {
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24 }]}>
         <Field label={t.file} {...(tooLarge ? { help: t.tooLarge } : {})}>
           {file ? (
-            <View style={[styles.file, { borderColor: theme.fieldBorder, backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12) }]}>
+            <View style={[styles.file, shape(radii.field), { backgroundColor: theme.fill }]}>
               <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={2}>
                 {file.name}
               </Text>
@@ -98,28 +98,26 @@ export default function Import() {
           {file ? null : (
             <View style={styles.formats} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
               {t.formats.map((f) => (
-                <Text key={f} style={[styles.format, { color: theme.muted, borderColor: theme.line, borderRadius: Math.min(theme.control, 999) }]}>
-                  {f}
-                </Text>
+                <Tag key={f}>{f}</Tag>
               ))}
             </View>
           )}
         </Field>
 
         <Field label={t.account}>
-          <Pressable
+          <Press
             accessibilityRole="button"
             accessibilityLabel={`${t.account}: ${name}`}
             accessibilityHint={t.accountHelp}
             onPress={() => setPicking(true)}
-            style={[styles.choose, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder }]}
+            style={[styles.choose, shape(radii.field), { backgroundColor: theme.fill }]}
           >
             <Body>{name}</Body>
             <Icon name="down" size={16} colour={theme.muted} />
-          </Pressable>
+          </Press>
         </Field>
 
-        {upload.error ? <Body alert>{upload.error.message}</Body> : null}
+        {upload.error ? <Notice tone="warn">{upload.error.message}</Notice> : null}
         <View style={{ gap: 6 }}>
           <Button
             label={upload.isPending ? t.submitting : t.submit}
@@ -163,13 +161,12 @@ function Field({ label, help, children }: { label: string; help?: string; childr
 
 const styles = StyleSheet.create({
   formats: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  format: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, paddingVertical: 4, fontFamily: font.regular, fontSize: 12, overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: size.gutter - 8 },
   headerButton: { minHeight: size.target, minWidth: 72, justifyContent: 'center', paddingHorizontal: 8 },
-  headerTitle: { flex: 1, textAlign: 'center', fontFamily: font.medium, fontSize: 17 },
-  page: { padding: size.gutter, gap: 20 },
+  headerTitle: { flex: 1, textAlign: 'center', fontFamily: font.semibold, fontSize: size.headline },
+  page: { padding: size.gutter, gap: size.section },
   label: { fontFamily: font.medium, fontSize: size.small },
-  file: { borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
+  file: { paddingHorizontal: 16, paddingVertical: 14 },
   fileName: { fontFamily: font.mono, fontSize: size.small },
-  choose: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  choose: { minHeight: size.control, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });
