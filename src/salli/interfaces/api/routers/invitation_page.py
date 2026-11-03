@@ -28,6 +28,9 @@ from salli.application.services.login_service import (
 )
 from salli.interfaces.api.deps import AppServices
 from salli.interfaces.api.routers.mcp_consent_page import (
+    _ICON_KEY,  # pyright: ignore[reportPrivateUsage]
+    _ICON_TICK,  # pyright: ignore[reportPrivateUsage]
+    _error,  # pyright: ignore[reportPrivateUsage]
     _page,  # pyright: ignore[reportPrivateUsage]
 )
 
@@ -35,27 +38,38 @@ router = APIRouter(tags=["mcp-oauth"])
 
 _TITLE = "Join Salli"
 _GONE = (
-    "<h1>This link doesn't work</h1><p>The invitation has been used or has expired. "
+    "<h1>This link doesn't work</h1><p class=lede>The invitation has been used or has expired. "
     "Ask the person who runs this Salli server for a new one.</p>"
 )
 
 
+def _spaced(secret: str) -> str:
+    """The key in groups of four, as it reads best in a box."""
+    return " ".join(secret[i : i + 4] for i in range(0, len(secret), 4))
+
+
 def _form(token: str, email: str, secret: str, error: str = "") -> str:
+    """The join form. There is no Cancel: an invitation has no client to
+    return to, and no safe target exists, so closing the page is the way out."""
     e = html.escape
     two_step = (
         "<p class=muted>Optional: add this key to an authenticator app and enter its "
         "code to turn on two-step sign-in.</p>"
-        f"<p><code>{e(secret)}</code></p>"
+        f'<a class="btn q" href="{e(totp.provisioning_uri(secret, email))}">{_ICON_KEY}'
+        "Add to an authenticator app</a>"
+        f"<div class=key><small>Or type this key</small><code>{e(_spaced(secret))}</code></div>"
         f'<input type=hidden name=totp_secret value="{e(secret)}">'
-        "<label for=code>Authenticator code (optional)</label>"
+        "<label for=code>Authenticator code <span class=opt>optional</span></label>"
         "<input id=code name=code autocomplete=one-time-code autocapitalize=none "
         "spellcheck=false maxlength=64>"
         if secret
         else ""
     )
     return (
-        f"<h1>{_TITLE}</h1><p>You've been invited as {e(email)}. Choose a password to "
-        "finish: at least 12 characters.</p><form method=post>"
+        f"<h1>{_TITLE}</h1><p class=lede>You've been invited as {e(email)}. Choose a password "
+        "to finish: at least 12 characters.</p>"
+        + (_error(error) if error else "")
+        + "<form method=post>"
         f'<input type=hidden name=t value="{e(token)}">'
         f'<input type=hidden name=email value="{e(email)}" autocomplete=username>'
         "<label for=password>Password</label>"
@@ -63,7 +77,6 @@ def _form(token: str, email: str, secret: str, error: str = "") -> str:
         "minlength=12 required autofocus>"
         + two_step
         + "<div class=row><button name=decision value=allow>Join</button></div>"
-        + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
         + "</form>"
     )
 
@@ -93,20 +106,25 @@ async def join(
     except LoginNotFound:
         return _page(_GONE, status.HTTP_404_NOT_FOUND, title=_TITLE)
     except LoginExists as exc:
-        return _page(f"<h1>Already a member</h1><p>{html.escape(str(exc))}</p>", 409, title=_TITLE)
+        return _page(
+            f"<h1>Already a member</h1><p class=lede>{html.escape(str(exc))}</p>",
+            409,
+            title=_TITLE,
+        )
     except (PasswordRejected, CodeRefused, TwoStepUnavailable) as exc:
         return _page(_form(t, found["email"], totp_secret, str(exc)), 400, title=_TITLE)
     codes = joined["recovery_codes"]
     recovery = (
-        "<p>Two-step sign-in is on. Keep these recovery codes somewhere safe; each "
-        "works once, and you won't see them again:</p><p><code>"
-        + "<br>".join(html.escape(c) for c in codes)
-        + "</code></p>"
+        "<p class=lede>Two-step sign-in is on. Keep these recovery codes somewhere safe; each "
+        "works once, and you won't see them again:</p><div class=codes>"
+        + "".join(f"<code>{html.escape(c)}</code>" for c in codes)
+        + "</div>"
         if codes
         else ""
     )
     return _page(
-        f"<h1>You're in</h1><p>Sign in as {html.escape(joined['email'])} from the "
+        f"<div class=ok><span class=disc>{_ICON_TICK}</span><h1>You're in</h1></div>"
+        f"<p class=lede>Sign in as {html.escape(joined['email'])} from the "
         f"Salli app, the console or <code>salli login</code>.</p>{recovery}",
         title=_TITLE,
     )

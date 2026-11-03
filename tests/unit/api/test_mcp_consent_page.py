@@ -43,9 +43,9 @@ async def test_the_page_names_the_client_safely(client, consent):
 
 async def test_a_self_registered_client_s_name_is_marked_not_verified(client, consent):
     r = await client.get(PAGE, params={"rt": "token"})
-    assert "Claude &lt;script&gt; to your Salli? <span class=unverified>Not verified by Salli" in (
-        r.text
-    )
+    # A pill with an icon, under the title, in words.
+    assert "<h1>Connect Claude &lt;script&gt; to your Salli?</h1><span class=badge>" in r.text
+    assert "Not verified by Salli</span>" in r.text
     consent.get_consent_info.return_value = {
         "client_id": "salli-cli",
         "client_name": "Salli CLI",
@@ -85,6 +85,9 @@ async def test_wrong_credentials_show_the_form_again(client, consent, mock_servi
     # The password is never written back into the page.
     assert "a-guess-1234" not in r.text
     consent.complete_consent.assert_not_awaited()
+    # The refusal is a notice above the form, and the email stays.
+    assert r.text.index("role=alert") < r.text.index("<form")
+    assert 'name=email type=email autocomplete=username value="a@b.c"' in r.text
 
 
 async def test_too_many_failures_are_refused_with_429(client, consent, mock_services):
@@ -179,16 +182,29 @@ async def test_the_page_s_only_style_is_allowed_by_its_hash_and_no_script_runs(c
 
 async def test_the_page_is_in_the_brand(client, consent):
     style = _style_of((await client.get(PAGE, params={"rt": "token"})).text)
-    for token in ("#F6F3EC", "#1C1B19", "#173B33", "#D8CBAE", "#0E1513", "#F2ECDF"):
+    # The v2 palette, light then dark.
+    for token in ("#F3F2EF", "#18201C", "#2E6A55", "#E4EFE9", "#A8483A", "#0E1110", "#ECEFEC"):
         assert token in style
-    # Not the colours it had before the brand, and no brass focus ring (2.4:1).
-    for old in ("#2E7D6B", "#fafaf7", "#B39A6B"):
+    # None of the retired colours (bone, sand, oxblood, brass, paper) and no
+    # brass focus ring (2.4:1).
+    for old in ("#F6F3EC", "#ECE6D9", "#D8CBAE", "#6B2620", "#B39A6B", "#173B33", "#2E7D6B"):
         assert old.lower() not in style.lower()
     assert "@import" not in style and "url(" not in style  # no font request
-    # A field's edge is stone (muted on dark), at least 3:1; inputs and buttons 44 px.
-    assert "--field:#8A8378" in style and "--field:#9AAAA2" in style
-    assert "border:1px solid var(--field)" in style
-    assert "height:44px" in style and "height:40px" not in style
+    # Rounded: a 24 px card, 48 px fields with 14 px corners, pill buttons, a
+    # visible focus ring, nothing square.
+    for rule in ("border-radius:24px", "height:48px", "border-radius:14px", "border-radius:999px"):
+        assert rule in style
+    assert "border-radius:0" not in style
+    assert "box-shadow:inset 0 0 0 1.5px var(--acc)" in style  # the focus ring
+    # The secondary button is visible on dark: its own fill and ring.
+    assert "--qr:#4D5651" in style and "button[value=deny]" in style
+    assert "prefers-color-scheme:dark" in style
+    assert len(style) < 9000  # in every response
+
+
+async def test_the_page_shows_the_server_address(client, consent):
+    page = (await client.get(PAGE, params={"rt": "token"})).text
+    assert "<span class=srv>" in page and "localhost:8000</span>" in page
 
 
 async def test_the_logo_is_the_outlined_file_not_retyped(client, consent):
@@ -214,7 +230,9 @@ async def test_the_console_reads_as_signing_in_to_salli_with_one_button(client, 
     }
     r = await client.get(PAGE, params={"rt": "token"})
     assert "<title>Sign in to Salli</title>" in r.text and "<h1>Sign in to Salli</h1>" in r.text
-    assert r.text.count("<button") == 1 and ">Sign in</button>" in r.text
+    # One main button, and a Cancel that is the existing deny path.
+    assert r.text.count("<button") == 2 and ">Sign in</button>" in r.text
+    assert "<button class=q name=decision value=deny formnovalidate>Cancel</button>" in r.text
     assert "is asking" not in r.text
 
 
@@ -226,7 +244,10 @@ _PARTS = ("ledger", "planning", "documents", "settings")
 async def test_an_ai_client_reads_unless_the_person_ticks_a_part(client, consent):
     r = await client.get(PAGE, params={"rt": "token"})
     assert "is asking to read your Salli data." in r.text
-    assert all(_ALLOW.format(part=p) in r.text for p in _PARTS) and "checked" not in r.text
+    assert (
+        all(_ALLOW.format(part=p) in r.text for p in _PARTS)
+        and "checked" not in r.text.split("</style>", 1)[1]
+    )
     assert "<legend>Allow changes" in r.text
 
     await client.post(PAGE, data=_SIGNED_IN)
