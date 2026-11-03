@@ -2,9 +2,9 @@ import { fiAssumptions, fiAssumptionsSet, type FiAssumption } from '@leafmonkeyl
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, Icon, Waiting, useDoneBar } from '../../kit';
+import { Body, Button, Field, Icon, Notice, Press, Surface, Tag, Waiting, useDoneBar } from '../../kit';
 import { fractionOf, percentOf } from '../../lib/fi';
 import { Page } from '../../shell';
 import { Sheet, SheetTitle } from '../../sheet';
@@ -36,12 +36,13 @@ export default function Assumptions() {
   return (
     <Page title={t.assumptions} back={{ label: t.title, onPress: () => (router.canGoBack() ? router.back() : router.replace('/fi')) }} onRefresh={() => read.refetch()}>
       {applied ? (
-        <Card style={{ paddingVertical: 0 }}>
+        <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
           {KEYS.map((key, i) => {
             const a: FiAssumption | null | undefined = applied[key];
             const placeholder = a?.origin === 'placeholder';
             return (
-              <Pressable
+              <Press
+                highlight
                 key={key}
                 accessibilityRole="button"
                 accessibilityLabel={`${t.names[key]}: ${a ? `${percentOf(a.value)}%` : t.notSet}, ${placeholder ? t.placeholder : a ? t.origins[a.origin] : ''}`}
@@ -50,16 +51,14 @@ export default function Assumptions() {
               >
                 <Body style={{ flex: 1 }}>{t.names[key] ?? key}</Body>
                 {a ? (
-                  <Text style={[styles.tag, { color: placeholder ? theme.red : theme.muted, borderColor: placeholder ? theme.red : theme.line, borderRadius: Math.min(theme.control, 999) }]}>
-                    {placeholder ? t.placeholder : t.origins[a.origin]}
-                  </Text>
+                  <Tag tone={placeholder ? 'red' : 'neutral'}>{(placeholder ? t.placeholder : t.origins[a.origin]) ?? ''}</Tag>
                 ) : null}
                 <Text style={[styles.value, { color: theme.text }]}>{a ? `${percentOf(a.value)}%` : t.notSet}</Text>
                 <Icon name="chevron" size={16} colour={theme.muted} />
-              </Pressable>
+              </Press>
             );
           })}
-        </Card>
+        </Surface>
       ) : (
         <Waiting query={read} what="the assumptions" />
       )}
@@ -86,18 +85,17 @@ function EditSheet({ name, current, visible, onClose, onSave }: { name: string; 
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const fraction = fractionOf(typed);
   const done = useDoneBar(true);
-  const input = [styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   return (
     <Sheet visible={visible} onClose={onClose} label={name}>
       <SheetTitle style={[styles.title, { color: theme.text }]}>
         {name}
       </SheetTitle>
       <View style={styles.percentRow}>
-        <TextInput {...done.field('value')} value={typed} onChangeText={setTyped} keyboardType="decimal-pad" accessibilityLabel={`${name}, ${t.percent}`} autoFocus style={[...input, { flex: 1 }]} />
+        <Field {...done.field('value')} value={typed} onChangeText={setTyped} keyboardType="decimal-pad" accessibilityLabel={`${name}, ${t.percent}`} autoFocus style={{ flex: 1 }} />
         <Body>%</Body>
       </View>
-      <TextInput {...done.field('source')} value={source} onChangeText={setSource} placeholder={t.sourcePlaceholder} placeholderTextColor={theme.muted} accessibilityLabel={t.source} style={input} />
-      {problem ? <Body alert>{problem}</Body> : null}
+      <Field {...done.field('source')} value={source} onChangeText={setSource} placeholder={t.sourcePlaceholder} accessibilityLabel={t.source} />
+      {problem ? <Notice tone="warn">{problem}</Notice> : null}
       <Button
         label={t.save}
         busy={busy}
@@ -117,10 +115,8 @@ function EditSheet({ name, current, visible, onClose, onSave }: { name: string; 
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56 },
-  tag: { fontFamily: font.regular, fontSize: 12, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },
   value: { fontFamily: font.medium, fontSize: size.body, fontVariant: ['tabular-nums'], minWidth: 44, textAlign: 'right' },
-  title: { fontFamily: font.medium, fontSize: size.heading },
+  title: { fontFamily: font.semibold, fontSize: size.title },
   percentRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
 });
