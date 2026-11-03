@@ -2,11 +2,11 @@ import { accountsList, statementsDraft, type Account, type DraftedTransactions }
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead, useReach } from '../api';
 import { Drafted, useAutomations } from '../automations';
 import { useUnread } from '../inbox';
-import { Body, Button, Card, CardHead, Icon, Row, Waiting } from '../kit';
+import { Body, Button, Field, Icon, Notice, Press, Row, Section, Surface, Waiting } from '../kit';
 import { read, type Reading } from '../lib/automations';
 import { displayMoment, todayIso } from '../lib/display';
 import { Page } from '../shell';
@@ -31,28 +31,28 @@ export default function Automations() {
       <Text accessibilityLabel={t.introSpoken} style={[styles.intro, { color: theme.muted }]}>
         {t.intro}
       </Text>
-      <Card style={{ paddingVertical: 4 }}>
-        <View style={{ paddingTop: 8 }}>
-          <CardHead label={t.rules} />
-        </View>
-        {rules === undefined ? null : rules.length === 0 ? (
-          <Body muted style={{ paddingVertical: 12 }}>
-            {t.noRules}
-          </Body>
-        ) : (
-          rules.map((rule) => (
-            <Row
-              key={rule.id}
-              title={rule.name}
-              detail={t.ruleDetail(nameOf(rule.accountId), rule.senders.join(', '))}
-              onPress={() => router.push({ pathname: '/automation/[id]', params: { id: rule.id } })}
-            />
-          ))
-        )}
-        <View style={{ paddingVertical: 12 }}>
-          <Button kind="secondary" icon="plus" label={t.add} onPress={() => router.push({ pathname: '/automation/[id]', params: { id: 'new' } })} />
-        </View>
-      </Card>
+      <Section title={t.rules}>
+        <Surface pad={false} style={styles.list}>
+          {rules === undefined ? null : rules.length === 0 ? (
+            <Body muted style={{ paddingVertical: 16 }}>
+              {t.noRules}
+            </Body>
+          ) : (
+            rules.map((rule, i) => (
+              <Row
+                key={rule.id}
+                last={i === rules.length - 1}
+                title={rule.name}
+                detail={t.ruleDetail(nameOf(rule.accountId), rule.senders.join(', '))}
+                onPress={() => router.push({ pathname: '/automation/[id]', params: { id: rule.id } })}
+              />
+            ))
+          )}
+          <View style={{ paddingVertical: 12 }}>
+            <Button kind="secondary" icon="plus" label={t.add} onPress={() => router.push({ pathname: '/automation/[id]', params: { id: 'new' } })} />
+          </View>
+        </Surface>
+      </Section>
       <Unread />
       {accounts.data ? <TryMessage accounts={accounts.data} /> : <Waiting query={accounts} what="your accounts" />}
       <HowTo />
@@ -65,17 +65,17 @@ function HowTo() {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
   return (
-    <Card style={{ gap: 8 }}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={styles.howTo}>
+    <Surface pad={false} style={[styles.list, { gap: 8 }]}>
+      <Press highlight accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={styles.howTo}>
         <Body style={{ flex: 1 }}>{t.howTo}</Body>
         <Icon name={open ? 'down' : 'chevron'} size={16} colour={theme.muted} />
-      </Pressable>
+      </Press>
       {open ? (
-        <Body small muted>
+        <Body small muted style={{ paddingBottom: 16 }}>
           {t.shortcutHelp}
         </Body>
       ) : null}
-    </Card>
+    </Surface>
   );
 }
 
@@ -89,23 +89,23 @@ function Unread() {
   }, [readAgain]);
   if (!messages.length) return null;
   return (
-    <Card style={{ gap: 12 }}>
-      <View accessible accessibilityLabel={`${t.unreadTitle}. ${t.unreadHelp}`}>
-        <CardHead label={t.unreadTitle} />
-      </View>
-      {messages.map((message) => (
-        <View key={message.id} style={[styles.unread, { borderTopColor: theme.line }]}>
+    <Section title={t.unreadTitle}>
+    <Surface style={{ gap: 12 }}>
+      <Body small muted>{t.unreadHelp}</Body>
+      {messages.map((message, i) => (
+        <View key={message.id} style={[styles.unread, i > 0 ? { borderTopColor: theme.line, borderTopWidth: StyleSheet.hairlineWidth } : null]}>
           <Body small muted>
             {t.unreadFrom(message.sender, displayMoment(new Date(message.at)))}
           </Body>
           <Body>{message.text}</Body>
           <View style={styles.unreadActions}>
-            <Button kind="secondary" label={t.makeRule} onPress={() => router.push({ pathname: '/automation/[id]', params: { id: 'new', sample: message.text } })} />
-            <Button kind="tertiary" label={t.discard} onPress={() => void discard(message.id)} />
+            <Button small kind="secondary" label={t.makeRule} onPress={() => router.push({ pathname: '/automation/[id]', params: { id: 'new', sample: message.text } })} />
+            <Button small kind="tertiary" label={t.discard} onPress={() => void discard(message.id)} />
           </View>
         </View>
       ))}
-    </Card>
+    </Surface>
+    </Section>
   );
 }
 
@@ -129,25 +129,20 @@ function TryMessage({ accounts }: { accounts: readonly Account[] }) {
   const sent: DraftedTransactions | undefined = send.data;
 
   return (
-    <Card style={{ gap: 12 }}>
-      <CardHead label={t.tryTitle} />
-      <View style={{ gap: 6 }}>
-        <Text style={[styles.label, { color: theme.text }]}>{t.tryLabel}</Text>
-        <TextInput
-          value={text}
-          onChangeText={(next) => {
-            setText(next);
-            setReading(undefined);
-            send.reset();
-          }}
-          multiline
-          accessibilityLabel={t.tryLabel}
-          accessibilityHint={t.tryHelp}
-          placeholder={t.tryPlaceholder}
-          placeholderTextColor={theme.muted}
-          style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
-        />
-      </View>
+    <Section title={t.tryTitle}>
+    <Surface style={{ gap: 12 }}>
+      <Field
+        label={t.tryLabel}
+        value={text}
+        onChangeText={(next) => {
+          setText(next);
+          setReading(undefined);
+          send.reset();
+        }}
+        multiline
+        accessibilityHint={t.tryHelp}
+        placeholder={t.tryPlaceholder}
+      />
       {reading === undefined ? (
         <Button kind="secondary" label={t.read} disabled={!text.trim() || rules === undefined} onPress={() => setReading(read(rules ?? [], { text }, todayIso()))} />
       ) : reading.kind === 'draft' ? (
@@ -158,12 +153,12 @@ function TryMessage({ accounts }: { accounts: readonly Account[] }) {
           <Drafted draft={reading.draft} account={accountOf(reading.rule.accountId)} />
           {sent ? (
             <View style={{ gap: 8 }} accessibilityLiveRegion="polite">
-              <Body>{sent.drafted ? `✓ ${t.drafted(accountOf(reading.rule.accountId)?.name ?? '')}` : t.draftedBefore}</Body>
-              {sent.statement_id ? <Button kind="secondary" label={t.openReview} onPress={() => router.push({ pathname: '/review/[id]', params: { id: sent.statement_id } })} /> : null}
+              <Notice tone="good">{sent.drafted ? t.drafted(accountOf(reading.rule.accountId)?.name ?? '') : t.draftedBefore}</Notice>
+              {sent.statement_id ? <Button small kind="secondary" label={t.openReview} onPress={() => router.push({ pathname: '/review/[id]', params: { id: sent.statement_id } })} /> : null}
             </View>
           ) : (
             <>
-              {send.error ? <Body alert>{send.error.message}</Body> : null}
+              {send.error ? <Notice tone="warn">{send.error.message}</Notice> : null}
               <Button
                 label={t.send}
                 busy={send.isPending}
@@ -180,16 +175,15 @@ function TryMessage({ accounts }: { accounts: readonly Account[] }) {
           <Button kind="secondary" label={t.makeRule} onPress={() => router.push({ pathname: '/automation/[id]', params: { id: 'new', sample: text } })} />
         </View>
       )}
-    </Card>
+    </Surface>
+    </Section>
   );
-
 }
 
 const styles = StyleSheet.create({
   intro: { fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.45 },
-  howTo: { flexDirection: 'row', alignItems: 'center', minHeight: size.target },
-  unread: { gap: 8, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  list: { paddingHorizontal: size.pad },
+  howTo: { flexDirection: 'row', alignItems: 'center', minHeight: 56 },
+  unread: { gap: 8, paddingTop: 12 },
   unreadActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  label: { fontFamily: font.medium, fontSize: size.small },
-  input: { minHeight: 96, borderWidth: 1, borderRadius: 0, padding: 12, fontFamily: font.regular, fontSize: size.body, textAlignVertical: 'top' },
 });
