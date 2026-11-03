@@ -1,14 +1,14 @@
 import { accountsList, entriesList, formatAmount, type JournalEntry } from '@leafmonkeylabs/salli-sdk';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { View } from 'react-native';
 import { useRead } from '../api';
-import { Body, Button, Card, LedgerRow, SectionLabel, Waiting } from '../kit';
+import { Body, Button, Card, Field, LedgerRow, Section, Waiting } from '../kit';
 import { displayDate, displayDay, monthNameOf } from '../lib/display';
 import { Page } from '../shell';
 import { amountOf } from '../lib/entries';
 import { strings } from '../strings';
-import { font, size, useTheme } from '../theme';
+import { size } from '../theme';
 
 const t = strings.entries;
 /** Entries shown at once; "Show more" adds as many again. */
@@ -20,7 +20,6 @@ const PAGE = 50;
  * `--search`), never computed. Opening one shows its lines.
  */
 export default function Entries() {
-  const theme = useTheme();
   const entries = useRead('entries.list', entriesList);
   const accounts = useRead('accounts.list', accountsList);
   const [words, setWords] = useState('');
@@ -41,37 +40,30 @@ export default function Entries() {
 
   return (
     <Page title={t.title} back={{ label: t.back, onPress: () => (router.canGoBack() ? router.back() : router.replace('/books')) }} onRefresh={() => entries.refetch()}>
-      <View style={{ gap: 6 }}>
-        <TextInput
-          value={words}
-          onChangeText={(text) => {
-            setWords(text);
-            setShown(PAGE);
-          }}
-          placeholder={t.search}
-          placeholderTextColor={theme.muted}
-          accessibilityLabel={t.search}
-          accessibilityHint={t.searchHelp}
-          returnKeyType="search"
-          autoCapitalize="none"
-          autoCorrect={false}
-          clearButtonMode="while-editing"
-          style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
-        />
-        {entries.data ? (
-          <Body small muted>
-            {t.shown(page.length, matching.length)}
-          </Body>
-        ) : null}
-      </View>
+      <Field
+        value={words}
+        onChangeText={(text) => {
+          setWords(text);
+          setShown(PAGE);
+        }}
+        placeholder={t.search}
+        accessibilityLabel={t.search}
+        accessibilityHint={t.searchHelp}
+        returnKeyType="search"
+        autoCapitalize="none"
+        autoCorrect={false}
+        clearButtonMode="while-editing"
+        {...(entries.data ? { help: t.shown(page.length, matching.length) } : {})}
+      />
 
       {entries.data ? (
         matching.length ? (
           <>
+            <View style={{ gap: size.section }}>
             {months.map(({ month, rows }) => (
-              <Card key={month} style={{ paddingVertical: 12 }}>
-                <SectionLabel>{`${monthNameOf(`${month}-01`)} ${month.slice(0, 4)}`}</SectionLabel>
-                <View style={{ marginTop: 4 }}>
+              <Section key={month} title={`${monthNameOf(`${month}-01`)} ${month.slice(0, 4)}`}>
+              <Card style={{ paddingVertical: 8 }}>
+                <View>
                   {rows.map((entry, i) => {
                     const one = amountOf(entry);
                     const spoken = one ? formatAmount(one.amount, one.currency, { display: 'name' }) : t.lines(entry.postings.length);
@@ -90,7 +82,9 @@ export default function Entries() {
                   })}
                 </View>
               </Card>
+              </Section>
             ))}
+            </View>
             {matching.length > shown ? <Button kind="secondary" label={t.showMore(Math.min(PAGE, matching.length - shown))} onPress={() => setShown((n) => n + PAGE)} /> : null}
           </>
         ) : (
@@ -104,7 +98,3 @@ export default function Entries() {
     </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
-});

@@ -9,13 +9,19 @@ describe('appearance', () => {
     expect(appearanceOf('{"theme":"pocket","mode":"dim"}')).toEqual(DEFAULT_APPEARANCE);
   });
 
+  it('moves the retired themes to Ledger and keeps the mode', () => {
+    expect(appearanceOf('{"theme":"ledgerRounded","mode":"dark"}')).toEqual({ theme: 'ledger', mode: 'dark' });
+    expect(appearanceOf('{"theme":"sticker","mode":"auto"}')).toEqual({ theme: 'ledger', mode: 'auto' });
+    expect(THEMES).not.toContain('sticker');
+    expect(THEMES).not.toContain('ledgerRounded');
+  });
+
   it('follows the phone only where a theme has a night side', () => {
     expect(isNight({ theme: 'ledger', mode: 'auto' }, true)).toBe(true);
-    expect(isNight({ theme: 'ledgerRounded', mode: 'light' }, true)).toBe(false);
+    expect(isNight({ theme: 'ledger', mode: 'light' }, true)).toBe(false);
     expect(isNight({ theme: 'ledger', mode: 'dark' }, false)).toBe(true);
     expect(isNight({ theme: 'bold', mode: 'light' }, false)).toBe(true);
     expect(isNight({ theme: 'aurora', mode: 'auto' }, false)).toBe(true);
-    expect(isNight({ theme: 'sticker', mode: 'dark' }, true)).toBe(false);
   });
 
   it("gives every theme but Ledger an icon of its own", () => {
@@ -25,8 +31,7 @@ describe('appearance', () => {
     expect(icons.every((i) => typeof i === 'string')).toBe(true);
   });
 
-  it("shares Ledger's type between its two themes only", () => {
-    expect(typeOf('ledger')).toBe(typeOf('ledgerRounded'));
-    expect(new Set(THEMES.map(typeOf)).size).toBe(4);
+  it('gives each theme its own type', () => {
+    expect(new Set(THEMES.map(typeOf)).size).toBe(THEMES.length);
   });
 });

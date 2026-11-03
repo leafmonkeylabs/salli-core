@@ -2,9 +2,9 @@ import { accountsList, goalsAllocationsList, goalsAllocationsSet, goalsCreate, g
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, Money, Waiting, useDoneBar } from '../../kit';
+import { Body, Button, Field, Money, Notice, Press, ProgressBar, Surface, Waiting, useDoneBar } from '../../kit';
 import { amountParts, displayMonth, wholeDigits } from '../../lib/display';
 import { Page } from '../../shell';
 import { Sheet, SheetTitle } from '../../sheet';
@@ -30,16 +30,17 @@ export default function Goals() {
     <Page title={t.goals} back={{ label: t.title, onPress: () => (router.canGoBack() ? router.back() : router.replace('/fi')) }} onRefresh={() => goals.refetch()}>
       {goals.data ? (
         goals.data.goals.length ? (
-          <Card style={{ paddingVertical: 0 }}>
+          <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
             {goals.data.goals.map((g, i, all) => {
               const share = Math.min(1, Math.max(0, Number(g.progress))); // eslint-disable-line no-restricted-syntax -- not money: a fraction for a bar
               return (
-                <Pressable
+                <Press
+                  highlight
                   key={g.id}
                   accessibilityRole="button"
                   accessibilityLabel={t.goalSpoken(g.name, amountParts(g.allocated_amount, g.currency).spoken, amountParts(g.target_amount, g.currency).spoken)}
                   onPress={() => setEditing(g)}
-                  style={[styles.goal, i < all.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}
+                  style={[styles.goal, i < all.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}
                 >
                   <View style={styles.goalHead}>
                     <Body style={{ flex: 1 }}>{g.name}</Body>
@@ -47,25 +48,21 @@ export default function Goals() {
                       {wholeDigits(g.allocated_amount, g.currency)} <Text style={{ color: theme.muted }}>/ {wholeDigits(g.target_amount, g.currency)}</Text>
                     </Text>
                   </View>
-                  <View style={[styles.track, { backgroundColor: theme.rule }]}>
-                    <View style={[styles.track, { width: `${share * 100}%`, backgroundColor: theme.chart }]} />
-                  </View>
+                  <ProgressBar ratio={share} />
                   <View style={styles.goalHead}>
                     <Body small muted style={{ flex: 1 }}>
                       {g.target_date ? t.by(displayMonth(g.target_date)) : t.noDate}
                     </Body>
-                    <Pressable accessibilityRole="button" accessibilityLabel={t.fundLabel(g.name)} onPress={() => setFunding(g)} style={[styles.fund, { backgroundColor: theme.button2, borderRadius: theme.control }]}>
-                      <Text style={[styles.fundText, { color: theme.button2Text }]}>{t.fund}</Text>
-                    </Pressable>
+                    <Button small kind="secondary" label={t.fund} accessibilityLabel={t.fundLabel(g.name)} onPress={() => setFunding(g)} />
                   </View>
-                </Pressable>
+                </Press>
               );
             })}
-          </Card>
+          </Surface>
         ) : (
-          <Card>
+          <Surface>
             <Body muted>{t.noGoals}</Body>
-          </Card>
+          </Surface>
         )
       ) : (
         <Waiting query={goals} what="your goals" />
@@ -124,18 +121,17 @@ function GoalSheet({
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const exact = normalizeAmountInput(amount);
   const done = useDoneBar(true);
-  const input = [styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   return (
     <Sheet visible={!!goal} onClose={onClose} label={existing ? existing.name : t.newGoal}>
       <SheetTitle style={[styles.title, { color: theme.text }]}>
         {existing ? existing.name : t.newGoal}
       </SheetTitle>
-      <TextInput {...done.field('name')} value={name} onChangeText={setName} placeholder={t.goalName} placeholderTextColor={theme.muted} accessibilityLabel={t.goalName} style={input} />
+      <Field {...done.field('name')} value={name} onChangeText={setName} placeholder={t.goalName} accessibilityLabel={t.goalName} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <TextInput {...done.field('amount')} value={amount} onChangeText={setAmount} placeholder={t.target} placeholderTextColor={theme.muted} keyboardType="decimal-pad" accessibilityLabel={t.target} style={[...input, { flex: 1 }]} />
-        <TextInput {...done.field('year')} value={year} onChangeText={setYear} placeholder={t.byYear} placeholderTextColor={theme.muted} keyboardType="number-pad" accessibilityLabel={t.byYear} style={[...input, { flex: 1 }]} />
+        <Field {...done.field('amount')} value={amount} onChangeText={setAmount} placeholder={t.target} keyboardType="decimal-pad" accessibilityLabel={t.target} style={{ flex: 1 }} />
+        <Field {...done.field('year')} value={year} onChangeText={setYear} placeholder={t.byYear} keyboardType="number-pad" accessibilityLabel={t.byYear} style={{ flex: 1 }} />
       </View>
-      {problem ? <Body alert>{problem}</Body> : null}
+      {problem ? <Notice tone="warn">{problem}</Notice> : null}
       <Button
         label={t.save}
         busy={busy}
@@ -176,16 +172,7 @@ function FundSheet({ goal, onClose, onSaved }: { goal: Goal | undefined; onClose
       {held.map((a) => (
         <View key={a.id} style={styles.fundRow}>
           <Body style={{ flex: 1 }}>{a.name}</Body>
-          <TextInput
-            {...done.field(a.id)}
-            value={valueOf(a.id)}
-            onChangeText={(v) => setTyped((now) => ({ ...now, [a.id]: v }))}
-            placeholder="0.00"
-            placeholderTextColor={theme.muted}
-            keyboardType="decimal-pad"
-            accessibilityLabel={t.fromAccount(a.name)}
-            style={[styles.input, styles.amount, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
-          />
+          <Field {...done.field(a.id)} value={valueOf(a.id)} onChangeText={(v) => setTyped((now) => ({ ...now, [a.id]: v }))} placeholder="0.00" keyboardType="decimal-pad" accessibilityLabel={t.fromAccount(a.name)} style={styles.amount} />
         </View>
       ))}
       {goal ? (
@@ -193,7 +180,7 @@ function FundSheet({ goal, onClose, onSaved }: { goal: Goal | undefined; onClose
           {t.target}: <Money amount={goal.target_amount} currency={goal.currency} />
         </Body>
       ) : null}
-      {problem ? <Body alert>{problem}</Body> : null}
+      {problem ? <Notice tone="warn">{problem}</Notice> : null}
       <Button
         label={t.save}
         busy={busy}
@@ -218,14 +205,10 @@ function FundSheet({ goal, onClose, onSaved }: { goal: Goal | undefined; onClose
 }
 
 const styles = StyleSheet.create({
-  goal: { paddingVertical: 12, gap: 8 },
+  goal: { paddingVertical: 14, gap: 10 },
   goalHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   figure: { fontFamily: font.regular, fontSize: size.body, fontVariant: ['tabular-nums'] },
-  track: { height: 6 },
-  fund: { minHeight: size.target, minWidth: 72, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  fundText: { fontFamily: font.medium, fontSize: size.small },
-  title: { fontFamily: font.medium, fontSize: size.heading },
-  input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
-  amount: { width: 130, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  fundRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  title: { fontFamily: font.semibold, fontSize: size.title },
+  amount: { width: 140 },
+  fundRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 });

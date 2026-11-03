@@ -1,12 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Body, Button, Icon, Logo, Problem, Title } from '../kit';
+import { Body, Button, Icon, IconTile, Logo, Notice, Press, Problem, Title, radii, shape } from '../kit';
 import { hostedServerOf } from '../lib/server';
 import { findServer, useSession, labelIn } from '../session';
 import { strings } from '../strings';
-import { font, size, useTheme } from '../theme';
+import { elevation, font, size, useTheme } from '../theme';
 
 const t = strings.host;
 const p = strings.problem;
@@ -42,22 +42,20 @@ export default function Welcome() {
   };
 
   return (
-    <ScrollView style={{ backgroundColor: theme.chrome }} contentContainerStyle={[styles.page, { paddingTop: insets.top + (adding ? 4 : 32), paddingBottom: insets.bottom + 24 }]}>
+    <ScrollView style={{ backgroundColor: theme.ground }} contentContainerStyle={[styles.page, { paddingTop: insets.top + (adding ? 4 : 32), paddingBottom: insets.bottom + 24 }]}>
       {adding ? (
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.cancel}>
-          <Body>{t.cancel}</Body>
-        </Pressable>
+        <Button kind="tertiary" label={t.cancel} onPress={() => router.back()} />
       ) : null}
-      <View style={{ marginLeft: -8 }}>
+      <View>
         <Logo height={36} />
       </View>
       {ended ? (
-        <View style={[styles.notice, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: theme.radius }]} accessibilityRole="alert">
-          <Body style={{ fontFamily: font.medium }}>{strings.problem.signedOutTitle}</Body>
+        <Notice tone="warn">
+          <Body small style={{ fontFamily: font.medium }}>{strings.problem.signedOutTitle}</Body>
           <Body small muted>
             {strings.problem.signedOut}
           </Body>
-        </View>
+        </Notice>
       ) : null}
       {/* Signed out of every server: the ones remembered are a tap from signing in again. */}
       {session.status === 'signed-out' && session.known.length ? (
@@ -72,12 +70,12 @@ export default function Welcome() {
           ))}
         </View>
       ) : null}
-      <View style={{ gap: 10 }}>
+      <View style={{ gap: 12 }}>
         <Title>{t.title}</Title>
         <Body muted>{t.body}</Body>
       </View>
 
-      <View accessibilityLabel={t.group} style={{ gap: 10 }}>
+      <View accessibilityLabel={t.group} style={{ gap: 12 }}>
         <Choice
           first
           title={t.salli}
@@ -91,21 +89,17 @@ export default function Welcome() {
       {problem ? <Problem title={p.failedTitle} body={problem} /> : null}
       {HOSTED ? (
         <View>
-          <Pressable accessibilityRole="link" onPress={() => router.push('/join')} style={styles.secondary}>
-            <Body>{t.haveInvitation}</Body>
-          </Pressable>
-          <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: '/connect', params: { server: HOSTED } })} style={styles.secondary}>
-            <Body>{t.haveAccount}</Body>
-          </Pressable>
+          <Button kind="tertiary" label={t.haveInvitation} onPress={() => router.push('/join')} />
+          <Button kind="tertiary" label={t.haveAccount} onPress={() => router.push({ pathname: '/connect', params: { server: HOSTED } })} />
         </View>
       ) : null}
 
       <View style={{ flex: 1 }} />
       <View style={{ gap: 6 }}>
-        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(t.hostingUrl)} style={[styles.link, { borderColor: theme.rule }]}>
-          <Body style={{ flex: 1 }}>{t.hosting}</Body>
-          <Icon name="chevron" size={18} colour={theme.muted} />
-        </Pressable>
+        <Press highlight accessibilityRole="link" onPress={() => void Linking.openURL(t.hostingUrl)} style={styles.link}>
+          <Body small style={{ flex: 1, color: theme.green }}>{t.hosting}</Body>
+          <Icon name="external" size={16} colour={theme.green} />
+        </Press>
         <Body small muted>
           {t.yours}
         </Body>
@@ -114,16 +108,17 @@ export default function Welcome() {
   );
 }
 
-/** One place the books may live; Salli's server drawn first and marked, as the design has it. */
+/** One place the books may live; Salli's server drawn first, in the green tint, as the design has it. */
 function Choice({ title, body, note, first, onPress }: { title: string; body: string; note?: string; first?: boolean; onPress: () => void }) {
   const theme = useTheme();
   return (
-    <Pressable
+    <Press
       accessibilityRole="button"
       accessibilityLabel={[title, body, note].filter(Boolean).join('. ')}
       onPress={onPress}
-      style={[styles.choice, first ? { backgroundColor: theme.work, borderColor: theme.button, borderWidth: 2 } : { backgroundColor: theme.chrome, borderColor: theme.rule, borderWidth: 1 }, { borderRadius: theme.radius }]}
+      style={[styles.choice, shape(radii.card), { backgroundColor: first ? theme.greenTint : theme.surface }, elevation(theme, 'card')]}
     >
+      <IconTile name={first ? 'spark' : 'server'} tone={first ? 'green' : 'fill'} />
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={[styles.choiceTitle, { color: theme.text }]}>{title}</Text>
         <Body small muted>
@@ -132,17 +127,14 @@ function Choice({ title, body, note, first, onPress }: { title: string; body: st
         {note ? <Text style={[styles.note, { color: theme.muted }]}>{note}</Text> : null}
       </View>
       <Icon name="chevron" size={18} colour={theme.muted} />
-    </Pressable>
+    </Press>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flexGrow: 1, paddingHorizontal: size.gutter, gap: 28 },
-  cancel: { minHeight: size.target, justifyContent: 'center', alignSelf: 'flex-start', paddingRight: 12 },
-  notice: { borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 4 },
-  choice: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 88, padding: 14 },
-  choiceTitle: { fontFamily: font.medium, fontSize: 17 },
-  note: { fontFamily: font.regular, fontSize: 13 },
-  secondary: { minHeight: size.target, justifyContent: 'center' },
-  link: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
+  page: { flexGrow: 1, paddingHorizontal: size.gutter, gap: size.section },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 88, padding: size.pad },
+  choiceTitle: { fontFamily: font.semibold, fontSize: size.headline },
+  note: { fontFamily: font.regular, fontSize: size.label },
+  link: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

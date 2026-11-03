@@ -3,37 +3,56 @@
  * entry), and a place still to come, which says where it is meanwhile.
  */
 import { router } from 'expo-router';
-import { useState, type ReactNode } from 'react';
-import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { createContext, useContext, useState, type ReactNode } from 'react';
+import { Linking, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useYourAI } from './ai/store';
-import { Body, Button, Card, Icon, Title, useLargeText } from './kit';
+import { Body, Button, Card, Icon, Press, RoundButton, Title, radii, shape, useLargeText } from './kit';
 import { useSession, labelIn } from './session';
 import { strings } from './strings';
-import { font, size, useTheme } from './theme';
+import { elevation, font, size, useTheme } from './theme';
 
-/** The top bar: a way back, or on Home the server you are on; one action; a place's title. */
-export function Header({ title, server, unreachable, back, action }: { title?: string; server?: boolean; unreachable?: boolean; back?: { label: string; onPress: () => void }; action?: ReactNode }) {
+/** What the floating tab bar covers at the foot of a tab's page (0 elsewhere): its height, its inset and the safe area. */
+export const TabInset = createContext(0);
+
+/** The server as a pill: the name or address, and a chevron to switch. */
+export function ServerPill({ unreachable }: { unreachable?: boolean }) {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const { session } = useSession();
   const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
   const named = session.status === 'signed-in' && session.known.some((k) => k.server === session.server && k.name);
   const large = useLargeText();
-  const lead = back ? (
-    <BackLink label={back.label} onPress={back.onPress} />
-  ) : server ? (
-    <Pressable accessibilityRole="button" accessibilityLabel={unreachable ? strings.reach.switchServer(host) : strings.home.switchServer(host)} onPress={() => router.push('/servers')} style={styles.server}>
+  return (
+    <Press
+      accessibilityRole="button"
+      accessibilityLabel={unreachable ? strings.reach.switchServer(host) : strings.home.switchServer(host)}
+      hitSlop={4}
+      onPress={() => router.push('/servers')}
+      style={[styles.server, shape(radii.pill), { backgroundColor: theme.surface }, elevation(theme, 'card')]}
+    >
+      <View style={[styles.dot, shape(radii.pill), { backgroundColor: unreachable ? theme.red : theme.green }]} />
       {/* An address never breaks inside: it grows to twice its size at most, and a long one ends in an ellipsis. */}
       <Text maxFontSizeMultiplier={named ? undefined : 2} style={[styles.host, named ? styles.name : null, { color: theme.text, flexShrink: 1 }]} numberOfLines={large && named ? undefined : 1}>
         {host}
       </Text>
       <Icon name="down" size={14} colour={theme.muted} />
-    </Pressable>
-  ) : null;
+    </Press>
+  );
+}
+
+/**
+ * The top bar: a way back, or on Home the server as a pill; the actions as
+ * 40 circles at its end. It has no rule under it: the page's own title is
+ * large, below it, and scrolls away.
+ */
+export function Header({ server, unreachable, back, action }: { title?: string; server?: boolean; unreachable?: boolean; back?: { label: string; onPress: () => void }; action?: ReactNode }) {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const large = useLargeText();
+  const lead = back ? <BackLink label={back.label} onPress={back.onPress} /> : server ? <ServerPill {...(unreachable ? { unreachable } : {})} /> : null;
   return (
-    <View style={[styles.header, { paddingTop: insets.top, backgroundColor: theme.chrome, borderBottomColor: theme.rule }]}>
+    <View style={[styles.header, { paddingTop: insets.top, backgroundColor: theme.ground }]}>
       {/* At large text the actions keep their own line, above the server's name (design LargeHome). */}
       {lead && action && large ? (
         <>
@@ -45,12 +64,9 @@ export function Header({ title, server, unreachable, back, action }: { title?: s
           {lead ?? <View />}
           {action}
         </View>
-      ) : null}
-      {title ? (
-        <View style={styles.titleBox}>
-          <Title>{title}</Title>
-        </View>
-      ) : null}
+      ) : (
+        <View style={{ height: 8 }} />
+      )}
     </View>
   );
 }
@@ -80,18 +96,18 @@ export type AITab = 'home' | 'cash' | 'decide' | 'books';
  * Before an AI is set up it opens More → Your AI instead.
  */
 export function AIButton({ from }: { from: AITab }) {
-  const theme = useTheme();
   const ai = useYourAI();
   if (!ai.loaded || !ai.enabled) return null;
+  return <RoundButton icon="ai" label={ai.ready ? strings.ai.open : strings.ai.openSetUp} onPress={() => (ai.ready ? router.push({ pathname: '/agent', params: { from } }) : router.push('/ai'))} />;
+}
+
+/** The AI button beside + (design Home): 40 circles, the AI on the left. */
+export function HeaderActions({ from, add }: { from?: AITab; add?: { label: string; onPress: () => void; disabled?: boolean } }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={ai.ready ? strings.ai.open : strings.ai.openSetUp}
-      onPress={() => (ai.ready ? router.push({ pathname: '/agent', params: { from } }) : router.push('/ai'))}
-      style={styles.icon}
-    >
-      <Icon name="message" colour={theme.text} />
-    </Pressable>
+    <View style={styles.actions}>
+      {from ? <AIButton from={from} /> : null}
+      {add ? <RoundButton icon="plus" tone="ink" label={add.label} onPress={add.disabled ? () => undefined : add.onPress} /> : null}
+    </View>
   );
 }
 
@@ -118,7 +134,7 @@ export function Glow() {
   );
 }
 
-/** A place: its header, then its cards, pulled down to read again. */
+/** A place: its header, its large title, then its cards, pulled down to read again. On a tab the floating bar's room is kept at the foot. */
 export function Page({
   title,
   back,
@@ -136,16 +152,19 @@ export function Page({
   onRefresh?: () => Promise<unknown>;
 }) {
   const theme = useTheme();
+  const inset = useContext(TabInset);
+  const insets = useSafeAreaInsets();
   return (
-    <View style={{ flex: 1, backgroundColor: theme.work }}>
+    <View style={{ flex: 1, backgroundColor: theme.ground }}>
       <Glow />
-      <Header {...(title ? { title } : {})} {...(back ? { back } : {})} action={ai ? <AIButton from={ai} /> : action} />
+      <Header {...(back ? { back } : {})} action={ai ? <HeaderActions from={ai} /> : action} />
       <ScrollView
-        contentContainerStyle={styles.page}
+        contentContainerStyle={[styles.page, { paddingBottom: inset || insets.bottom + size.gutter }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         refreshControl={onRefresh ? <Pull read={onRefresh} /> : undefined}
       >
+        {title ? <Title>{title}</Title> : null}
         {children}
       </ScrollView>
     </View>
@@ -158,9 +177,10 @@ export function Later({ title }: { title: string }) {
   const { session } = useSession();
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
   return (
-    <View style={{ flex: 1, backgroundColor: theme.work }}>
-      <Header title={title} />
+    <View style={{ flex: 1, backgroundColor: theme.ground }}>
+      <Header />
       <ScrollView contentContainerStyle={styles.page}>
+        <Title>{title}</Title>
         <Card style={{ gap: 12 }}>
           <Body>{strings.later.body}</Body>
           {consoleUrl ? <Button kind="secondary" label={strings.later.open} onPress={() => void Linking.openURL(consoleUrl)} /> : null}
@@ -173,21 +193,21 @@ export function Later({ title }: { title: string }) {
 export function BackLink({ label, onPress }: { label: string; onPress: () => void }) {
   const theme = useTheme();
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.back}>
-      <Icon name="back" colour={theme.text} />
-      <Body max={1.5}>{label}</Body>
-    </Pressable>
+    <Press accessibilityRole="button" hitSlop={4} onPress={onPress} style={[styles.back, shape(radii.pill), { backgroundColor: theme.surface }, elevation(theme, 'card')]}>
+      <Icon name="back" size={20} colour={theme.text} />
+      <Body max={1.5} small>{label}</Body>
+    </Press>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: size.target },
-  server: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, flexShrink: 1 },
-  host: { fontFamily: font.mono, fontSize: size.small },
-  name: { fontFamily: font.medium, fontSize: size.body },
-  titleBox: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 8, paddingBottom: 8 },
-  page: { padding: size.gutter, gap: size.gap },
-  icon: { width: size.target, height: size.target, alignItems: 'center', justifyContent: 'center' },
-  back: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingRight: 12 },
+  header: { paddingHorizontal: size.gutter },
+  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: size.target, columnGap: 12 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  server: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, flexShrink: 1 },
+  dot: { width: 8, height: 8 },
+  host: { fontFamily: font.mono, fontSize: size.label },
+  name: { fontFamily: font.medium, fontSize: size.small },
+  page: { paddingHorizontal: size.gutter, paddingTop: size.gap, gap: size.gap },
+  back: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingLeft: 10, paddingRight: 16 },
 });

@@ -1,16 +1,16 @@
 import { decisionsReview, decisionsReviewsDue, decisionsTemplatesList, type DueReview } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Linking, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, CardHead, Money, Row, Waiting } from '../../kit';
+import { Body, Button, Card, Field, Money, Notice, ProgressBar, Row, Section, Surface, Tag, Waiting, radii, shape } from '../../kit';
 import { shares } from '../../lib/chart';
 import { amountParts, displayDate, displayDay } from '../../lib/display';
 import { useSession } from '../../session';
 import { Page } from '../../shell';
 import { Sheet, SheetTitle } from '../../sheet';
 import { strings } from '../../strings';
-import { font, size, useTheme } from '../../theme';
+import { font, size, space, useTheme } from '../../theme';
 
 const t = strings.decide;
 
@@ -34,9 +34,9 @@ export default function Decide() {
           ))
         ) : (
           <>
-            <Card>
-              <Body muted>{t.noneDue}</Body>
-            </Card>
+            <Notice tone="neutral" icon="check">
+              {t.noneDue}
+            </Notice>
             <Start />
           </>
         )
@@ -59,8 +59,10 @@ function Start() {
   const shown = [...(templates.data?.templates ?? [])].sort((a, b) => a.title.localeCompare(b.title));
   if (!shown.length) return null;
   return (
-    <Card style={{ paddingBottom: 4 }}>
-      <CardHead label={t.start} help={t.startHelp} />
+    <View style={{ marginTop: space.s16 }}>
+    <Section title={t.start}>
+    <Body small muted>{t.startHelp}</Body>
+    <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
       {shown.map((template, i) => (
         <Row
           key={template.id}
@@ -71,7 +73,9 @@ function Start() {
           last={i === shown.length - 1}
         />
       ))}
-    </Card>
+    </Surface>
+    </Section>
+    </View>
   );
 }
 
@@ -92,8 +96,8 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
   const comparison = review.comparison;
 
   return (
-    <Card style={{ gap: 10 }}>
-      <CardHead label={t.due} />
+    <Card style={{ gap: 12 }}>
+      <Tag tone="green">{t.due}</Tag>
       <Text accessibilityRole="header" style={[styles.question, { color: theme.text }]}>
         {review.question}
       </Text>
@@ -104,9 +108,9 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
       {comparison ? (
         <View accessibilityLabel={t.against(displayDate(comparison.at))} style={{ gap: 2, marginTop: 4 }}>
           <View style={styles.key} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <View style={[styles.swatch, { backgroundColor: theme.muted }]} />
+            <View style={[styles.swatch, shape(radii.pill), { backgroundColor: theme.muted }]} />
             <Text style={[styles.keyText, { color: theme.muted }]}>{t.projected}</Text>
-            <View style={[styles.swatch, { backgroundColor: theme.chart, marginLeft: 12 }]} />
+            <View style={[styles.swatch, shape(radii.pill), { backgroundColor: theme.green, marginLeft: 12 }]} />
             <Text style={[styles.keyText, { color: theme.muted }]}>{t.actual}</Text>
             <Text style={[styles.keyText, { color: theme.muted, marginLeft: 'auto' }]}>{comparison.currency}</Text>
           </View>
@@ -115,17 +119,13 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
             const name = t.figures[row.figure] ?? row.figure;
             const spoken = (a: string | null | undefined) => (a ? amountParts(a, comparison.currency).spoken : '—');
             return (
-              <View key={row.figure} accessible accessibilityLabel={t.figureSpoken(name, spoken(row.projected), spoken(row.actual))} style={[styles.pair, { borderBottomColor: theme.rule }]}>
+              <View key={row.figure} accessible accessibilityLabel={t.figureSpoken(name, spoken(row.projected), spoken(row.actual))} style={[styles.pair, { borderBottomColor: theme.line }]}>
                 <View style={styles.pairHead}>
                   <Body style={{ flex: 1 }}>{name}</Body>
                   {row.actual ? <Money amount={row.actual} currency={comparison.currency} /> : null}
                 </View>
-                <View style={[styles.track, { backgroundColor: theme.rule }]}>
-                  <View style={[styles.track, { width: `${(projected ?? 0) * 100}%`, backgroundColor: theme.muted }]} />
-                </View>
-                <View style={[styles.track, { backgroundColor: theme.rule }]}>
-                  <View style={[styles.track, { width: `${(actual ?? 0) * 100}%`, backgroundColor: theme.chart }]} />
-                </View>
+                <ProgressBar ratio={projected ?? 0} height={6} />
+                <ProgressBar ratio={actual ?? 0} height={6} />
               </View>
             );
           })}
@@ -137,7 +137,7 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
         </View>
       ) : null}
 
-      {done ? <Body alert>{`✓ ${t.recordedReview}`}</Body> : <Button label={t.write} onPress={() => setWriting(true)} />}
+      {done ? <Notice tone="good">{t.recordedReview}</Notice> : <Button label={t.write} onPress={() => setWriting(true)} />}
 
       {/* The review is written in a sheet, so the comparison reads first. */}
       <Sheet visible={writing} onClose={() => setWriting(false)} label={t.reflection}>
@@ -145,21 +145,16 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
           {review.question}
         </SheetTitle>
         <Body muted>{t.chose(review.chosen, review.reasons ?? '')}</Body>
-        <View style={{ gap: 6 }}>
-          <Text style={[styles.label, { color: theme.text }]}>{t.reflection}</Text>
-          <TextInput
-            value={reflection}
-            onChangeText={setReflection}
-            multiline
-            autoFocus
-            accessibilityLabel={t.reflection}
-            accessibilityHint={t.reflectionHelp}
-            placeholder={t.reflectionPlaceholder}
-            placeholderTextColor={theme.muted}
-            style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
-          />
-        </View>
-        {record.error ? <Body alert>{record.error.message}</Body> : null}
+        <Field
+          label={t.reflection}
+          value={reflection}
+          onChangeText={setReflection}
+          multiline
+          autoFocus
+          accessibilityHint={t.reflectionHelp}
+          placeholder={t.reflectionPlaceholder}
+        />
+        {record.error ? <Notice tone="warn">{record.error.message}</Notice> : null}
         <View style={{ gap: 4 }}>
           <Button label={t.submit} busy={record.isPending} disabled={!reflection.trim() || record.isPending} onPress={() => record.mutate()} />
           <Button kind="tertiary" label={t.cancel} disabled={record.isPending} onPress={() => setWriting(false)} />
@@ -170,14 +165,11 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
 }
 
 const styles = StyleSheet.create({
-  question: { fontFamily: font.medium, fontSize: size.heading, lineHeight: size.heading * 1.3 },
-  label: { fontFamily: font.medium, fontSize: size.small },
+  question: { fontFamily: font.medium, fontSize: size.title, lineHeight: size.title * 1.25 },
   chose: { fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.45 },
   key: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 6 },
-  keyText: { fontFamily: font.regular, fontSize: 12 },
-  swatch: { width: 10, height: 6 },
+  keyText: { fontFamily: font.regular, fontSize: size.caption },
+  swatch: { width: 10, height: 10 },
   pair: { gap: 4, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   pairHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  track: { height: 6 },
-  input: { minHeight: 120, borderWidth: 1, borderRadius: 0, padding: 12, fontFamily: font.regular, fontSize: size.body, textAlignVertical: 'top' },
 });

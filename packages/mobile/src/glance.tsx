@@ -14,9 +14,9 @@ import { glanceOf, type Palette } from './lib/glance';
 import { useSession, labelIn } from './session';
 import { themeOf, type Theme } from './theme';
 
-/** A theme as a widget draws it: its bars' opaque colour for the ground. */
+/** A theme as a widget draws it: its surface colour for the ground; the key figure's tile is the green tint. */
 function paletteOf(theme: Theme): Palette {
-  return { paper: theme.chrome, ink: theme.text, muted: theme.muted, rule: theme.rule, accent: theme.chart, tile: theme.tile, tileText: theme.tileText };
+  return { paper: theme.surface, ink: theme.text, muted: theme.muted, rule: theme.line, accent: theme.green, tile: theme.greenTint, tileText: theme.green };
 }
 
 /** The app group the app and `targets/widget` share; in app.json too. */

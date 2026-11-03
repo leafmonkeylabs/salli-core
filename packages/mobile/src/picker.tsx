@@ -7,9 +7,9 @@
  */
 import { formatAmount, type Account } from '@leafmonkeylabs/salli-sdk';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Body, Option, SectionLabel } from './kit';
+import { Body, Button, Field, Option, SectionLabel, Surface } from './kit';
 import { groupsOf } from './lib/accounts';
 import { strings } from './strings';
 import { font, size, useTheme } from './theme';
@@ -33,7 +33,6 @@ type ListProps = {
  * already open (Add: design AddOneSheet), so one sheet is on screen.
  */
 export function AccountList({ accounts, chosen, likely, others = true, except, balances, onPick }: ListProps) {
-  const theme = useTheme();
   const [words, setWords] = useState('');
   const groups = groupsOf(accounts, { likely, typeNames: strings.books.types, ...(others ? { others: t.otherAccounts } : {}), ...(except !== undefined ? { except } : {}), words });
   const balanceOf = (account: Account) => {
@@ -42,24 +41,22 @@ export function AccountList({ accounts, chosen, likely, others = true, except, b
   };
   return (
     <>
-      <TextInput
+      <Field
         value={words}
         onChangeText={setWords}
         placeholder={t.find}
-        placeholderTextColor={theme.muted}
         accessibilityLabel={t.find}
         autoCapitalize="none"
         autoCorrect={false}
         clearButtonMode="while-editing"
         returnKeyType="search"
-        style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
       />
       {groups.length ? (
         groups.map((group) => (
-          <View key={group.key} accessibilityRole="radiogroup" accessibilityLabel={group.label} style={{ marginBottom: 16 }}>
+          <View key={group.key} accessibilityRole="radiogroup" accessibilityLabel={group.label} style={{ marginBottom: 16, gap: size.heading }}>
             <SectionLabel>{group.label}</SectionLabel>
-            <View style={{ marginTop: 6 }}>
-              {group.rows.map((account) => {
+            <Surface kind="inset" pad={false} style={{ paddingHorizontal: 16 }}>
+              {group.rows.map((account, i) => {
                 const balance = balanceOf(account);
                 return (
                   <Option
@@ -67,6 +64,7 @@ export function AccountList({ accounts, chosen, likely, others = true, except, b
                     label={account.name}
                     {...(balance ? { detail: balance } : {})}
                     chosen={account.id === chosen}
+                    last={i === group.rows.length - 1}
                     onPress={() => {
                       setWords('');
                       onPick(account.id);
@@ -74,7 +72,7 @@ export function AccountList({ accounts, chosen, likely, others = true, except, b
                   />
                 );
               })}
-            </View>
+            </Surface>
           </View>
         ))
       ) : (
@@ -98,8 +96,8 @@ export function Picker({ title, subtitle, onClose, ...list }: ListProps & { titl
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={title !== undefined} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: theme.chrome }} onAccessibilityEscape={onClose}>
-        <View style={[styles.header, { borderBottomColor: theme.rule }]}>
+      <View style={{ flex: 1, backgroundColor: theme.ground }} onAccessibilityEscape={onClose}>
+        <View style={styles.header}>
           <View style={{ flex: 1, gap: 2 }}>
             <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]} numberOfLines={2}>
               {title}
@@ -110,9 +108,7 @@ export function Picker({ title, subtitle, onClose, ...list }: ListProps & { titl
               </Body>
             ) : null}
           </View>
-          <Pressable accessibilityRole="button" onPress={onClose} style={styles.close}>
-            <Body max={1.5}>{t.close}</Body>
-          </Pressable>
+          <Button small kind="secondary" label={t.close} onPress={onClose} />
         </View>
         <ScrollView contentContainerStyle={{ padding: size.gutter, paddingBottom: insets.bottom + 24, gap: 12 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
           <AccountList {...list} />
@@ -123,8 +119,6 @@ export function Picker({ title, subtitle, onClose, ...list }: ListProps & { titl
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: size.gutter, paddingTop: 16, paddingBottom: 12 },
-  title: { fontFamily: font.medium, fontSize: size.heading, lineHeight: size.heading * 1.25 },
-  close: { minHeight: size.target, minWidth: 56, alignItems: 'flex-end', justifyContent: 'flex-start', paddingTop: 2 },
-  input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: size.gutter, paddingTop: 20, paddingBottom: 12 },
+  title: { fontFamily: font.semibold, fontSize: size.title, lineHeight: size.title * 1.25 },
 });

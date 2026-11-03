@@ -165,7 +165,7 @@ Never redraw it by eye. Use the files.
 
 **Design direction v2 (November 2026): quiet colour, soft shape.** Ten roles a
 side, and nothing else is coloured. Bone, sand, oxblood and brass are retired:
-they competed on one screen. In code the roles are `packages/console/src/styles/tokens.css`.
+they competed on one screen. In code the roles are `packages/console/src/styles/tokens.css`. The phone app uses the same roles ([docs/design/mobile.md](../design/mobile.md#the-look-v2)).
 
 | Role | Light | Dark | Use |
 |---|---|---|---|

@@ -1,4 +1,5 @@
 import { Redirect } from 'expo-router';
+import { Splash } from '../../kit';
 
 /**
  * The sign-in's redirect, `money.salli.app:/oauth/callback`. The browser
@@ -6,5 +7,10 @@ import { Redirect } from 'expo-router';
  * link, which lands here and goes on to where the app opens.
  */
 export default function Callback() {
-  return <Redirect href="/" />;
+  return (
+    <>
+      <Splash />
+      <Redirect href="/" />
+    </>
+  );
 }

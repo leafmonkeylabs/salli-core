@@ -56,10 +56,10 @@
         {
           "image": "./assets/icon.png",
           "imageWidth": 120,
-          "backgroundColor": "#F6F3EC",
+          "backgroundColor": "#F3F2EF",
           "dark": {
             "image": "./assets/icon.png",
-            "backgroundColor": "#0E1513"
+            "backgroundColor": "#0E1110"
           }
         }
       ],
@@ -67,27 +67,11 @@
         "expo-alternate-app-icons",
         [
           {
-            "name": "LedgerRounded",
-            "ios": "./assets/icons/LedgerRounded.png",
-            "android": {
-              "foregroundImage": "./assets/icons/LedgerRounded-foreground.png",
-              "backgroundColor": "#173B33"
-            }
-          },
-          {
             "name": "Bold",
             "ios": "./assets/icons/Bold.png",
             "android": {
               "foregroundImage": "./assets/icons/Bold-foreground.png",
               "backgroundColor": "#0B0B0C"
-            }
-          },
-          {
-            "name": "Sticker",
-            "ios": "./assets/icons/Sticker.png",
-            "android": {
-              "foregroundImage": "./assets/icons/Sticker-foreground.png",
-              "backgroundColor": "#FFD23F"
             }
           },
           {
