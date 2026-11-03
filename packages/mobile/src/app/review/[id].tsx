@@ -13,15 +13,15 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, Icon, Money, Waiting } from '../../kit';
+import { Body, Button, Card, Icon, Money, Notice, Press, Tag, Title, Waiting } from '../../kit';
 import { displayDate, displayDay, displayRange } from '../../lib/display';
 import { Picker } from '../../picker';
 import { Glow, Header } from '../../shell';
 import { strings } from '../../strings';
-import { font, size, useTheme } from '../../theme';
+import { elevation, font, radii, shape, size, useTheme } from '../../theme';
 
 const t = strings.review;
 type Txn = StatementTransaction;
@@ -124,49 +124,35 @@ export default function Review() {
         back={{ label: t.back, onPress: () => router.back() }}
         action={
           transactions.length ? (
-            <Pressable accessibilityRole="button" onPress={askDiscardAll} style={styles.action}>
-              <Body>{t.discardAll}</Body>
-            </Pressable>
+            <Press accessibilityRole="button" onPress={askDiscardAll} style={styles.action}>
+              <Body style={{ color: theme.red }}>{t.discardAll}</Body>
+            </Press>
           ) : undefined
         }
       />
       <ScrollView contentContainerStyle={styles.page}>
-        <View style={{ gap: 8 }}>
-          <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
-            {t.title}
-          </Text>
+        <View style={{ gap: 12 }}>
+          <Title>{t.title}</Title>
           {facts.length ? (
             <View style={styles.facts}>
               {facts.map((fact) => (
-                <Text key={fact} style={[styles.fact, { color: theme.text, borderColor: theme.line, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), overflow: 'hidden' }]}>
-                  {fact}
-                </Text>
+                <Tag key={fact}>{fact}</Tag>
               ))}
             </View>
           ) : null}
         </View>
 
-        {said || notes.length ? (
-          // What was done, and what the server noted while reading the file, in one box.
-          <Card style={{ gap: 6 }}>
-            {said ? <Body alert>{`✓ ${said}`}</Body> : null}
-            {notes.map((note) => (
-              <Body key={note} small={!!said} muted={!!said}>
-                {note}
-              </Body>
-            ))}
-          </Card>
-        ) : null}
-        {failed ? (
-          <Card>
-            <Body alert>{failed.message}</Body>
-          </Card>
-        ) : null}
-
+        {said ? <Notice tone="good">{said}</Notice> : null}
+        {notes.map((note) => (
+          <Notice key={note} tone="neutral">
+            {note}
+          </Notice>
+        ))}
+        {failed ? <Notice tone="warn">{failed.message}</Notice> : null}
 
         {pending.data ? (
           transactions.length ? (
-            <Card style={{ paddingVertical: 4 }}>
+            <Card style={{ paddingVertical: 8 }}>
               <Text style={[styles.currency, { color: theme.muted }]}>{transactions[0]?.currency}</Text>
               {transactions.map((txn, i) => (
                 <Row
@@ -195,7 +181,7 @@ export default function Review() {
       </ScrollView>
 
       {transactions.length ? (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 10, backgroundColor: theme.surface, borderTopColor: theme.line }]}>
+        <View style={[styles.footer, elevation(theme, 'sheet'), { paddingBottom: insets.bottom + 12, backgroundColor: theme.surface, borderTopLeftRadius: radii.card, borderTopRightRadius: radii.card, borderCurve: 'continuous' }]}>
           <Text accessibilityLiveRegion="polite" style={[styles.status, { color: theme.muted }]}>
             {t.status(ready.length, waiting)}
           </Text>
@@ -294,30 +280,30 @@ function Row({
           </>
         ) : other ? (
           <View style={styles.chosen}>
-            <Pressable
+            <Press
               accessibilityRole="button"
               accessibilityLabel={t.change(accountName(other), how)}
               disabled={busy}
               onPress={onChoose}
-              style={[styles.chip, { backgroundColor: theme.ground, borderColor: theme.line, borderRadius: Math.min(theme.control, 12) }]}
+              style={[styles.chip, shape(radii.field), { backgroundColor: theme.fill }]}
             >
               <Body>{accountName(other)}</Body>
               <Icon name="down" size={14} colour={theme.muted} />
-            </Pressable>
-            <Text accessibilityElementsHidden importantForAccessibility="no" style={[styles.tag, { color: theme.muted, borderColor: theme.line, borderRadius: Math.min(theme.control, 999) }]}>
-              {tag}
-            </Text>
+            </Press>
+            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              <Tag>{tag}</Tag>
+            </View>
           </View>
         ) : (
-          <Pressable
+          <Press
             accessibilityRole="button"
             accessibilityLabel={`${t.chooseAccount}: ${shown(txn)}, ${txn.credit_flag ? t.cameFrom : t.wentTo}`}
             disabled={busy}
             onPress={onChoose}
-            style={[styles.chooseButton, { borderColor: theme.green, borderRadius: Math.min(theme.control, 12) }]}
+            style={[styles.chooseButton, shape(radii.pill), { backgroundColor: theme.greenTint }]}
           >
             <Text style={[styles.chooseText, { color: theme.green }]}>{t.chooseAccount}</Text>
-          </Pressable>
+          </Press>
         )}
       </View>
     </View>
@@ -327,20 +313,17 @@ function Row({
 const styles = StyleSheet.create({
   page: { padding: size.gutter, gap: size.gap },
   action: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 12 },
-  title: { fontFamily: font.semibold, fontSize: 26, letterSpacing: -0.5 },
   facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  fact: { fontFamily: font.regular, fontSize: 13, paddingHorizontal: 8, paddingVertical: 3, borderWidth: StyleSheet.hairlineWidth },
-  row: { paddingVertical: 12, gap: 8 },
+  row: { paddingVertical: 14, gap: 10 },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   day: { width: 52, fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.45 },
-  rowBody: { marginLeft: 60, gap: 8 },
-  buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  rowBody: { marginLeft: 60, gap: 10 },
+  buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chosen: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderWidth: StyleSheet.hairlineWidth },
-  chooseButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderWidth: 1 },
-  tag: { fontFamily: font.regular, fontSize: 12, paddingHorizontal: 8, paddingVertical: 2, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  chip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14 },
+  chooseButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 16 },
   chooseText: { fontFamily: font.medium, fontSize: size.small },
-  currency: { alignSelf: 'flex-end', paddingTop: 10, paddingBottom: 2, fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
-  footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: size.gutter, paddingTop: 10, gap: 8 },
+  currency: { alignSelf: 'flex-end', paddingTop: 8, paddingBottom: 2, fontFamily: font.medium, fontSize: size.label },
+  footer: { paddingHorizontal: size.gutter, paddingTop: 16, gap: 12 },
   status: { fontFamily: font.regular, fontSize: size.small },
 });
