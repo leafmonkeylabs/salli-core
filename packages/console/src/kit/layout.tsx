@@ -145,9 +145,16 @@ export function Loading({ lines = 3, what }: { lines?: number; what?: string | u
   );
 }
 
-/** A quiet sentence for an empty section. */
+/** An empty section: an icon in a round tile and one sentence. */
 export function Empty({ children }: { children: ReactNode }) {
-  return <p className="empty">{children}</p>;
+  return (
+    <div className="empty">
+      <span className="empty-icon" aria-hidden="true">
+        <Icon name="check" />
+      </span>
+      <p>{children}</p>
+    </div>
+  );
 }
 
 /** A word in place of a figure the server didn't give ("None", "Not sent"), in the muted colour. */

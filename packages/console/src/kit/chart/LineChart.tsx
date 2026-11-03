@@ -113,7 +113,7 @@ function Plot({ props, layout, variant }: { props: LineChartProps; layout: Layou
     <svg className={`chart-svg chart-${variant}`} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={props.caption}>
       {withZero ? (
         <>
-          {below && props.shortfall !== false ? <rect className="chart-shortfall" x={left} width={width - right - left} y={zero} height={Math.max(0, height - bottom - zero)} /> : null}
+          {below && props.shortfall !== false ? <rect className="chart-shortfall" rx={4} x={left} width={width - right - left} y={zero} height={Math.max(0, height - bottom - zero)} /> : null}
           <line className="chart-zero" x1={left} x2={width - right} y1={zero} y2={zero} />
         </>
       ) : null}

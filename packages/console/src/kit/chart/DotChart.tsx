@@ -28,7 +28,7 @@ export interface DotChartProps {
 const SHAPES = ['square', 'disc', 'ring'] as const;
 
 function Mark({ shape, x, y }: { shape: (typeof SHAPES)[number]; x: number; y: number }) {
-  if (shape === 'square') return <rect className="chart-dot chart-dot-open" x={x - 4} y={y - 4} width={8} height={8} />;
+  if (shape === 'square') return <rect className="chart-dot chart-dot-open" x={x - 4} y={y - 4} width={8} height={8} rx={1.5} />;
   if (shape === 'disc') return <circle className="chart-dot" cx={x} cy={y} r={4.5} />;
   return <circle className="chart-dot chart-dot-open" cx={x} cy={y} r={4.5} />;
 }

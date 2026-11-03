@@ -80,6 +80,7 @@ function Plot({ props, layout, variant }: { props: BarChartProps; layout: Layout
                   className={k === 0 ? 'chart-bar-1' : 'chart-bar-2'}
                   x={k === 0 ? x - bar - 1 : x + 1}
                   width={bar}
+                  rx={Math.min(3, bar / 2)}
                   y={top}
                   height={Math.max(0.5, Math.abs(zero - y(value)))}
                 />
@@ -119,7 +120,7 @@ export function BarChart(props: BarChartProps) {
         {props.series.map((name, k) => (
           <li key={name}>
             <svg className="chart-swatch chart-swatch-dot" viewBox="0 0 12 12">
-              <rect className={k === 0 ? 'chart-bar-1' : 'chart-bar-2'} x={1} y={1} width={10} height={10} />
+              <rect className={k === 0 ? 'chart-bar-1' : 'chart-bar-2'} x={1} y={1} width={10} height={10} rx={3} />
             </svg>
             <span>{name}</span>
           </li>
@@ -127,7 +128,7 @@ export function BarChart(props: BarChartProps) {
         {partial && props.partialLabel ? (
           <li>
             <svg className="chart-swatch chart-swatch-dot" viewBox="0 0 12 12">
-              <rect className="chart-bar-1 chart-partial" x={1} y={1} width={10} height={10} />
+              <rect className="chart-bar-1 chart-partial" x={1} y={1} width={10} height={10} rx={3} />
             </svg>
             <span>{props.partialLabel}</span>
           </li>

@@ -70,14 +70,15 @@ function Plot({
       <line className="chart-zero" x1={left} x2={width - right} y1={zero} y2={zero} />
       {points.map((p, i) => (
         <g key={p.month}>
-          <rect className="chart-bar-1" x={band.at(i) - band.width / 2} width={band.width} y={Math.min(y(p.assets), zero)} height={Math.abs(zero - y(p.assets))} />
-          <rect className="chart-bar-2" x={band.at(i) - band.width / 2} width={band.width} y={zero} height={Math.abs(y(below[i] ?? '0') - zero)} />
+          <rect className="chart-bar-1" rx={Math.min(6, band.width / 2)} x={band.at(i) - band.width / 2} width={band.width} y={Math.min(y(p.assets), zero)} height={Math.abs(zero - y(p.assets))} />
+          <rect className="chart-bar-2" rx={Math.min(6, band.width / 2)} x={band.at(i) - band.width / 2} width={band.width} y={zero} height={Math.abs(y(below[i] ?? '0') - zero)} />
         </g>
       ))}
       <path className="chart-line-baseline" d={line} />
       {points[selected] ? (
         <rect
           className="chart-selected"
+          rx={8}
           x={band.at(selected) - band.width / 2 - 3}
           width={band.width + 6}
           y={top - 4}
