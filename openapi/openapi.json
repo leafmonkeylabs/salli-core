@@ -16226,6 +16226,121 @@
         }
       }
     },
+    "/v1/panels": {
+      "get": {
+        "tags": [
+          "panels"
+        ],
+        "summary": "List Panels",
+        "description": "The screens this deployment adds, for the clients' \"more\" and settings lists.",
+        "operationId": "panels.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PanelList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/panels/{panel_id}": {
+      "get": {
+        "tags": [
+          "panels"
+        ],
+        "summary": "Get Panel",
+        "description": "One screen, built for you now, and checked against `salli.panel/1`\nbefore it is sent.",
+        "operationId": "panels.show",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "panel_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Panel Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Panel"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such panel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "It could not be built",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -16687,6 +16802,100 @@
           "transactions"
         ],
         "title": "AccountOverview"
+      },
+      "Action": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "POST",
+              "DELETE"
+            ],
+            "title": "Method"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "then": {
+            "type": "string",
+            "enum": [
+              "refresh",
+              "close"
+            ],
+            "title": "Then"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "method",
+          "path",
+          "then"
+        ],
+        "title": "Action"
+      },
+      "ActionRow": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "action",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 280,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 280
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "confirm": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 280
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm"
+          },
+          "action": {
+            "$ref": "#/components/schemas/Action"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "action"
+        ],
+        "title": "ActionRow"
       },
       "AddAccountRequest": {
         "properties": {
@@ -27135,6 +27344,57 @@
         "title": "FiScoreSnapshot",
         "description": "A stored Freedom Score, for a trend line."
       },
+      "Field_": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "title": "Name"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 280,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "number",
+              "select"
+            ],
+            "title": "Type"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Option"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "label",
+          "type"
+        ],
+        "title": "Field_"
+      },
       "FileUpload": {
         "properties": {
           "file": {
@@ -27315,6 +27575,42 @@
           "balance"
         ],
         "title": "ForecastDay"
+      },
+      "FormRow": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "form",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 280,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/Field_"
+            },
+            "type": "array",
+            "maxItems": 24,
+            "minItems": 1,
+            "title": "Fields"
+          },
+          "submit": {
+            "$ref": "#/components/schemas/Submit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "fields",
+          "submit"
+        ],
+        "title": "FormRow"
       },
       "FormatOutcomeView": {
         "properties": {
@@ -30582,6 +30878,45 @@
         "title": "LevelReading",
         "description": "When each option draws level with one (rent or buy: each way of\nbuying against keeping renting), read from the monthly timelines; not\nsolved, and not a ranking."
       },
+      "LinkRow": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "link",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 280,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 280
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "url"
+        ],
+        "title": "LinkRow"
+      },
       "LlmKeyStatus": {
         "properties": {
           "provider": {
@@ -31023,6 +31358,10 @@
             "type": "array",
             "title": "Extensions"
           },
+          "panels": {
+            "type": "boolean",
+            "title": "Panels"
+          },
           "oauth": {
             "$ref": "#/components/schemas/OAuthInfo"
           },
@@ -31052,6 +31391,7 @@
           "api_version",
           "server_version",
           "extensions",
+          "panels",
           "oauth",
           "default_currency",
           "console_url"
@@ -32605,6 +32945,28 @@
         ],
         "title": "OpeningBalanceItem"
       },
+      "Option": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "maxLength": 280,
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 280,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "Option"
+      },
       "OptionSensitivity": {
         "properties": {
           "option": {
@@ -32629,6 +32991,105 @@
           "growth"
         ],
         "title": "OptionSensitivity"
+      },
+      "Panel": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.panel/1",
+            "title": "Schema"
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 280,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/Section"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Sections"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 280
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema",
+          "id",
+          "title",
+          "sections"
+        ],
+        "title": "Panel"
+      },
+      "PanelEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "more",
+                  "settings"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "entry"
+        ],
+        "title": "PanelEntry"
+      },
+      "PanelList": {
+        "properties": {
+          "panels": {
+            "items": {
+              "$ref": "#/components/schemas/PanelEntry"
+            },
+            "type": "array",
+            "title": "Panels"
+          }
+        },
+        "type": "object",
+        "required": [
+          "panels"
+        ],
+        "title": "PanelList"
       },
       "ParseEntryRequest": {
         "properties": {
@@ -39018,6 +39479,70 @@
         "title": "ScheduledDigests",
         "description": "Accepted: each digest due this hour is sent after this response."
       },
+      "Section": {
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 280
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "rows": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/TextRow"
+                },
+                {
+                  "$ref": "#/components/schemas/LinkRow"
+                },
+                {
+                  "$ref": "#/components/schemas/ActionRow"
+                },
+                {
+                  "$ref": "#/components/schemas/FormRow"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "kind",
+                "mapping": {
+                  "action": "#/components/schemas/ActionRow",
+                  "form": "#/components/schemas/FormRow",
+                  "link": "#/components/schemas/LinkRow",
+                  "text": "#/components/schemas/TextRow"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 24,
+            "title": "Rows"
+          },
+          "footnote": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 280
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Footnote"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rows"
+        ],
+        "title": "Section"
+      },
       "SeededReminders": {
         "properties": {
           "created": {
@@ -40530,6 +41055,42 @@
         ],
         "title": "StopRecurringChange",
         "description": "A recurring flow your ledger shows (a subscription, a bill, an income)\nstops from a day: cancel a subscription. Name it by its key."
+      },
+      "Submit": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 280,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "method": {
+            "type": "string",
+            "const": "POST",
+            "title": "Method"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "then": {
+            "type": "string",
+            "enum": [
+              "refresh",
+              "close"
+            ],
+            "title": "Then"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "method",
+          "path",
+          "then"
+        ],
+        "title": "Submit"
       },
       "Subscription": {
         "properties": {
@@ -44557,6 +45118,40 @@
         "title": "TemplateWhen",
         "description": "A question asked only when another is answered (`equals` null), or\nanswered so."
       },
+      "TextRow": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "text",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 280,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 280
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "label"
+        ],
+        "title": "TextRow"
+      },
       "TimelineDay": {
         "properties": {
           "date": {
@@ -45346,6 +45941,35 @@
         ],
         "title": "Body_oauth.token"
       },
+      "ProblemOffer": {
+        "description": "What a refused person may do next, in the deployment's words.",
+        "properties": {
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "panel": {
+            "title": "Panel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "detail",
+          "label",
+          "panel"
+        ],
+        "title": "ProblemOffer",
+        "type": "object"
+      },
       "Problem": {
         "description": "An error, as RFC 9457 problem details (`application/problem+json`).\n\n`type` names the kind of problem as a path under `/problems/`, or is\n`about:blank` for a plain HTTP error. `detail` is what clients written\nbefore this shape existed already read: a sentence for most errors, the\nfield-by-field list for a request that failed validation.",
         "properties": {
@@ -45391,6 +46015,29 @@
             ],
             "default": null,
             "title": "Max Age"
+          },
+          "capability": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Capability"
+          },
+          "offer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProblemOffer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [

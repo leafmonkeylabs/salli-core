@@ -162,7 +162,15 @@ async def chat(
         if creds.provider == "anthropic"
         else creds.model_for("best")
     )
-    await svc.usage.charge(user_id, AIAction.CHAT_MESSAGE, model_id=model_id, email=email)
+    # `own_key` is passed only when true, so a meter written before it
+    # existed keeps working.
+    await svc.usage.charge(
+        user_id,
+        AIAction.CHAT_MESSAGE,
+        model_id=model_id,
+        email=email,
+        **({"own_key": True} if creds.byok else {}),
+    )
 
     ai_acc: list[str] = []
 

@@ -20,6 +20,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Form, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
+from salli.application.ports import Capability, require_capability
 from salli.application.services.parsing_service import load_bank_formats, transaction_view
 from salli.domain.parsing.models import ParsedTransaction, RawRow
 from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, FileUpload
@@ -202,6 +203,8 @@ async def upload_statement(
     data = await file.read()
     if len(data) > 10 * 1024 * 1024:  # 10 MB hard cap
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
+    if form.formats:
+        await require_capability(svc.entitlements, user_id, email, Capability.BANK_FORMATS)
     try:
         formats = load_bank_formats(form.formats) if form.formats else []
     except ValueError as exc:
@@ -264,6 +267,7 @@ class StatementCheck(BaseModel):
 async def check_statement(
     form: Annotated[StatementFileUpload, Form(media_type="multipart/form-data")],
     user_id: CurrentUser,
+    email: CurrentEmail,
     svc: AppServices,
     currency: CurrencyCode | None = None,
     date_order: Literal["DMY", "MDY", "YMD"] | None = None,
@@ -278,6 +282,8 @@ async def check_statement(
     data = await file.read()
     if len(data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
+    if form.formats:
+        await require_capability(svc.entitlements, user_id, email, Capability.BANK_FORMATS)
     try:
         formats = load_bank_formats(form.formats) if form.formats else []
     except ValueError as exc:

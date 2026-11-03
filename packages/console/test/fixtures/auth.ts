@@ -14,6 +14,7 @@ export function metaAt(origin: string, extensions: string[] = []): Meta {
     api_version: '1',
     server_version: '0.3.1',
     extensions,
+    panels: false,
     oauth: {
       issuer: origin,
       authorization_endpoint: `${origin}/mcp/oauth/authorize`,

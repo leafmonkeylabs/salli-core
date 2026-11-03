@@ -22,6 +22,7 @@ from salli.application.services.mcp_oauth_service import (
 from salli.config import console_index, get_settings
 from salli.extensions import enabled_specs
 from salli.interfaces.api.contract import API_VERSION, CurrencyCode
+from salli.interfaces.api.deps import AppServices
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -66,6 +67,8 @@ class Meta(BaseModel):
     server_version: str
     #: Names of the extensions this deployment runs (empty for Salli as shipped).
     extensions: list[str]
+    #: Whether an extension adds screens (`GET /v1/panels`).
+    panels: bool
     oauth: OAuthInfo
     #: The base currency a new account starts in unless it names another.
     default_currency: CurrencyCode
@@ -75,13 +78,14 @@ class Meta(BaseModel):
 
 
 @router.get("")
-async def get_meta() -> Meta:
+async def get_meta(svc: AppServices) -> Meta:
     settings = get_settings()
     base = settings.salli_public_url.rstrip("/")
     return Meta(
         api_version=API_VERSION,
         server_version=server_version(),
         extensions=[spec.name for spec in enabled_specs(settings)],
+        panels=bool(svc.extensions.panels),
         oauth=OAuthInfo(
             issuer=base,
             authorization_endpoint=f"{base}/mcp/oauth/authorize",

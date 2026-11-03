@@ -147,6 +147,8 @@ organisation, adviser, seat, SAML, SCIM, SSO, white-label, RBAC): both scan
 `src/salli` and `packages/*/src`. Organisations, advisers acting for clients
 and SSO are the closed edition's (docs/design/console.md, section 7).
 
+The seams are generic, never about plans: `Capability` (`application/ports.py`) names what core asks `PayloadView.allows` before it does it (`MEMBER_SHARING` before a grant, `BANK_FORMATS` before a supplied bank format; `require_capability` raises `CapabilityRefused`, a 403 `/problems/capability-refused`); an `Offer` (`domain/usage.py`) may ride on it and on `UsageLimitReached` (also `problem_type`, an extension's own `/problems/…` slug) and shows as the problem's `offer`; `UsageMeter.charge` is passed `own_key=True` when the model runs on the person's own key. `Extension.panels` (`PanelSpec`) are server-driven screens, `salli.panel/1` ([docs/design/panels.md](docs/design/panels.md), `domain/panels.py`, `GET /v1/panels`, `salli panels`): core only validates and serves them, and a panel that fails is a logged 500 for that panel alone. `ExtensionSpec.api_routers` mount under `/v1` only, `root_routers` at the root, `system_paths` register names for `acting.SYSTEM_PATHS` (core's cannot be taken); `LoginService.create_account(..., password_hash=)` takes a hash made earlier. `tests/integration/seams_extension.py` uses every one. See docs/self-host.md, "What an extension may add".
+
 ### Domain model invariants (non-negotiable)
 
 - **LLM never computes money or tax.** Numbers reach the user only via deterministic engine output or tool results. The LLM parses documents, explains results, and drafts guidance.

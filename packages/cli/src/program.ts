@@ -4,6 +4,7 @@
 import { Command, type OutputConfiguration } from '@commander-js/extra-typings';
 import type { App } from './app';
 import { registerAccess } from './commands/access';
+import { registerPanels } from './commands/panels';
 import { registerAccounts } from './commands/accounts';
 import { registerAi } from './commands/ai';
 import { registerAuth } from './commands/auth';
@@ -108,6 +109,7 @@ Start with:  salli login   then   salli status`,
   registerExports(program, app);
   registerTokens(program, app);
   registerAccess(program, app);
+  registerPanels(program, app);
   registerPassword(program, app);
   registerTotp(program, app);
   registerSupportAccess(program, app);

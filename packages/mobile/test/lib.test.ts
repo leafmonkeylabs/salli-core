@@ -19,6 +19,7 @@ function meta(oauth: Record<string, string> = {}, apiVersion = '1') {
     api_version: apiVersion,
     server_version: '0.5.0',
     extensions: [],
+      panels: false,
     default_currency: 'EUR',
     console_url: `${base}/console`,
     oauth: {
