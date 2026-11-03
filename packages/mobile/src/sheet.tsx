@@ -16,7 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { sheet as motion, useReducedMotion } from './motion';
 import { strings } from './strings';
-import { size, useTheme } from './theme';
+import { elevation, radii, shape, size, useTheme } from './theme';
+
+/** A sheet's top corners: 32, continuous; its foot is the screen's. */
+const topRound = { borderTopLeftRadius: radii.sheet, borderTopRightRadius: radii.sheet, borderCurve: 'continuous' } as const;
 
 const TitleRef = createContext<RefObject<ComponentRef<typeof Text> | null> | null>(null);
 
@@ -145,10 +148,10 @@ export function Sheet({ visible, onClose, label, children }: { visible: boolean;
               accessibilityLabel={label}
               onAccessibilityEscape={onClose}
               onLayout={(e) => arrive(e.nativeEvent.layout.height)}
-              style={[styles.panel, { backgroundColor: theme.surface, borderTopColor: theme.line, paddingBottom: insets.bottom + 16 }, panel]}
+              style={[styles.panel, topRound, elevation(theme, 'sheet'), { backgroundColor: theme.surface, paddingBottom: insets.bottom + 16, maxHeight: Dimensions.get('window').height * 0.92 }, panel]}
             >
               <Pressable accessibilityRole="button" accessibilityLabel={strings.sheet.close} onPress={onClose} style={styles.grabber}>
-                <View style={[styles.grip, { backgroundColor: theme.fieldBorder, borderRadius: theme.control ? 3 : 0 }]} />
+                <View style={[styles.grip, shape(radii.pill), { backgroundColor: theme.muted, opacity: 0.4 }]} />
               </Pressable>
               <TitleRef.Provider value={title}>{children}</TitleRef.Provider>
             </Animated.View>
@@ -161,7 +164,7 @@ export function Sheet({ visible, onClose, label, children }: { visible: boolean;
 
 const styles = StyleSheet.create({
   frame: { flex: 1, justifyContent: 'flex-end' },
-  panel: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: size.gutter, gap: 16 },
+  panel: { paddingHorizontal: size.gutter, gap: 16 },
   // 120 × 44 to touch, a 40 × 5 bar to see; the title sits close under it.
   grabber: { alignSelf: 'center', width: 120, height: 44, alignItems: 'center', justifyContent: 'center', marginBottom: -14 },
   grip: { width: 40, height: 5 },
