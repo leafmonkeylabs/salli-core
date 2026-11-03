@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Changed
+
+- **The rounded design, in the console and the sign-in pages.** One radius
+  scale (6, 10, 14, 20, 26, 32 and the pill) replaces the square corners, a
+  quieter palette (ground, surface, fill, ink, green, red; bone, sand,
+  oxblood and brass retired) and soft shadows replace outlines. The console
+  has pill buttons, chips and current places, unboxed page headers, rounded
+  tables, round icons, rounded chart marks, a floating bar and bottom-sheet
+  dialogs on a phone, and an icon and a sentence for an empty state. The
+  consent, sign-in, device and invitation pages are a centred rounded card
+  with 48 px fields, the server's address, a Cancel (the existing deny path),
+  errors above the form with the email kept, recovery codes in a grid and an
+  "Add to an authenticator app" link. The logo's bars have round ends.
+
 ### Added
 
 - **Pages a server describes, in the phone and the console.** A server that
