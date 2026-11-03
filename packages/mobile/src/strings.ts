@@ -562,6 +562,7 @@ export const strings = {
     serversBody: (host: string) => `${host} and any other server, and how this phone opens Salli.`,
     automationsPlace: 'Automations',
     automationsBody: 'Bank messages to drafts',
+    groups: { books: 'Your books', server: 'Server', console: 'In the console' },
   },
 
   automations: {

@@ -16,19 +16,18 @@ import {
 import { useQueries } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Card, CardHead, Icon, LedgerRow, Money, Row, Waiting, offsetOf, useLargeText } from '../../kit';
+import { Badge, Body, Button, Card, IconTile, LedgerRow, Money, Notice, Press, Icon, Row, Section, Surface, Waiting, radii, shape, useLargeText } from '../../kit';
 import { displayRange, monthNameOf, todayIso } from '../../lib/display';
 import { useSession } from '../../session';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
-import { font, size, useTheme } from '../../theme';
+import { font, size, space, useTheme } from '../../theme';
 
 const t = strings.books;
 
 export default function Books() {
-  const theme = useTheme();
   const { session } = useSession();
   const accounts = useRead('accounts.list', accountsList);
   const sheet = useRead('reports.balanceSheet', reportsBalanceSheet);
@@ -42,50 +41,31 @@ export default function Books() {
   return (
     <Page ai="books" title={t.title} onRefresh={() => Promise.all([accounts.refetch(), sheet.refetch(), forecast.refetch(), statements.refetch()])}>
       <View style={[styles.actions, large ? styles.column : null]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={t.addLabel} onPress={() => router.push('/add')} style={[styles.action, large ? styles.whole : null, { backgroundColor: theme.button, borderRadius: theme.control }, offsetOf(theme)]}>
-          <Icon name="plus" size={18} colour={theme.buttonText} />
-          <Text style={[styles.actionText, { color: theme.buttonText }]}>{t.add}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={strings.imports.importFile}
-          onPress={() => router.push('/import')}
-          style={[styles.action, large ? styles.whole : null, { backgroundColor: theme.button2, borderColor: theme.button2Border, borderWidth: 1, borderRadius: theme.control }, offsetOf(theme)]}
-        >
-          <Icon name="upload" size={18} colour={theme.text} />
-          <Text style={[styles.actionText, { color: theme.text }]}>{t.importShort}</Text>
-        </Pressable>
+        <View style={large ? undefined : { flex: 1 }}>
+          <Button label={t.add} icon="plus" accessibilityLabel={t.addLabel} onPress={() => router.push('/add')} />
+        </View>
+        <View style={large ? undefined : { flex: 1 }}>
+          <Button kind="secondary" label={t.importShort} icon="upload" accessibilityLabel={strings.imports.importFile} onPress={() => router.push('/import')} />
+        </View>
       </View>
 
       {waiting.length ? <Queue waiting={waiting} names={new Map((accounts.data ?? []).map((a) => [a.id, a.name]))} /> : null}
 
       <Spending />
 
-      <View style={[styles.places, large ? styles.column : null, { backgroundColor: theme.card, borderColor: theme.line, borderRadius: theme.radius, overflow: 'hidden' }]}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/entries')}
-          style={[styles.place, large ? styles.whole : null, consoleUrl ? (large ? { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth } : { borderRightColor: theme.line, borderRightWidth: StyleSheet.hairlineWidth }) : null]}
-        >
-          <Icon name="more" size={20} colour={theme.text} />
-          <Body>{t.entries}</Body>
-        </Pressable>
+      <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
+        <Row icon="more" title={t.entries} onPress={() => router.push('/entries')} last={!consoleUrl} />
         {consoleUrl ? (
           // Rules are made and changed in the console: the link opens its page.
-          <Pressable accessibilityRole="link" accessibilityLabel={t.rulesLabel} onPress={() => void Linking.openURL(`${consoleUrl}/books/rules`)} style={[styles.place, large ? styles.whole : null]}>
-            <Icon name="external" size={18} colour={theme.text} />
-            <Body>{t.rules}</Body>
-          </Pressable>
+          <Row icon="external" title={t.rules} hint={t.rulesLabel} onPress={() => void Linking.openURL(`${consoleUrl}/books/rules`)} last />
         ) : null}
-      </View>
+      </Surface>
 
       {accounts.data && sheet.data && forecast.data ? (
         accounts.data.length ? (
           <Accounts accounts={accounts.data} sheet={sheet.data} cash={new Set(forecast.data.accounts.map((a) => a.account_id))} />
         ) : (
-          <Card>
-            <Body muted>{t.noAccounts}</Body>
-          </Card>
+          <Notice tone="neutral">{t.noAccounts}</Notice>
         )
       ) : (
         <Waiting query={accounts.error ? accounts : sheet.error ? sheet : forecast} what="your accounts" />
@@ -112,22 +92,22 @@ function Queue({ waiting, names }: { waiting: readonly BankStatement[]; names: R
   const [only] = waiting;
   const open = () => (only && waiting.length === 1 ? router.push({ pathname: '/review/[id]', params: { id: only.id } }) : setShown((s) => !s));
   return (
-    <View style={[{ backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: theme.cardBorderWidth < 1 ? StyleSheet.hairlineWidth : theme.cardBorderWidth, borderRadius: theme.radius }, offsetOf(theme)]}>
-      <Pressable
+    <Surface pad={false}>
+      <Press
+        highlight
         accessibilityRole="button"
         accessibilityLabel={count === undefined ? strings.imports.queue : t.queueSpoken(count, waiting.length)}
         {...(waiting.length > 1 ? { accessibilityState: { expanded: shown } } : {})}
         onPress={open}
         style={styles.queue}
       >
-        <View style={[styles.badge, { backgroundColor: theme.text, borderRadius: Math.min(theme.control, 10) }]}>
-          <Text maxFontSizeMultiplier={1.5} style={[styles.badgeText, { color: theme.card }]}>{count ?? '–'}</Text>
-        </View>
+        <IconTile name="upload" />
         <Body style={{ flex: 1 }}>{t.queue(count ?? 0, waiting.length)}</Body>
+        <Badge count={count ?? 0} />
         <Icon name={waiting.length > 1 && shown ? 'down' : 'chevron'} size={16} colour={theme.muted} />
-      </Pressable>
+      </Press>
       {shown ? (
-        <View style={{ paddingHorizontal: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }}>
+        <View style={{ paddingHorizontal: size.pad, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }}>
           {waiting.map((statement, i) => (
             <Row
               key={statement.id}
@@ -139,7 +119,7 @@ function Queue({ waiting, names }: { waiting: readonly BankStatement[]; names: R
           ))}
         </View>
       ) : null}
-    </View>
+    </Surface>
   );
 }
 
@@ -160,30 +140,32 @@ function Spending() {
   };
   const restShare = rest.reduce((n, l) => n + share(l.share), 0);
   return (
-    <Card style={{ gap: 10 }}>
-      <CardHead label={t.spending(monthNameOf(todayIso()))} end={spending.data.currency} />
-      <View style={[styles.stack, { borderRadius: Math.min(theme.radius, 6) }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <Section title={t.spending(monthNameOf(todayIso()))}>
+    <Card style={{ gap: space.s12 }}>
+      <Body small muted>{spending.data.currency}</Body>
+      <View style={[styles.stack, shape(radii.pill)]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         {shown.map((line, i) => (
-          <View key={line.key} style={{ flex: share(line.share), backgroundColor: theme.green, opacity: shades[i] }} />
+          <View key={line.key} style={[{ flex: share(line.share), backgroundColor: theme.green, opacity: shades[i] }, shape(radii.pill)]} />
         ))}
-        {restShare ? <View style={{ flex: restShare, backgroundColor: theme.line }} /> : null}
+        {restShare ? <View style={[{ flex: restShare, backgroundColor: theme.fill }, shape(radii.pill)]} /> : null}
       </View>
       {shown.map((line, i) => (
         <View key={line.key} style={[styles.legend, large ? styles.legendLarge : null]}>
-          <View style={[styles.swatch, { backgroundColor: theme.green, opacity: shades[i], borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
+          <View style={[styles.swatch, { backgroundColor: theme.green, opacity: shades[i] }, shape(radii.pill)]} />
           <Body style={large ? { flexGrow: 1, flexShrink: 0 } : { flex: 1 }}>{line.key}</Body>
           <Money amount={line.total} currency={spending.data.currency} style={large ? { flexGrow: 1, textAlign: 'right' } : undefined} />
         </View>
       ))}
       {rest.length ? (
         <View style={styles.legend}>
-          <View style={[styles.swatch, { backgroundColor: theme.line, borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
+          <View style={[styles.swatch, shape(radii.pill), { backgroundColor: theme.fill }]} />
           <Body muted style={{ flex: 1 }}>
             {t.other(rest.length)}
           </Body>
         </View>
       ) : null}
     </Card>
+    </Section>
   );
 }
 
@@ -201,19 +183,21 @@ function Accounts({ accounts, sheet, cash }: { accounts: readonly Account[]; she
     { key: 'other', rows: held.filter((a) => !cash.has(a.id)) },
   ].filter((g) => g.rows.length);
   return (
-    <Card style={{ paddingVertical: 12 }}>
-      <CardHead label={t.accounts} end={sheet.currency} />
+    <Section title={t.accounts}>
+      <Body small muted>{sheet.currency}</Body>
       {groups.map((group) => (
-        <View key={group.key}>
+        <View key={group.key} style={{ gap: space.s8 }}>
           <Body small muted style={styles.group}>
             {t.roles[group.key] ?? group.key}
           </Body>
-          {group.rows.map((account, i) => (
-            <AccountLine key={account.id} account={account} base={sheet.currency} balance={balances.get(account.id) ?? '0'} last={i === group.rows.length - 1} />
-          ))}
+          <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
+            {group.rows.map((account, i) => (
+              <AccountLine key={account.id} account={account} base={sheet.currency} balance={balances.get(account.id) ?? '0'} last={i === group.rows.length - 1} />
+            ))}
+          </Surface>
         </View>
       ))}
-    </Card>
+    </Section>
   );
 }
 
@@ -245,19 +229,12 @@ function AccountLine({ account, base, balance, last }: { account: Account; base:
 }
 
 const styles = StyleSheet.create({
-  actions: { flexDirection: 'row', gap: 8 },
-  action: { flex: 1, minHeight: size.target, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
-  actionText: { fontFamily: font.medium, fontSize: size.body },
+  actions: { flexDirection: 'row', gap: space.s12 },
   column: { flexDirection: 'column' },
-  whole: { flexGrow: 0, flexBasis: 'auto', paddingVertical: 8 },
   legendLarge: { flexWrap: 'wrap' },
-  places: { flexDirection: 'row', borderWidth: StyleSheet.hairlineWidth },
-  place: { flex: 1, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
-  group: { fontFamily: font.medium, marginTop: 8 },
-  queue: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, minHeight: 60 },
-  badge: { minWidth: 32, minHeight: 32, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontFamily: font.semibold, fontSize: size.body, fontVariant: ['tabular-nums'] },
-  stack: { flexDirection: 'row', height: 14, overflow: 'hidden' },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 32 },
+  group: { fontFamily: font.medium, paddingHorizontal: 4 },
+  queue: { flexDirection: 'row', alignItems: 'center', gap: space.s12, paddingHorizontal: size.pad, minHeight: 68 },
+  stack: { flexDirection: 'row', height: 12, gap: 2, overflow: 'hidden' },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: space.s12, minHeight: 36 },
   swatch: { width: 10, height: 10 },
 });
