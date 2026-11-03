@@ -240,7 +240,7 @@ function Answer({ reads, text }: { reads: number; text: string }) {
 }
 
 /** A message from the person: the one rounded corner tucked in at its foot. */
-const youShape = { borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: radii.tag, borderCurve: 'continuous' } as const;
+const youShape = { borderTopLeftRadius: radii.card, borderTopRightRadius: radii.card, borderBottomLeftRadius: radii.card, borderBottomRightRadius: radii.tag, borderCurve: 'continuous' } as const;
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: size.gutter },
