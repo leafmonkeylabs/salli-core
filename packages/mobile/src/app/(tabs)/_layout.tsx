@@ -31,7 +31,9 @@ export default function TabsLayout() {
     asked.current = true;
     router.push('/first-run');
   }, [status.data]);
+  const insets = useSafeAreaInsets();
   return (
+    <TabInset.Provider value={BAR + lift(insets.bottom) + size.gutter}>
     <View style={{ flex: 1 }}>
       <Tabs screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.ground } }} tabBar={(props) => <Bar {...props} />}>
         {PLACES.map((place) => (
