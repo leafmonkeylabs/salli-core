@@ -15,7 +15,7 @@ const sources = files(SRC).map((path) => ({ path: path.slice(SRC.length + 1), te
 describe('one shape for every theme', () => {
   it('sets no corner but through shape() and the radius tokens', () => {
     // A corner is a token (radii.x) or shape(); a number or a theme value is a leak.
-    const raw = sources.filter((s) => s.path !== 'theme.ts' && /\bborder(Top|Bottom)?(Left|Right)?Radius\s*:\s*(?!radii\.)/.test(s.text));
+    const raw = sources.filter((s) => s.path !== 'theme.ts' && /\bborder(Top|Bottom)?(Left|Right)?Radius\s*:\s*(?!radii\.)\S/.test(s.text));
     expect(raw.map((s) => s.path)).toEqual([]);
   });
 
