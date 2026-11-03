@@ -10,10 +10,10 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../api';
-import { Body, Button, Card, Choice, Icon, SectionLabel, useDoneBar } from '../kit';
+import { Body, Button, Card, Choice, Field as KitField, Icon, Notice, Press, SectionLabel, radii, shape, useDoneBar } from '../kit';
 import { balancesOf, DRAWDOWNS, EXPERIENCE, goalsOf, HORIZONS, incomesOf, ROLES, rolesGiven, STABILITY, type Line } from '../lib/firstrun';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
@@ -120,28 +120,24 @@ export default function FirstRun() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.ground }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: theme.surface, borderBottomColor: theme.line }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: theme.ground }]}>
         <View style={styles.headerRow}>
           {at > 0 ? (
-            <Pressable accessibilityRole="button" onPress={() => setAt(at - 1)} style={[styles.headerButton, styles.back]}>
+            <Press accessibilityRole="button" onPress={() => setAt(at - 1)} style={[styles.headerButton, styles.back]}>
               <Icon name="back" colour={theme.text} />
               <Text style={[styles.headerText, { color: theme.text }]}>{t.back}</Text>
-            </Pressable>
+            </Press>
           ) : (
             <View />
           )}
-          {step !== 'you' ? (
-            <Pressable accessibilityRole="button" onPress={next} style={[styles.headerButton, { paddingHorizontal: 12 }]}>
-              <Text style={[styles.headerText, styles.underline, { color: theme.text }]}>{t.skip}</Text>
-            </Pressable>
-          ) : null}
+          {step !== 'you' ? <Button kind="tertiary" label={t.skip} onPress={next} /> : null}
         </View>
         <View accessible accessibilityRole="progressbar" accessibilityLabel={t.titles[step]} accessibilityValue={{ min: 1, max: steps.length, now: at + 1, text: t.stepOf(at + 1, steps.length) }} style={styles.progress}>
           {steps.map((s, i) => (
-            <View key={s} style={[styles.bar, { backgroundColor: i <= at ? theme.green : theme.line }]} />
+            <View key={s} style={[styles.bar, shape(radii.pill), { backgroundColor: i <= at ? theme.green : theme.fill }]} />
           ))}
         </View>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={[styles.title, { color: theme.text }]}>
           {t.titles[step]}
         </Text>
       </View>
@@ -178,7 +174,7 @@ export default function FirstRun() {
             <Choice label={t.experience} options={EXPERIENCE.map((d) => ({ id: d, text: t.experiences[d] ?? d }))} chosen={experience} onPick={setExperience} />
           </>
         )}
-        {problem ? <Body alert>{problem}</Body> : null}
+        {problem ? <Notice tone="warn">{problem}</Notice> : null}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12, backgroundColor: theme.ground }]}>
@@ -202,22 +198,16 @@ export default function FirstRun() {
 }
 
 function Field({ label, value, onChange, placeholder, caps, hint }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; caps?: boolean; hint?: string }) {
-  const theme = useTheme();
   return (
-    <View style={{ gap: 6 }}>
-      <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={theme.muted}
-        autoCapitalize={caps ? 'characters' : 'words'}
-        autoCorrect={false}
-        accessibilityLabel={label}
-        {...(hint ? { accessibilityHint: hint } : {})}
-        style={[styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
-      />
-    </View>
+    <KitField
+      label={label}
+      value={value}
+      onChangeText={onChange}
+      placeholder={placeholder}
+      autoCapitalize={caps ? 'characters' : 'words'}
+      autoCorrect={false}
+      {...(hint ? { accessibilityHint: hint, help: hint } : {})}
+    />
   );
 }
 
@@ -228,33 +218,30 @@ function Field({ label, value, onChange, placeholder, caps, hint }: { label: str
 type DoneBar = ReturnType<typeof useDoneBar>;
 
 function Lines({ label, lines, onChange, placeholder, roles, names, done }: { label: string; lines: Line[]; onChange: (l: Line[]) => void; placeholder: string; roles?: boolean; names?: boolean; done: DoneBar }) {
-  const theme = useTheme();
   const set = (i: number, patch: Partial<Line>) => onChange(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   return (
-    <Card style={{ gap: 10 }}>
+    <Card style={{ gap: 12 }}>
       <SectionLabel>{label}</SectionLabel>
       {lines.map((line, i) => (
         <View key={i} style={{ gap: 8 }}>
           <View style={styles.lineRow}>
-            <TextInput
+            <KitField
               {...done.field(`${label}-${i}-name`)}
               value={line.name}
               onChangeText={(name) => set(i, { name })}
               placeholder={i === 0 ? placeholder : t.another}
-              placeholderTextColor={theme.muted}
               accessibilityLabel={`${label} ${i + 1}: ${t.what}`}
-              style={[styles.input, { flex: 1, backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+              style={{ flex: 1 }}
             />
             {names ? null : (
-              <TextInput
+              <KitField
                 {...done.field(`${label}-${i}-amount`)}
                 value={line.amount}
                 onChangeText={(amount) => set(i, { amount })}
                 placeholder="0.00"
-                placeholderTextColor={theme.muted}
                 keyboardType="decimal-pad"
                 accessibilityLabel={`${label} ${i + 1}: ${t.amount}`}
-                style={[styles.input, styles.amount, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+                style={{ width: 132 }}
               />
             )}
           </View>
@@ -270,34 +257,24 @@ function Lines({ label, lines, onChange, placeholder, roles, names, done }: { la
 
 /** What you owe (design HhObOwe): each debt's name and amount, then its rate and minimum, both optional. */
 function Owe({ lines, onChange, currency, done }: { lines: Line[]; onChange: (l: Line[]) => void; currency: string; done: DoneBar }) {
-  const theme = useTheme();
   const set = (i: number, patch: Partial<Line>) => onChange(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
-  const input = [styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   const field = (key: string, label: string, optional: boolean, value: string, onText: (v: string) => void, props: { width?: number; amount?: boolean; percent?: boolean; placeholder?: string }) => (
-    <View style={props.width ? { width: props.width, gap: 4 } : { flex: 1, gap: 4 }}>
-      <Text style={[styles.label, { color: theme.text }]}>
-        {label}
-        {optional ? <Text style={{ fontFamily: font.regular, color: theme.muted }}>{` ${t.optional}`}</Text> : null}
-      </Text>
-      <View style={styles.suffixed}>
-        <TextInput
-          {...done.field(key)}
-          value={value}
-          onChangeText={onText}
-          accessibilityLabel={optional ? `${label}, ${t.optional}` : label}
-          placeholder={props.placeholder}
-          placeholderTextColor={theme.muted}
-          {...(props.amount || props.percent ? { keyboardType: 'decimal-pad' as const } : {})}
-          style={[...input, { flex: 1 }, props.amount || props.percent ? styles.figure : null]}
-        />
-        {props.percent ? <Body muted>%</Body> : null}
-      </View>
-    </View>
+    <KitField
+      {...done.field(key)}
+      style={props.width ? { width: props.width } : { flex: 1 }}
+      label={optional ? `${label} ${t.optional}` : label}
+      value={value}
+      onChangeText={onText}
+      accessibilityLabel={optional ? `${label}, ${t.optional}` : label}
+      {...(props.placeholder ? { placeholder: props.placeholder } : {})}
+      {...(props.amount || props.percent ? { keyboardType: 'decimal-pad' as const } : {})}
+      {...(props.percent ? { end: <Body muted>%</Body> } : {})}
+    />
   );
   return (
     <>
       {lines.map((line, i) => (
-        <Card key={i} style={{ gap: 10 }}>
+        <Card key={i} style={{ gap: 12 }}>
           <View style={styles.lineRow}>
             {field(`${i}-name`, t.oweName, false, line.name, (name) => set(i, { name }), i === 0 ? { placeholder: t.owePlaceholder } : {})}
             {field(`${i}-owed`, t.owed(currency), false, line.amount, (amount) => set(i, { amount }), { width: 132, amount: true, placeholder: '0.00' })}
@@ -308,25 +285,21 @@ function Owe({ lines, onChange, currency, done }: { lines: Line[]; onChange: (l:
           </View>
         </Card>
       ))}
-      <Pressable accessibilityRole="button" onPress={() => onChange([...lines, { name: '', amount: '' }])} style={[styles.another, { borderColor: theme.fieldBorder, borderRadius: Math.min(theme.control, 12) }]}>
-        <Text style={[styles.anotherText, { color: theme.text }]}>{t.addAnother}</Text>
-      </Pressable>
+      <Button kind="secondary" icon="plus" label={t.addAnother} onPress={() => onChange([...lines, { name: '', amount: '' }])} />
     </>
   );
 }
 
 function Goals({ goals, onChange, done }: { goals: (Line & { date: string })[]; onChange: (g: (Line & { date: string })[]) => void; done: DoneBar }) {
-  const theme = useTheme();
   const set = (i: number, patch: Partial<Line & { date: string }>) => onChange(goals.map((g, j) => (j === i ? { ...g, ...patch } : g)));
-  const input = [styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   return (
-    <Card style={{ gap: 14 }}>
+    <Card style={{ gap: 16 }}>
       {goals.map((goal, i) => (
-        <View key={i} style={{ gap: 8 }}>
-          <TextInput {...done.field(`${i}-name`)} value={goal.name} onChangeText={(name) => set(i, { name })} placeholder={t.goalPlaceholder} placeholderTextColor={theme.muted} accessibilityLabel={t.goalName} style={input} />
+        <View key={i} style={{ gap: 12 }}>
+          <KitField {...done.field(`${i}-name`)} value={goal.name} onChangeText={(name) => set(i, { name })} placeholder={t.goalPlaceholder} accessibilityLabel={t.goalName} />
           <View style={styles.lineRow}>
-            <TextInput {...done.field(`${i}-amount`)} value={goal.amount} onChangeText={(amount) => set(i, { amount })} placeholder={t.goalAmount} placeholderTextColor={theme.muted} keyboardType="decimal-pad" accessibilityLabel={t.goalAmount} style={[...input, { flex: 1 }]} />
-            <TextInput {...done.field(`${i}-date`)} value={goal.date} onChangeText={(date) => set(i, { date })} placeholder={t.goalBy} placeholderTextColor={theme.muted} keyboardType="numbers-and-punctuation" accessibilityLabel={t.goalBy} style={[...input, { flex: 1 }]} />
+            <KitField {...done.field(`${i}-amount`)} style={{ flex: 1 }} value={goal.amount} onChangeText={(amount) => set(i, { amount })} placeholder={t.goalAmount} keyboardType="decimal-pad" accessibilityLabel={t.goalAmount} />
+            <KitField {...done.field(`${i}-date`)} style={{ flex: 1 }} value={goal.date} onChangeText={(date) => set(i, { date })} placeholder={t.goalBy} keyboardType="numbers-and-punctuation" accessibilityLabel={t.goalBy} />
           </View>
         </View>
       ))}
@@ -336,23 +309,16 @@ function Goals({ goals, onChange, done }: { goals: (Line & { date: string })[]; 
 }
 
 const styles = StyleSheet.create({
-  suffixed: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  header: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: size.gutter, paddingBottom: 12, gap: 12 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', minHeight: size.target },
+  header: { paddingHorizontal: size.gutter, paddingBottom: 12, gap: 12 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: size.target },
   headerButton: { minHeight: size.target, justifyContent: 'center' },
   back: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 12 },
   headerText: { fontFamily: font.medium, fontSize: size.body },
-  underline: { textDecorationLine: 'underline' },
   progress: { flexDirection: 'row', gap: 4 },
-  bar: { flex: 1, height: 4 },
-  title: { fontFamily: font.semibold, fontSize: 26, letterSpacing: -0.5 },
-  page: { padding: size.gutter, gap: 16 },
+  bar: { flex: 1, height: 6 },
+  title: { fontFamily: font.semibold, fontSize: size.largeTitle, letterSpacing: -0.025 * size.largeTitle },
+  page: { padding: size.gutter, gap: size.gap },
   label: { fontFamily: font.medium, fontSize: size.small },
-  input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
-  figure: { textAlign: 'right', fontVariant: ['tabular-nums'] },
-  another: { minHeight: size.target, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-  anotherText: { fontFamily: font.medium, fontSize: size.body },
-  amount: { width: 120, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  lineRow: { flexDirection: 'row', gap: 8 },
+  lineRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: size.gutter, paddingTop: 10 },
 });
