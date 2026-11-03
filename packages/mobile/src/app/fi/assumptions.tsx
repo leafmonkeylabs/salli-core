@@ -46,11 +46,11 @@ export default function Assumptions() {
                 accessibilityRole="button"
                 accessibilityLabel={`${t.names[key]}: ${a ? `${percentOf(a.value)}%` : t.notSet}, ${placeholder ? t.placeholder : a ? t.origins[a.origin] : ''}`}
                 onPress={() => setEditing(key)}
-                style={[styles.row, i < KEYS.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}
+                style={[styles.row, i < KEYS.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}
               >
                 <Body style={{ flex: 1 }}>{t.names[key] ?? key}</Body>
                 {a ? (
-                  <Text style={[styles.tag, { color: placeholder ? theme.negative : theme.muted, borderColor: placeholder ? theme.negative : theme.rule, borderRadius: Math.min(theme.control, 999) }]}>
+                  <Text style={[styles.tag, { color: placeholder ? theme.red : theme.muted, borderColor: placeholder ? theme.red : theme.line, borderRadius: Math.min(theme.control, 999) }]}>
                     {placeholder ? t.placeholder : t.origins[a.origin]}
                   </Text>
                 ) : null}
@@ -86,7 +86,7 @@ function EditSheet({ name, current, visible, onClose, onSave }: { name: string; 
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const fraction = fractionOf(typed);
   const done = useDoneBar(true);
-  const input = [styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
+  const input = [styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   return (
     <Sheet visible={visible} onClose={onClose} label={name}>
       <SheetTitle style={[styles.title, { color: theme.text }]}>

@@ -62,7 +62,7 @@ export function PanelView({ panel, after }: { panel: PanelDocument; after: (then
         <Section key={i} section={section} after={after} />
       ))}
       {panel.note ? (
-        <View style={[styles.note, { backgroundColor: theme.tile, borderColor: theme.rule }]}>
+        <View style={[styles.note, { backgroundColor: theme.tile, borderColor: theme.line }]}>
           <Body>{panel.note}</Body>
         </View>
       ) : null}
@@ -91,7 +91,7 @@ function Section({ section, after }: { section: PanelSection; after: (then: 'ref
 
 function RowView({ row, after, last }: { row: PanelRow; after: (then: 'refresh' | 'close') => void; last: boolean }) {
   const theme = useTheme();
-  const rule = last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 12 };
+  const rule = last ? null : { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 12 };
   switch (row.kind) {
     case 'text':
       return <TextRow row={row} rule={rule} />;
@@ -203,7 +203,7 @@ function Field({ field, value, onChange }: { field: PanelField; value: string; o
         keyboardType={field.type === 'number' ? 'decimal-pad' : 'default'}
         autoCorrect={false}
         placeholderTextColor={theme.muted}
-        style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
+        style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
       />
     </View>
   );

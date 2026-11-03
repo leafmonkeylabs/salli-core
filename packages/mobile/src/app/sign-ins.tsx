@@ -52,8 +52,8 @@ export default function SignIns() {
           ))}
         </View>
         <Pressable accessibilityRole="button" onPress={() => router.push('/welcome')} style={styles.add}>
-          <Icon name="plus" size={20} colour={theme.chart} />
-          <Text style={[styles.addText, { color: theme.chart }]}>{t.add}</Text>
+          <Icon name="plus" size={20} colour={theme.green} />
+          <Text style={[styles.addText, { color: theme.green }]}>{t.add}</Text>
         </Pressable>
       </Card>
 
@@ -125,7 +125,7 @@ function NameSheet({ visible, address, name, onClose, onSave }: { visible: boole
         accessibilityHint={t.nameHelp}
         autoFocus
         returnKeyType="done"
-        style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+        style={[styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
       />
       <Button label={t.save} onPress={() => onSave(typed)} />
       {name ? <Button kind="tertiary" label={t.useAddress} onPress={() => onSave('')} /> : null}
@@ -139,7 +139,7 @@ function ServerRow({ known, onScreen, onSwitch, onSignIn, onForget }: { known: K
   // Named, its address shows under the name: the one place it still does.
   const who = t.who([known.name ? hostOf(known.server) : '', known.email ?? '', known.currency ?? '', known.signedIn ? t.signedInNow : t.signedOut]);
   return (
-    <View style={[styles.server, { borderBottomColor: theme.rule }]}>
+    <View style={[styles.server, { borderBottomColor: theme.line }]}>
       <Pressable
         accessibilityRole="radio"
         accessibilityState={{ checked: onScreen, disabled: !known.signedIn }}
@@ -170,9 +170,9 @@ function ServerRow({ known, onScreen, onSwitch, onSignIn, onForget }: { known: K
             accessibilityLabel={t.forget(host)}
             accessibilityHint={t.forgetHelp}
             onPress={onForget}
-            style={[styles.forget, { borderColor: theme.fieldBorder, backgroundColor: theme.chrome, borderRadius: theme.control }]}
+            style={[styles.forget, { borderColor: theme.fieldBorder, backgroundColor: theme.surface, borderRadius: theme.control }]}
           >
-            <Text style={[styles.forgetText, { color: theme.negative }]}>{t.forgetShort}</Text>
+            <Text style={[styles.forgetText, { color: theme.red }]}>{t.forgetShort}</Text>
           </Pressable>
         </View>
       ) : null}

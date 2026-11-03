@@ -46,9 +46,9 @@ export default function Filing() {
                   setYear(y);
                   seed.reset();
                 }}
-                style={[styles.chip, { borderColor: on ? theme.text : theme.rule, backgroundColor: on ? theme.text : theme.card, borderRadius: Math.min(theme.control, 999) }]}
+                style={[styles.chip, { borderColor: on ? theme.text : theme.line, backgroundColor: on ? theme.text : theme.card, borderRadius: Math.min(theme.control, 999) }]}
               >
-                <Text style={[styles.chipText, { color: on ? theme.work : theme.text }]}>{y}</Text>
+                <Text style={[styles.chipText, { color: on ? theme.ground : theme.text }]}>{y}</Text>
               </Pressable>
             );
           })}
@@ -56,7 +56,7 @@ export default function Filing() {
         <SectionLabel>{t.inReminders(filing.length)}</SectionLabel>
         {reminders.data ? (
           filing.map((r, i) => (
-            <View key={r.id} style={[styles.row, i < filing.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}>
+            <View key={r.id} style={[styles.row, i < filing.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}>
               <Body style={{ flex: 1 }}>{r.kind}</Body>
               <Body small muted>
                 {displayDay(r.due_date)}

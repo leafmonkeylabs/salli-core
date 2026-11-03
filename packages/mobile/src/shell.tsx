@@ -33,7 +33,7 @@ export function Header({ title, server, unreachable, back, action }: { title?: s
     </Pressable>
   ) : null;
   return (
-    <View style={[styles.header, { paddingTop: insets.top, backgroundColor: theme.chrome, borderBottomColor: theme.rule }]}>
+    <View style={[styles.header, { paddingTop: insets.top, backgroundColor: theme.surface, borderBottomColor: theme.line }]}>
       {/* At large text the actions keep their own line, above the server's name (design LargeHome). */}
       {lead && action && large ? (
         <>
@@ -137,7 +137,7 @@ export function Page({
 }) {
   const theme = useTheme();
   return (
-    <View style={{ flex: 1, backgroundColor: theme.work }}>
+    <View style={{ flex: 1, backgroundColor: theme.ground }}>
       <Glow />
       <Header {...(title ? { title } : {})} {...(back ? { back } : {})} action={ai ? <AIButton from={ai} /> : action} />
       <ScrollView
@@ -158,7 +158,7 @@ export function Later({ title }: { title: string }) {
   const { session } = useSession();
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
   return (
-    <View style={{ flex: 1, backgroundColor: theme.work }}>
+    <View style={{ flex: 1, backgroundColor: theme.ground }}>
       <Header title={title} />
       <ScrollView contentContainerStyle={styles.page}>
         <Card style={{ gap: 12 }}>

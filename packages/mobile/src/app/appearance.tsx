@@ -50,7 +50,7 @@ export default function Appearance() {
                   onPress={() => set({ ...appearance, mode })}
                   style={[styles.mode, { borderRadius: theme.control }, on ? { backgroundColor: theme.text } : null]}
                 >
-                  <Text style={[styles.modeText, { color: on ? theme.work : theme.text, fontFamily: on ? font.medium : font.regular }]}>{t.modes[mode]}</Text>
+                  <Text style={[styles.modeText, { color: on ? theme.ground : theme.text, fontFamily: on ? font.medium : font.regular }]}>{t.modes[mode]}</Text>
                 </Pressable>
               );
             })}

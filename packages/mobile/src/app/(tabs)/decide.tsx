@@ -106,7 +106,7 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
           <View style={styles.key} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             <View style={[styles.swatch, { backgroundColor: theme.muted }]} />
             <Text style={[styles.keyText, { color: theme.muted }]}>{t.projected}</Text>
-            <View style={[styles.swatch, { backgroundColor: theme.chart, marginLeft: 12 }]} />
+            <View style={[styles.swatch, { backgroundColor: theme.green, marginLeft: 12 }]} />
             <Text style={[styles.keyText, { color: theme.muted }]}>{t.actual}</Text>
             <Text style={[styles.keyText, { color: theme.muted, marginLeft: 'auto' }]}>{comparison.currency}</Text>
           </View>
@@ -115,16 +115,16 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
             const name = t.figures[row.figure] ?? row.figure;
             const spoken = (a: string | null | undefined) => (a ? amountParts(a, comparison.currency).spoken : '—');
             return (
-              <View key={row.figure} accessible accessibilityLabel={t.figureSpoken(name, spoken(row.projected), spoken(row.actual))} style={[styles.pair, { borderBottomColor: theme.rule }]}>
+              <View key={row.figure} accessible accessibilityLabel={t.figureSpoken(name, spoken(row.projected), spoken(row.actual))} style={[styles.pair, { borderBottomColor: theme.line }]}>
                 <View style={styles.pairHead}>
                   <Body style={{ flex: 1 }}>{name}</Body>
                   {row.actual ? <Money amount={row.actual} currency={comparison.currency} /> : null}
                 </View>
-                <View style={[styles.track, { backgroundColor: theme.rule }]}>
+                <View style={[styles.track, { backgroundColor: theme.line }]}>
                   <View style={[styles.track, { width: `${(projected ?? 0) * 100}%`, backgroundColor: theme.muted }]} />
                 </View>
-                <View style={[styles.track, { backgroundColor: theme.rule }]}>
-                  <View style={[styles.track, { width: `${(actual ?? 0) * 100}%`, backgroundColor: theme.chart }]} />
+                <View style={[styles.track, { backgroundColor: theme.line }]}>
+                  <View style={[styles.track, { width: `${(actual ?? 0) * 100}%`, backgroundColor: theme.green }]} />
                 </View>
               </View>
             );
@@ -156,7 +156,7 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
             accessibilityHint={t.reflectionHelp}
             placeholder={t.reflectionPlaceholder}
             placeholderTextColor={theme.muted}
-            style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
+            style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
           />
         </View>
         {record.error ? <Body alert>{record.error.message}</Body> : null}

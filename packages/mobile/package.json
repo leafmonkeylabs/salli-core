@@ -27,7 +27,6 @@
     "@ai-sdk/openai-compatible": "3.0.77",
     "@ai-sdk/xai": "5.0.29",
     "@bacons/apple-targets": "5.0.0",
-    "@expo-google-fonts/bricolage-grotesque": "0.4.1",
     "@expo-google-fonts/geist": "0.4.2",
     "@expo-google-fonts/geist-mono": "0.4.3",
     "@expo-google-fonts/plus-jakarta-sans": "0.4.2",

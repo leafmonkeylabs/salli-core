@@ -95,7 +95,7 @@ export default function NotificationsScreen() {
               <Card style={{ paddingBottom: 4 }}>
                 <SectionLabel>{t.alerts}</SectionLabel>
                 {KINDS.map((kind) => (
-                  <View key={kind} style={[styles.kind, { borderTopColor: theme.rule }]}>
+                  <View key={kind} style={[styles.kind, { borderTopColor: theme.line }]}>
                     <Toggle
                       label={t.kinds[kind]}
                       value={chosen.includes(kind)}
@@ -121,7 +121,7 @@ export default function NotificationsScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={`${t[end]} ${quiet[end]}`}
                         onPress={() => setEditing(end)}
-                        style={[styles.time, { backgroundColor: theme.input, borderColor: theme.fieldBorder, borderRadius: Math.min(theme.control, 12) }]}
+                        style={[styles.time, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, borderRadius: Math.min(theme.control, 12) }]}
                       >
                         <Text style={[styles.small, { color: theme.muted }]}>{t[end]}</Text>
                         <Text style={[styles.clock, { color: theme.text }]}>{quiet[end]}</Text>
@@ -151,7 +151,7 @@ export default function NotificationsScreen() {
           <View style={{ gap: 8 }}>
             <SectionLabel>{t.lockScreen}</SectionLabel>
             <View accessible accessibilityLabel={`${t.sampleTitle} ${t.sampleBody}`} style={[styles.lock, { backgroundColor: theme.text }]}>
-              <View style={[styles.note, { backgroundColor: theme.chrome }]}>
+              <View style={[styles.note, { backgroundColor: theme.surface }]}>
                 <View style={[styles.appIcon, { backgroundColor: theme.button }]}>
                   <Text style={[styles.appLetter, { color: theme.buttonText }]}>S</Text>
                 </View>

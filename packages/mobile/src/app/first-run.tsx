@@ -119,8 +119,8 @@ export default function FirstRun() {
   const cta = step === 'owe' ? t.continue : last ? t.finish : t.next;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.work }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: theme.chrome, borderBottomColor: theme.rule }]}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.ground }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: theme.surface, borderBottomColor: theme.line }]}>
         <View style={styles.headerRow}>
           {at > 0 ? (
             <Pressable accessibilityRole="button" onPress={() => setAt(at - 1)} style={[styles.headerButton, styles.back]}>
@@ -138,7 +138,7 @@ export default function FirstRun() {
         </View>
         <View accessible accessibilityRole="progressbar" accessibilityLabel={t.titles[step]} accessibilityValue={{ min: 1, max: steps.length, now: at + 1, text: t.stepOf(at + 1, steps.length) }} style={styles.progress}>
           {steps.map((s, i) => (
-            <View key={s} style={[styles.bar, { backgroundColor: i <= at ? theme.chart : theme.rule }]} />
+            <View key={s} style={[styles.bar, { backgroundColor: i <= at ? theme.green : theme.line }]} />
           ))}
         </View>
         <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
@@ -181,7 +181,7 @@ export default function FirstRun() {
         {problem ? <Body alert>{problem}</Body> : null}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12, backgroundColor: theme.work }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 12, backgroundColor: theme.ground }]}>
         <Button label={cta} busy={busy} disabled={!ready || busy || (step === 'owe' && !entries.data)} onPress={() => void submit()} />
         {step === 'owe' ? (
           <Button
@@ -215,7 +215,7 @@ function Field({ label, value, onChange, placeholder, caps, hint }: { label: str
         autoCorrect={false}
         accessibilityLabel={label}
         {...(hint ? { accessibilityHint: hint } : {})}
-        style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+        style={[styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
       />
     </View>
   );
@@ -243,7 +243,7 @@ function Lines({ label, lines, onChange, placeholder, roles, names, done }: { la
               placeholder={i === 0 ? placeholder : t.another}
               placeholderTextColor={theme.muted}
               accessibilityLabel={`${label} ${i + 1}: ${t.what}`}
-              style={[styles.input, { flex: 1, backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+              style={[styles.input, { flex: 1, backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
             />
             {names ? null : (
               <TextInput
@@ -254,7 +254,7 @@ function Lines({ label, lines, onChange, placeholder, roles, names, done }: { la
                 placeholderTextColor={theme.muted}
                 keyboardType="decimal-pad"
                 accessibilityLabel={`${label} ${i + 1}: ${t.amount}`}
-                style={[styles.input, styles.amount, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+                style={[styles.input, styles.amount, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
               />
             )}
           </View>
@@ -272,7 +272,7 @@ function Lines({ label, lines, onChange, placeholder, roles, names, done }: { la
 function Owe({ lines, onChange, currency, done }: { lines: Line[]; onChange: (l: Line[]) => void; currency: string; done: DoneBar }) {
   const theme = useTheme();
   const set = (i: number, patch: Partial<Line>) => onChange(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
-  const input = [styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
+  const input = [styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   const field = (key: string, label: string, optional: boolean, value: string, onText: (v: string) => void, props: { width?: number; amount?: boolean; percent?: boolean; placeholder?: string }) => (
     <View style={props.width ? { width: props.width, gap: 4 } : { flex: 1, gap: 4 }}>
       <Text style={[styles.label, { color: theme.text }]}>
@@ -318,7 +318,7 @@ function Owe({ lines, onChange, currency, done }: { lines: Line[]; onChange: (l:
 function Goals({ goals, onChange, done }: { goals: (Line & { date: string })[]; onChange: (g: (Line & { date: string })[]) => void; done: DoneBar }) {
   const theme = useTheme();
   const set = (i: number, patch: Partial<Line & { date: string }>) => onChange(goals.map((g, j) => (j === i ? { ...g, ...patch } : g)));
-  const input = [styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
+  const input = [styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   return (
     <Card style={{ gap: 14 }}>
       {goals.map((goal, i) => (

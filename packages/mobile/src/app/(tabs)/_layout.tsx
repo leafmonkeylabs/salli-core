@@ -30,7 +30,7 @@ export default function TabsLayout() {
   }, [status.data]);
   return (
     <View style={{ flex: 1 }}>
-      <Tabs screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.work } }} tabBar={(props) => <Bar {...props} />}>
+      <Tabs screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.ground } }} tabBar={(props) => <Bar {...props} />}>
         {PLACES.map((place) => (
           <Tabs.Screen key={place.name} name={place.name} options={{ title: place.label }} />
         ))}
@@ -51,7 +51,7 @@ function Bar({ state, emitter, navigateToTab }: BottomTabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View accessibilityRole="tablist" style={[styles.bar, { backgroundColor: theme.chrome, borderTopColor: theme.rule, paddingBottom: insets.bottom }]}>
+    <View accessibilityRole="tablist" style={[styles.bar, { backgroundColor: theme.surface, borderTopColor: theme.line, paddingBottom: insets.bottom }]}>
       {state.routes.map((route, index) => {
         const place = PLACES.find((p) => p.name === route.name);
         if (!place) return null;
@@ -71,7 +71,7 @@ function Bar({ state, emitter, navigateToTab }: BottomTabBarProps) {
             }}
             style={[styles.place, { borderTopColor: current ? theme.current : 'transparent' }]}
           >
-            <Icon name={place.icon} colour={colour} {...(current && theme.currentFill ? { fill: theme.currentFill } : {})} />
+            <Icon name={place.icon} colour={colour} {...(current && theme.greenTint ? { fill: theme.greenTint } : {})} />
             <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={[styles.label, { color: colour, fontFamily: current ? font.medium : font.regular }]}>
               {place.label}
             </Text>

@@ -52,7 +52,7 @@ export function AccountList({ accounts, chosen, likely, others = true, except, b
         autoCorrect={false}
         clearButtonMode="while-editing"
         returnKeyType="search"
-        style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
+        style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
       />
       {groups.length ? (
         groups.map((group) => (
@@ -98,8 +98,8 @@ export function Picker({ title, subtitle, onClose, ...list }: ListProps & { titl
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={title !== undefined} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: theme.chrome }} onAccessibilityEscape={onClose}>
-        <View style={[styles.header, { borderBottomColor: theme.rule }]}>
+      <View style={{ flex: 1, backgroundColor: theme.surface }} onAccessibilityEscape={onClose}>
+        <View style={[styles.header, { borderBottomColor: theme.line }]}>
           <View style={{ flex: 1, gap: 2 }}>
             <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]} numberOfLines={2}>
               {title}

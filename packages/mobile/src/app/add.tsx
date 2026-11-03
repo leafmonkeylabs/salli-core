@@ -114,8 +114,8 @@ export default function Add() {
 
   if (showing !== 'form') {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.chrome }} onAccessibilityEscape={() => setShowing('form')}>
-        <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top, borderBottomColor: theme.rule }]}>
+      <View style={{ flex: 1, backgroundColor: theme.surface }} onAccessibilityEscape={() => setShowing('form')}>
+        <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top, borderBottomColor: theme.line }]}>
           <Pressable accessibilityRole="button" onPress={() => setShowing('form')} style={[styles.headerButton, styles.back]}>
             <Icon name="back" colour={theme.text} />
             <Body max={1.5}>{t.back}</Body>
@@ -155,9 +155,9 @@ export default function Add() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.chrome }} onAccessibilityEscape={() => router.back()}>
+    <View style={{ flex: 1, backgroundColor: theme.surface }} onAccessibilityEscape={() => router.back()}>
       {/* A sheet on iOS sits below the status bar; full screen elsewhere, it needs the inset. */}
-      <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top, borderBottomColor: theme.rule }]}>
+      <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top, borderBottomColor: theme.line }]}>
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
           <Body max={1.5}>{t.cancel}</Body>
         </Pressable>
@@ -180,7 +180,7 @@ export default function Add() {
             returnKeyType="go"
             autoCapitalize="none"
             editable={!draft.isPending}
-            style={[styles.input, styles.say, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: draft.isPending ? theme.muted : theme.text }]}
+            style={[styles.input, styles.say, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: draft.isPending ? theme.muted : theme.text }]}
           />
           {recent.length && !drafted && !byHand ? (
             <View style={styles.chips}>
@@ -192,7 +192,7 @@ export default function Add() {
                     accessibilityRole="button"
                     accessibilityLabel={t.again(text)}
                     onPress={() => setSaid(text)}
-                    style={[styles.chip, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 999) }]}
+                    style={[styles.chip, { borderColor: theme.line, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 999) }]}
                   >
                     <Text style={[styles.chipText, { color: theme.muted }]} numberOfLines={1}>
                       {text}
@@ -206,7 +206,7 @@ export default function Add() {
         {draft.error ? <Body alert>{noModel ? t.noModel : draft.error.message}</Body> : null}
 
         {byHand ? (
-          <Card style={{ gap: 14, backgroundColor: theme.input }}>
+          <Card style={{ gap: 14, backgroundColor: theme.fill }}>
             <DraftHead date={date} onPress={() => setShowing('date')} />
             <Field label={t.description}>
               <TextInput
@@ -240,7 +240,7 @@ export default function Add() {
           </Card>
         ) : drafted ? (
           // The design's draft: the entry as it would be booked, each account changeable in place.
-          <Card style={{ gap: 8, backgroundColor: theme.input }}>
+          <Card style={{ gap: 8, backgroundColor: theme.fill }}>
             <DraftHead date={date} onPress={() => setShowing('date')} />
             <Text
               accessibilityLabel={exact && debit && credit ? `${description}. ${t.plain(formatAmount(exact, currency), name(credit), name(debit))} ${t.byModel}` : description}
@@ -294,7 +294,7 @@ function DraftHead({ date, onPress }: { date: string; onPress: () => void }) {
         <CardHead label={t.draftLabel} />
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel={t.changeDay(displayDate(date))} onPress={onPress} style={styles.dateChip}>
-        <Text style={[styles.dateText, { color: theme.chart }]}>{displayDate(date)}</Text>
+        <Text style={[styles.dateText, { color: theme.green }]}>{displayDate(date)}</Text>
       </Pressable>
     </View>
   );

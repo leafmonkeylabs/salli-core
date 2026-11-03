@@ -118,7 +118,7 @@ export default function Review() {
     ]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.work }}>
+    <View style={{ flex: 1, backgroundColor: theme.ground }}>
       <Glow />
       <Header
         back={{ label: t.back, onPress: () => router.back() }}
@@ -138,7 +138,7 @@ export default function Review() {
           {facts.length ? (
             <View style={styles.facts}>
               {facts.map((fact) => (
-                <Text key={fact} style={[styles.fact, { color: theme.text, borderColor: theme.rule, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), overflow: 'hidden' }]}>
+                <Text key={fact} style={[styles.fact, { color: theme.text, borderColor: theme.line, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), overflow: 'hidden' }]}>
                   {fact}
                 </Text>
               ))}
@@ -195,7 +195,7 @@ export default function Review() {
       </ScrollView>
 
       {transactions.length ? (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 10, backgroundColor: theme.chrome, borderTopColor: theme.rule }]}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 10, backgroundColor: theme.surface, borderTopColor: theme.line }]}>
           <Text accessibilityLiveRegion="polite" style={[styles.status, { color: theme.muted }]}>
             {t.status(ready.length, waiting)}
           </Text>
@@ -266,7 +266,7 @@ function Row({
       : t.yours;
 
   return (
-    <View style={[styles.row, first ? null : { borderTopColor: theme.rule, borderTopWidth: StyleSheet.hairlineWidth }]}>
+    <View style={[styles.row, first ? null : { borderTopColor: theme.line, borderTopWidth: StyleSheet.hairlineWidth }]}>
       <View accessible style={styles.rowHead}>
         <Text style={[styles.day, { color: theme.muted }]}>{displayDay(txn.date)}</Text>
         <Body style={{ flex: 1 }}>{shown(txn)}</Body>
@@ -299,12 +299,12 @@ function Row({
               accessibilityLabel={t.change(accountName(other), how)}
               disabled={busy}
               onPress={onChoose}
-              style={[styles.chip, { backgroundColor: theme.work, borderColor: theme.rule, borderRadius: Math.min(theme.control, 12) }]}
+              style={[styles.chip, { backgroundColor: theme.ground, borderColor: theme.line, borderRadius: Math.min(theme.control, 12) }]}
             >
               <Body>{accountName(other)}</Body>
               <Icon name="down" size={14} colour={theme.muted} />
             </Pressable>
-            <Text accessibilityElementsHidden importantForAccessibility="no" style={[styles.tag, { color: theme.muted, borderColor: theme.rule, borderRadius: Math.min(theme.control, 999) }]}>
+            <Text accessibilityElementsHidden importantForAccessibility="no" style={[styles.tag, { color: theme.muted, borderColor: theme.line, borderRadius: Math.min(theme.control, 999) }]}>
               {tag}
             </Text>
           </View>
@@ -314,9 +314,9 @@ function Row({
             accessibilityLabel={`${t.chooseAccount}: ${shown(txn)}, ${txn.credit_flag ? t.cameFrom : t.wentTo}`}
             disabled={busy}
             onPress={onChoose}
-            style={[styles.chooseButton, { borderColor: theme.chart, borderRadius: Math.min(theme.control, 12) }]}
+            style={[styles.chooseButton, { borderColor: theme.green, borderRadius: Math.min(theme.control, 12) }]}
           >
-            <Text style={[styles.chooseText, { color: theme.chart }]}>{t.chooseAccount}</Text>
+            <Text style={[styles.chooseText, { color: theme.green }]}>{t.chooseAccount}</Text>
           </Pressable>
         )}
       </View>

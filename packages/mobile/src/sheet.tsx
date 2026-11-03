@@ -145,7 +145,7 @@ export function Sheet({ visible, onClose, label, children }: { visible: boolean;
               accessibilityLabel={label}
               onAccessibilityEscape={onClose}
               onLayout={(e) => arrive(e.nativeEvent.layout.height)}
-              style={[styles.panel, { backgroundColor: theme.chrome, borderTopColor: theme.rule, paddingBottom: insets.bottom + 16 }, panel]}
+              style={[styles.panel, { backgroundColor: theme.surface, borderTopColor: theme.line, paddingBottom: insets.bottom + 16 }, panel]}
             >
               <Pressable accessibilityRole="button" accessibilityLabel={strings.sheet.close} onPress={onClose} style={styles.grabber}>
                 <View style={[styles.grip, { backgroundColor: theme.fieldBorder, borderRadius: theme.control ? 3 : 0 }]} />

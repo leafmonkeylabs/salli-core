@@ -65,7 +65,7 @@ export default function Home() {
   const missing = reach.unreachable ? <Body small muted>{strings.reach.unknown}</Body> : null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.work }}>
+    <View style={{ flex: 1, backgroundColor: theme.ground }}>
       <Glow />
       <Header
         server
@@ -141,7 +141,7 @@ export default function Home() {
         {/* At large text, one tile to a row (design LargeHome). */}
         <View style={[styles.tiles, large ? { flexDirection: 'column' } : null]}>
           <Tile label={t.netWorth} spoken={sheet.data ? t.netWorthSpoken(amountParts(sheet.data.net_worth, sheet.data.currency).spoken) : undefined} figure={sheet.data ? wholeDigits(sheet.data.net_worth, sheet.data.currency) : undefined} missing={missing}>
-            {history.data && history.data.points.length > 1 ? <Spark amounts={history.data.points.map((p) => p.net_worth)} colour={theme.chart} height={24} /> : null}
+            {history.data && history.data.points.length > 1 ? <Spark amounts={history.data.points.map((p) => p.net_worth)} colour={theme.green} height={24} /> : null}
           </Tile>
           <Tile
             label={t.spentShort(monthName.slice(0, 3))}
@@ -233,8 +233,8 @@ function Ring({ share, text }: { share: number; text: string }) {
   return (
     <View style={{ width: box, height: box, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={box} height={box} style={StyleSheet.absoluteFill}>
-        <Circle cx={box / 2} cy={box / 2} r={r} stroke={theme.rule} strokeWidth={5} fill="none" />
-        <Circle cx={box / 2} cy={box / 2} r={r} stroke={theme.chart} strokeWidth={5} fill="none" strokeDasharray={`${share * round} ${round}`} transform={`rotate(-90 ${box / 2} ${box / 2})`} />
+        <Circle cx={box / 2} cy={box / 2} r={r} stroke={theme.line} strokeWidth={5} fill="none" />
+        <Circle cx={box / 2} cy={box / 2} r={r} stroke={theme.green} strokeWidth={5} fill="none" strokeDasharray={`${share * round} ${round}`} transform={`rotate(-90 ${box / 2} ${box / 2})`} />
       </Svg>
       <Text style={[styles.tileFigure, { color: theme.text, fontSize: 16 }]}>{text}</Text>
     </View>
@@ -354,10 +354,10 @@ function Line({ title, detail, spoken, late, onPress, action, last }: { title: s
   const theme = useTheme();
   const large = useLargeText();
   const [whole, setWhole] = useState(false);
-  const style = [styles.line, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
+  const style = [styles.line, last ? null : { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth }];
   // On one line the title comes first: the detail takes at most half and ends in an ellipsis.
   const when = detail ? (
-    <Text numberOfLines={large ? undefined : 1} style={[styles.lineDetail, large ? null : styles.lineDetailShort, { color: late ? theme.negative : theme.muted }]}>
+    <Text numberOfLines={large ? undefined : 1} style={[styles.lineDetail, large ? null : styles.lineDetailShort, { color: late ? theme.red : theme.muted }]}>
       {detail}
     </Text>
   ) : null;
@@ -372,7 +372,7 @@ function Line({ title, detail, spoken, late, onPress, action, last }: { title: s
     </>
   ) : (
     <>
-      <View style={[styles.marker, { backgroundColor: late ? theme.negative : theme.muted, borderRadius: theme.marker === 'dot' ? 3 : 0 }]} />
+      <View style={[styles.marker, { backgroundColor: late ? theme.red : theme.muted, borderRadius: theme.marker === 'dot' ? 3 : 0 }]} />
       <Text style={[styles.lineTitle, { color: theme.text }]} numberOfLines={whole ? undefined : 1}>
         {title}
       </Text>

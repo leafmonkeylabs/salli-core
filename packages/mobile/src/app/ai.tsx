@@ -80,7 +80,7 @@ export default function YourAISettings() {
                   key={c.id}
                   accessibilityRole="button"
                   onPress={() => router.push({ pathname: '/agent', params: { id: c.id } })}
-                  style={[styles.conversation, i < ai.conversations.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}
+                  style={[styles.conversation, i < ai.conversations.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}
                 >
                   <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
                     {c.title}
@@ -116,7 +116,7 @@ function SettingRow({ label, value, mono, unset, needs, onPress }: { label: stri
   const theme = useTheme();
   // At large text the value goes under its name, so neither breaks inside a word.
   const large = useLargeText();
-  const rule = { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth };
+  const rule = { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth };
   if (needs) {
     return (
       <View accessible accessibilityLabel={`${label}: ${needs}`} accessibilityState={{ disabled: true }} style={[styles.waiting, rule]}>
@@ -185,7 +185,7 @@ function KeySheet({ visible, onClose }: { visible: boolean; onClose: () => void 
           autoCorrect={false}
           autoFocus
           accessibilityLabel={t.key}
-          style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
+          style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
         />
         <Body small muted>
           {t.keyHelp}

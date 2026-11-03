@@ -42,7 +42,7 @@ export default function Welcome() {
   };
 
   return (
-    <ScrollView style={{ backgroundColor: theme.chrome }} contentContainerStyle={[styles.page, { paddingTop: insets.top + (adding ? 4 : 32), paddingBottom: insets.bottom + 24 }]}>
+    <ScrollView style={{ backgroundColor: theme.surface }} contentContainerStyle={[styles.page, { paddingTop: insets.top + (adding ? 4 : 32), paddingBottom: insets.bottom + 24 }]}>
       {adding ? (
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.cancel}>
           <Body>{t.cancel}</Body>
@@ -52,7 +52,7 @@ export default function Welcome() {
         <Logo height={36} />
       </View>
       {ended ? (
-        <View style={[styles.notice, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: theme.radius }]} accessibilityRole="alert">
+        <View style={[styles.notice, { borderColor: theme.line, backgroundColor: theme.card, borderRadius: theme.radius }]} accessibilityRole="alert">
           <Body style={{ fontFamily: font.medium }}>{strings.problem.signedOutTitle}</Body>
           <Body small muted>
             {strings.problem.signedOut}
@@ -102,7 +102,7 @@ export default function Welcome() {
 
       <View style={{ flex: 1 }} />
       <View style={{ gap: 6 }}>
-        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(t.hostingUrl)} style={[styles.link, { borderColor: theme.rule }]}>
+        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(t.hostingUrl)} style={[styles.link, { borderColor: theme.line }]}>
           <Body style={{ flex: 1 }}>{t.hosting}</Body>
           <Icon name="chevron" size={18} colour={theme.muted} />
         </Pressable>
@@ -122,7 +122,7 @@ function Choice({ title, body, note, first, onPress }: { title: string; body: st
       accessibilityRole="button"
       accessibilityLabel={[title, body, note].filter(Boolean).join('. ')}
       onPress={onPress}
-      style={[styles.choice, first ? { backgroundColor: theme.work, borderColor: theme.button, borderWidth: 2 } : { backgroundColor: theme.chrome, borderColor: theme.rule, borderWidth: 1 }, { borderRadius: theme.radius }]}
+      style={[styles.choice, first ? { backgroundColor: theme.ground, borderColor: theme.button, borderWidth: 2 } : { backgroundColor: theme.surface, borderColor: theme.line, borderWidth: 1 }, { borderRadius: theme.radius }]}
     >
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={[styles.choiceTitle, { color: theme.text }]}>{title}</Text>

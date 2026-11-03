@@ -94,7 +94,7 @@ function Unread() {
         <CardHead label={t.unreadTitle} />
       </View>
       {messages.map((message) => (
-        <View key={message.id} style={[styles.unread, { borderTopColor: theme.rule }]}>
+        <View key={message.id} style={[styles.unread, { borderTopColor: theme.line }]}>
           <Body small muted>
             {t.unreadFrom(message.sender, displayMoment(new Date(message.at)))}
           </Body>
@@ -145,7 +145,7 @@ function TryMessage({ accounts }: { accounts: readonly Account[] }) {
           accessibilityHint={t.tryHelp}
           placeholder={t.tryPlaceholder}
           placeholderTextColor={theme.muted}
-          style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
+          style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
         />
       </View>
       {reading === undefined ? (

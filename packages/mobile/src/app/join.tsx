@@ -34,7 +34,7 @@ export default function Join() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.chrome }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.page, { paddingTop: insets.top + 4, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
           <Icon name="back" colour={theme.text} />
@@ -63,7 +63,7 @@ export default function Join() {
             autoCorrect={false}
             spellCheck={false}
             returnKeyType="go"
-            style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
+            style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
           />
           {wrong ? <Body alert>{t.notALink}</Body> : null}
           <View style={{ marginTop: 8 }}>
@@ -75,7 +75,7 @@ export default function Join() {
         </Body>
 
         <View style={{ flex: 1 }} />
-        <View style={[styles.foot, { borderTopColor: theme.rule }]}>
+        <View style={[styles.foot, { borderTopColor: theme.line }]}>
           <Body style={{ fontFamily: font.medium }}>{t.noInvitation}</Body>
           <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(t.pilotUrl)} style={styles.link}>
             <Body style={{ flex: 1 }}>{t.pilot}</Body>

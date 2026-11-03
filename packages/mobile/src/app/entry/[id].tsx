@@ -111,7 +111,7 @@ export default function Entry() {
                 ...(statement?.statement?.bank ? [statement.statement.bank] : []),
                 ...(data.reversed_by ? [strings.entries.reversed] : []),
               ].map((fact, i) => (
-                <Text key={fact} style={[styles.chip, i === 1 ? styles.mono : null, { color: theme.text, borderColor: theme.rule, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), overflow: 'hidden' }]}>
+                <Text key={fact} style={[styles.chip, i === 1 ? styles.mono : null, { color: theme.text, borderColor: theme.line, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), overflow: 'hidden' }]}>
                   {fact}
                 </Text>
               ))}
@@ -203,7 +203,7 @@ export default function Entry() {
             {t.confirmTitle(data.description)}
           </SheetTitle>
           <Body>{t.confirmBody}</Body>
-          <View style={[styles.reversal, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: theme.radius }]}>
+          <View style={[styles.reversal, { borderColor: theme.line, backgroundColor: theme.card, borderRadius: theme.radius }]}>
             <Text style={[styles.reversalTitle, { color: theme.text }]}>{t.reversalOf(data.description)}</Text>
             <LinesTable
               total={false}
@@ -227,7 +227,7 @@ export default function Entry() {
             placeholderTextColor={theme.muted}
             accessibilityLabel={t.reason}
             maxLength={200}
-            style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+            style={[styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
           />
           {reverse.error ? <Body alert>{reverse.error.message}</Body> : null}
           <View style={{ gap: 4 }}>

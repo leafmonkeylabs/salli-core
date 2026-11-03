@@ -144,11 +144,11 @@ function Chart({ data, width, height }: { data: CashForecast; width: number; hei
     <View style={{ gap: 6 }}>
       <View accessible accessibilityRole="image" accessibilityLabel={t.chartLabel(money(data.today), money(data.lowest), displayDate(data.lowest_date), money(data.end_balance))}>
       <Svg width={width} height={height}>
-        {high && chart.highIndex !== chart.lowIndex ? <Line x1={0} x2={width} y1={high.y} y2={high.y} stroke={theme.rule} strokeWidth={1} /> : null}
-        <Line x1={0} x2={width} y1={chart.low.y} y2={chart.low.y} stroke={theme.rule} strokeWidth={1} />
+        {high && chart.highIndex !== chart.lowIndex ? <Line x1={0} x2={width} y1={high.y} y2={high.y} stroke={theme.line} strokeWidth={1} /> : null}
+        <Line x1={0} x2={width} y1={chart.low.y} y2={chart.low.y} stroke={theme.line} strokeWidth={1} />
         {chart.zero !== undefined ? <Line x1={0} x2={width} y1={chart.zero} y2={chart.zero} stroke={theme.text} strokeWidth={1} /> : null}
         <Line x1={0} x2={width} y1={height - 0.5} y2={height - 0.5} stroke={theme.text} strokeWidth={1} />
-        <Path d={chart.path} stroke={theme.chart} strokeWidth={1.5} fill="none" />
+        <Path d={chart.path} stroke={theme.green} strokeWidth={1.5} fill="none" />
         <Circle cx={chart.low.x} cy={chart.low.y} r={3.5} fill={theme.text} />
         {labels.map((label) => (
           <SvgText key={label.key} x={label.x} y={label.y} textAnchor={label.anchor} fontFamily={font.regular} fontSize={LABEL_SIZE} fill={theme.text}>
@@ -172,8 +172,8 @@ function DayByDay({ data, visible, onClose }: { data: CashForecast; visible: boo
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: theme.chrome }} onAccessibilityEscape={onClose}>
-        <View style={[styles.header, { borderBottomColor: theme.rule }]}>
+      <View style={{ flex: 1, backgroundColor: theme.surface }} onAccessibilityEscape={onClose}>
+        <View style={[styles.header, { borderBottomColor: theme.line }]}>
           <View style={styles.headerButton} />
           <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.text }]}>
             {t.dayByDayTitle}
@@ -211,7 +211,7 @@ function Flow({ date, title, amount, currency, label, last }: { date: string; ti
   const parts = amountParts(amount, currency);
   const [month, day] = displayDay(date).split(' ');
   return (
-    <View accessible accessibilityLabel={label} style={[styles.flow, last ? null : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule }]}>
+    <View accessible accessibilityLabel={label} style={[styles.flow, last ? null : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line }]}>
       <View style={styles.when}>
         <Text style={[styles.month, { color: theme.muted }]}>{(month ?? '').toUpperCase()}</Text>
         <Text style={[styles.day, { color: theme.text }]}>{day}</Text>
@@ -219,7 +219,7 @@ function Flow({ date, title, amount, currency, label, last }: { date: string; ti
       <Text style={[styles.flowTitle, { color: theme.text }]} numberOfLines={1}>
         {title}
       </Text>
-      <Text style={[styles.flowAmount, { color: parts.negative ? theme.text : theme.chart }]}>
+      <Text style={[styles.flowAmount, { color: parts.negative ? theme.text : theme.green }]}>
         {parts.negative ? '−' : '+'} {parts.digits}
       </Text>
     </View>

@@ -74,8 +74,8 @@ export default function Import() {
   const name = accounts.data?.find((a) => a.id === account)?.name ?? t.noAccount;
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.chrome }} onAccessibilityEscape={() => router.back()}>
-      <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top, borderBottomColor: theme.rule }]}>
+    <View style={{ flex: 1, backgroundColor: theme.surface }} onAccessibilityEscape={() => router.back()}>
+      <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top, borderBottomColor: theme.line }]}>
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
           <Body max={1.5}>{t.cancel}</Body>
         </Pressable>
@@ -88,7 +88,7 @@ export default function Import() {
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24 }]}>
         <Field label={t.file} {...(tooLarge ? { help: t.tooLarge } : {})}>
           {file ? (
-            <View style={[styles.file, { borderColor: theme.fieldBorder, backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12) }]}>
+            <View style={[styles.file, { borderColor: theme.fieldBorder, backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12) }]}>
               <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={2}>
                 {file.name}
               </Text>
@@ -98,7 +98,7 @@ export default function Import() {
           {file ? null : (
             <View style={styles.formats} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
               {t.formats.map((f) => (
-                <Text key={f} style={[styles.format, { color: theme.muted, borderColor: theme.rule, borderRadius: Math.min(theme.control, 999) }]}>
+                <Text key={f} style={[styles.format, { color: theme.muted, borderColor: theme.line, borderRadius: Math.min(theme.control, 999) }]}>
                   {f}
                 </Text>
               ))}
@@ -112,7 +112,7 @@ export default function Import() {
             accessibilityLabel={`${t.account}: ${name}`}
             accessibilityHint={t.accountHelp}
             onPress={() => setPicking(true)}
-            style={[styles.choose, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder }]}
+            style={[styles.choose, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder }]}
           >
             <Body>{name}</Body>
             <Icon name="down" size={16} colour={theme.muted} />

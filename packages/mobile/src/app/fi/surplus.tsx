@@ -38,13 +38,13 @@ export default function Surplus() {
             {needs.length ? (
               <View style={[styles.stack, { borderRadius: Math.min(theme.radius, 6) }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
                 {needs.map(([k], i) => (
-                  <View key={k} style={{ flex: widths[i] ?? 0, backgroundColor: theme.chart, opacity: shades[i] ?? 0.2 }} />
+                  <View key={k} style={{ flex: widths[i] ?? 0, backgroundColor: theme.green, opacity: shades[i] ?? 0.2 }} />
                 ))}
               </View>
             ) : null}
             {needs.map(([k, v], i) => (
               <View key={k} style={styles.legend}>
-                <View style={[styles.swatch, { backgroundColor: theme.chart, opacity: shades[i] ?? 0.2, borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
+                <View style={[styles.swatch, { backgroundColor: theme.green, opacity: shades[i] ?? 0.2, borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
                 <Body style={{ flex: 1 }}>{t.needs[k] ?? k}</Body>
                 <Money amount={v} currency={d.currency} />
               </View>

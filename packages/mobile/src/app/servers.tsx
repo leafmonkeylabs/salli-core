@@ -16,8 +16,8 @@ export default function Servers() {
   if (session.status !== 'signed-in') return null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.chrome }}>
-      <View style={[styles.header, { borderBottomColor: theme.rule }]}>
+    <View style={{ flex: 1, backgroundColor: theme.surface }}>
+      <View style={[styles.header, { borderBottomColor: theme.line }]}>
         <View style={styles.headerButton} />
         <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.text }]}>
           {t.title}
@@ -42,7 +42,7 @@ export default function Servers() {
                   void switchTo(server);
                   router.back();
                 }}
-                style={[styles.option, { borderBottomColor: theme.rule }]}
+                style={[styles.option, { borderBottomColor: theme.line }]}
               >
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[styles.host, named ? styles.name : null, { color: theme.text }]} numberOfLines={1}>

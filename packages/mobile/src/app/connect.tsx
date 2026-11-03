@@ -44,7 +44,7 @@ export default function Connect() {
   };
 
   return (
-    <ScrollView style={{ backgroundColor: theme.chrome }} contentContainerStyle={[styles.page, { paddingTop: insets.top + 4, paddingBottom: insets.bottom + 24 }]}>
+    <ScrollView style={{ backgroundColor: theme.surface }} contentContainerStyle={[styles.page, { paddingTop: insets.top + 4, paddingBottom: insets.bottom + 24 }]}>
       <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
         <Icon name="back" colour={theme.text} />
         <Body>{t.back}</Body>
@@ -62,7 +62,7 @@ export default function Connect() {
               {server}
             </Text>
           </View>
-          <View style={{ borderTopColor: theme.rule, borderTopWidth: StyleSheet.hairlineWidth }}>
+          <View style={{ borderTopColor: theme.line, borderTopWidth: StyleSheet.hairlineWidth }}>
             <Fact name={t.version} value={found.meta.server_version} mono />
             <Fact name={t.api} value={`✓ ${t.apiOk}`} />
             <Fact name={t.connection} value={`✓ ${isThisMachine(server) && !server.startsWith('https:') ? t.local : t.https}`} />
@@ -109,7 +109,7 @@ export default function Connect() {
 function Fact({ name, value, mono, muted }: { name: string; value: string; mono?: boolean; muted?: boolean }) {
   const theme = useTheme();
   return (
-    <View style={[styles.fact, { borderBottomColor: theme.rule }]}>
+    <View style={[styles.fact, { borderBottomColor: theme.line }]}>
       <Body muted>{name}</Body>
       <Text style={[mono ? styles.mono : styles.value, { color: muted ? theme.muted : theme.text }]}>{value}</Text>
     </View>

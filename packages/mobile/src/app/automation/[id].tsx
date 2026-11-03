@@ -108,7 +108,7 @@ export default function AutomationRuleEditor() {
                   accessibilityRole="button"
                   accessibilityLabel={t.insert(token)}
                   onPress={() => set({ pattern: `${rule.pattern}${rule.pattern && !rule.pattern.endsWith(' ') ? ' ' : ''}${token}` })}
-                  style={[styles.token, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 999) }]}
+                  style={[styles.token, { borderColor: theme.line, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 999) }]}
                 >
                   <Text style={[styles.tokenText, { color: theme.text }]}>{token}</Text>
                 </Pressable>
@@ -218,7 +218,7 @@ function Field({ label, help, shown, value, onChange, placeholder, multiline, mo
         style={[
           styles.input,
           multiline ? styles.multiline : null,
-          { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text, fontFamily: mono ? font.mono : font.regular },
+          { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text, fontFamily: mono ? font.mono : font.regular },
         ]}
       />
       {help && shown ? (

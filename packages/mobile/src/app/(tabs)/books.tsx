@@ -52,8 +52,8 @@ export default function Books() {
           onPress={() => router.push('/import')}
           style={[styles.action, large ? styles.whole : null, { backgroundColor: theme.button2, borderColor: theme.button2Border, borderWidth: 1, borderRadius: theme.control }, offsetOf(theme)]}
         >
-          <Icon name="upload" size={18} colour={theme.button2Text} />
-          <Text style={[styles.actionText, { color: theme.button2Text }]}>{t.importShort}</Text>
+          <Icon name="upload" size={18} colour={theme.text} />
+          <Text style={[styles.actionText, { color: theme.text }]}>{t.importShort}</Text>
         </Pressable>
       </View>
 
@@ -61,11 +61,11 @@ export default function Books() {
 
       <Spending />
 
-      <View style={[styles.places, large ? styles.column : null, { backgroundColor: theme.card, borderColor: theme.rule, borderRadius: theme.radius, overflow: 'hidden' }]}>
+      <View style={[styles.places, large ? styles.column : null, { backgroundColor: theme.card, borderColor: theme.line, borderRadius: theme.radius, overflow: 'hidden' }]}>
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/entries')}
-          style={[styles.place, large ? styles.whole : null, consoleUrl ? (large ? { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth } : { borderRightColor: theme.rule, borderRightWidth: StyleSheet.hairlineWidth }) : null]}
+          style={[styles.place, large ? styles.whole : null, consoleUrl ? (large ? { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth } : { borderRightColor: theme.line, borderRightWidth: StyleSheet.hairlineWidth }) : null]}
         >
           <Icon name="more" size={20} colour={theme.text} />
           <Body>{t.entries}</Body>
@@ -127,7 +127,7 @@ function Queue({ waiting, names }: { waiting: readonly BankStatement[]; names: R
         <Icon name={waiting.length > 1 && shown ? 'down' : 'chevron'} size={16} colour={theme.muted} />
       </Pressable>
       {shown ? (
-        <View style={{ paddingHorizontal: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.rule }}>
+        <View style={{ paddingHorizontal: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }}>
           {waiting.map((statement, i) => (
             <Row
               key={statement.id}
@@ -164,20 +164,20 @@ function Spending() {
       <CardHead label={t.spending(monthNameOf(todayIso()))} end={spending.data.currency} />
       <View style={[styles.stack, { borderRadius: Math.min(theme.radius, 6) }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         {shown.map((line, i) => (
-          <View key={line.key} style={{ flex: share(line.share), backgroundColor: theme.chart, opacity: shades[i] }} />
+          <View key={line.key} style={{ flex: share(line.share), backgroundColor: theme.green, opacity: shades[i] }} />
         ))}
-        {restShare ? <View style={{ flex: restShare, backgroundColor: theme.rule }} /> : null}
+        {restShare ? <View style={{ flex: restShare, backgroundColor: theme.line }} /> : null}
       </View>
       {shown.map((line, i) => (
         <View key={line.key} style={[styles.legend, large ? styles.legendLarge : null]}>
-          <View style={[styles.swatch, { backgroundColor: theme.chart, opacity: shades[i], borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
+          <View style={[styles.swatch, { backgroundColor: theme.green, opacity: shades[i], borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
           <Body style={large ? { flexGrow: 1, flexShrink: 0 } : { flex: 1 }}>{line.key}</Body>
           <Money amount={line.total} currency={spending.data.currency} style={large ? { flexGrow: 1, textAlign: 'right' } : undefined} />
         </View>
       ))}
       {rest.length ? (
         <View style={styles.legend}>
-          <View style={[styles.swatch, { backgroundColor: theme.rule, borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
+          <View style={[styles.swatch, { backgroundColor: theme.line, borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
           <Body muted style={{ flex: 1 }}>
             {t.other(rest.length)}
           </Body>

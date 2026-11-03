@@ -72,7 +72,7 @@ export default function Debts() {
                     {debt.account_id ? <Icon name="chevron" size={18} colour={theme.muted} /> : null}
                   </>
                 );
-                const style = [styles.row, { borderTopColor: theme.rule }];
+                const style = [styles.row, { borderTopColor: theme.line }];
                 return debt.account_id ? (
                   <Pressable
                     key={debt.debt_id}

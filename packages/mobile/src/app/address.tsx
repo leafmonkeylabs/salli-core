@@ -36,7 +36,7 @@ export default function Address() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.chrome }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.page, { paddingTop: insets.top + 4, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
         {/* Reached from where the books live, Salli's server or your own. */}
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
@@ -69,7 +69,7 @@ export default function Address() {
             autoCorrect={false}
             spellCheck={false}
             returnKeyType="go"
-            style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
+            style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
           />
           {wrong ? <Body alert>{t.notAnAddress}</Body> : null}
           <View style={{ marginTop: 8 }}>
@@ -78,7 +78,7 @@ export default function Address() {
         </View>
 
         {/* Planned: a pairing code needs the server's side (salli ui --qr) first. */}
-        <View accessible accessibilityState={{ disabled: true }} accessibilityLabel={`${t.scan}. ${t.planned}. ${t.scanHelp}`} style={[styles.scan, { borderColor: theme.rule }]}>
+        <View accessible accessibilityState={{ disabled: true }} accessibilityLabel={`${t.scan}. ${t.planned}. ${t.scanHelp}`} style={[styles.scan, { borderColor: theme.line }]}>
           <Icon name="scan" colour={theme.muted} />
           <View style={{ flex: 1, gap: 2 }}>
             <Body style={{ fontFamily: font.medium }}>{t.scan}</Body>
@@ -86,7 +86,7 @@ export default function Address() {
               {t.scanHelp}
             </Body>
           </View>
-          <Text style={[styles.chip, { color: theme.muted, borderColor: theme.rule }]}>{t.planned}</Text>
+          <Text style={[styles.chip, { color: theme.muted, borderColor: theme.line }]}>{t.planned}</Text>
         </View>
 
         <View style={{ flex: 1 }} />
@@ -96,7 +96,7 @@ export default function Address() {
             <Pressable
               accessibilityRole="link"
               onPress={() => void Linking.openURL(t.noServerUrl)}
-              style={[styles.link, { borderColor: theme.rule }]}
+              style={[styles.link, { borderColor: theme.line }]}
             >
               <Body style={{ flex: 1 }}>{t.noServer}</Body>
               <Icon name="external" size={16} colour={theme.muted} />

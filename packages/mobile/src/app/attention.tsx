@@ -111,7 +111,7 @@ export default function Attention() {
               const place = placeOf(s);
               const row = (
                 <>
-                  <View style={[styles.marker, { backgroundColor: s.severity === 'info' ? theme.muted : theme.negative, borderRadius: theme.marker === 'dot' ? 4 : 0 }]} />
+                  <View style={[styles.marker, { backgroundColor: s.severity === 'info' ? theme.muted : theme.red, borderRadius: theme.marker === 'dot' ? 4 : 0 }]} />
                   <View style={{ flex: 1, gap: 2 }}>
                     <Body>{s.title}</Body>
                     {s.detail ? (
@@ -123,7 +123,7 @@ export default function Attention() {
                   {place ? <Icon name="chevron" size={16} colour={theme.muted} /> : null}
                 </>
               );
-              const style = [styles.row, i < signals.data.signals.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null];
+              const style = [styles.row, i < signals.data.signals.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null];
               return (
                 <Animated.View key={`${s.kind}-${i}`} {...list}>
                   {place ? (
@@ -166,7 +166,7 @@ export default function Attention() {
                 accessibilityRole="button"
                 accessibilityState={{ expanded: showDone }}
                 onPress={() => setShowDone((s) => !s)}
-                style={[styles.row, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.rule }]}
+                style={[styles.row, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}
               >
                 <Body muted style={{ flex: 1 }}>
                   {t.doneCount(finished.length)}
@@ -211,11 +211,11 @@ function Group({ label, items, late, onDone, list }: { label: string; items: Rem
     <Animated.View {...list}>
       <Text style={[styles.sub, { color: theme.muted }]}>{label.toUpperCase()}</Text>
       {items.map((r, i) => (
-        <Animated.View key={r.id} {...list} style={[styles.row, i < items.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}>
+        <Animated.View key={r.id} {...list} style={[styles.row, i < items.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}>
           <View accessible accessibilityLabel={`${r.kind}, ${displayDate(r.due_date)}`} style={{ flex: 1 }}>
             <Body>{r.kind}</Body>
           </View>
-          <Text style={[styles.when, { color: late ? theme.negative : theme.muted }]}>{displayDay(r.due_date)}</Text>
+          <Text style={[styles.when, { color: late ? theme.red : theme.muted }]}>{displayDay(r.due_date)}</Text>
           <Button kind="secondary" label={r.source_domain === 'decision' ? t.review : t.done} accessibilityLabel={t.doneLabel(r.kind)} onPress={() => onDone(r)} />
         </Animated.View>
       ))}
@@ -249,7 +249,7 @@ function AddSheet({ visible, onClose, onAdd }: { visible: boolean; onClose: () =
         placeholderTextColor={theme.muted}
         accessibilityLabel={t.what}
         autoFocus
-        style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+        style={[styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
       />
       <View accessibilityRole="radiogroup" style={styles.chips}>
         {quick.map((q) => {
@@ -263,9 +263,9 @@ function AddSheet({ visible, onClose, onAdd }: { visible: boolean; onClose: () =
                 setDue(q.due);
                 setTyped('');
               }}
-              style={[styles.chip, { borderColor: on ? theme.text : theme.rule, backgroundColor: on ? theme.text : theme.card, borderRadius: Math.min(theme.control, 999) }]}
+              style={[styles.chip, { borderColor: on ? theme.text : theme.line, backgroundColor: on ? theme.text : theme.card, borderRadius: Math.min(theme.control, 999) }]}
             >
-              <Text style={[styles.chipText, { color: on ? theme.work : theme.text }]}>{q.label}</Text>
+              <Text style={[styles.chipText, { color: on ? theme.ground : theme.text }]}>{q.label}</Text>
             </Pressable>
           );
         })}
@@ -277,7 +277,7 @@ function AddSheet({ visible, onClose, onAdd }: { visible: boolean; onClose: () =
         placeholderTextColor={theme.muted}
         accessibilityLabel={t.orDate}
         keyboardType="numbers-and-punctuation"
-        style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+        style={[styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
       />
       <Body small muted>
         {displayDate(chosen)}

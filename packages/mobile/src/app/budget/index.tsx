@@ -75,7 +75,7 @@ export default function Budget() {
                   style={{
                     width: 24,
                     height: Math.max(2, h * 64),
-                    backgroundColor: i === all.length - 1 ? theme.muted : theme.chart,
+                    backgroundColor: i === all.length - 1 ? theme.muted : theme.green,
                   }}
                 />
                 <Text maxFontSizeMultiplier={1.3} style={[styles.small, { color: theme.muted }]}>{displayMonth(trend.data.months[i] ?? '').slice(0, 3)}</Text>
@@ -112,15 +112,15 @@ function Line({ line, currency, gone, onPress }: { line: CurrentBudgetLine; curr
   const over = isNegativeAmount(line.left);
   const left = over ? t.over(digits(negateAmount(line.left))) : t.left(digits(line.left));
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${line.category}, ${left}, ${t.of(digits(line.spent), digits(line.available))}`} onPress={onPress} style={[styles.line, { borderTopColor: theme.rule }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${line.category}, ${left}, ${t.of(digits(line.spent), digits(line.available))}`} onPress={onPress} style={[styles.line, { borderTopColor: theme.line }]}>
       {large ? (
         <>
           <Text style={[styles.title, { color: theme.text }]}>{line.category}</Text>
-          {!isZeroAmount(line.carried) ? <Text style={[styles.carried, { color: theme.muted, borderColor: theme.rule, alignSelf: 'flex-start' }]}>{t.rollover(digits(line.carried))}</Text> : null}
+          {!isZeroAmount(line.carried) ? <Text style={[styles.carried, { color: theme.muted, borderColor: theme.line, alignSelf: 'flex-start' }]}>{t.rollover(digits(line.carried))}</Text> : null}
           {[
             { key: 'limit', label: t.limitLabel, figure: digits(line.available), colour: theme.text },
             { key: 'spent', label: t.spentLabel, figure: digits(line.spent), colour: theme.text },
-            { key: 'left', label: over ? t.overLabel : t.leftLabel, figure: digits(over ? negateAmount(line.left) : line.left), colour: over ? theme.negative : theme.text },
+            { key: 'left', label: over ? t.overLabel : t.leftLabel, figure: digits(over ? negateAmount(line.left) : line.left), colour: over ? theme.red : theme.text },
           ].map((row) => (
             <View key={row.key} style={styles.stackRow}>
               <Text style={[styles.small, { color: theme.muted, flexGrow: 1, flexShrink: 0 }]}>{row.label}</Text>
@@ -133,19 +133,19 @@ function Line({ line, currency, gone, onPress }: { line: CurrentBudgetLine; curr
           <View style={styles.top}>
             <View style={styles.name}>
               <Text style={[styles.title, { color: theme.text }]}>{line.category}</Text>
-              {!isZeroAmount(line.carried) ? <Text style={[styles.carried, { color: theme.muted, borderColor: theme.rule }]}>{t.rollover(digits(line.carried))}</Text> : null}
+              {!isZeroAmount(line.carried) ? <Text style={[styles.carried, { color: theme.muted, borderColor: theme.line }]}>{t.rollover(digits(line.carried))}</Text> : null}
             </View>
-            <Text style={[styles.figure, { color: over ? theme.negative : theme.text }]}>{left}</Text>
+            <Text style={[styles.figure, { color: over ? theme.red : theme.text }]}>{left}</Text>
           </View>
           <Text style={[styles.small, { color: theme.muted }]}>{t.of(digits(line.spent), digits(line.available))}</Text>
         </>
       )}
-      <View style={[styles.track, { backgroundColor: theme.work }]}>
+      <View style={[styles.track, { backgroundColor: theme.ground }]}>
         <View
           style={{
             width: `${shareOf(line.spent, line.available) * 100}%`,
             height: '100%',
-            backgroundColor: over ? theme.negative : theme.chart,
+            backgroundColor: over ? theme.red : theme.green,
           }}
         />
         <View style={[styles.mark, { left: `${gone * 100}%`, backgroundColor: theme.text }]} />

@@ -148,7 +148,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         {children}
       </View>
       {showLock ? (
-        <View style={[StyleSheet.absoluteFill, styles.screen, { backgroundColor: theme.chrome }]}>
+        <View style={[StyleSheet.absoluteFill, styles.screen, { backgroundColor: theme.surface }]}>
           <Logo height={40} />
           <View style={{ gap: 8, alignItems: 'center' }}>
             <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
@@ -161,7 +161,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
           </View>
         </View>
       ) : cover ? (
-        <View style={[StyleSheet.absoluteFill, styles.screen, { backgroundColor: theme.chrome }]}>
+        <View style={[StyleSheet.absoluteFill, styles.screen, { backgroundColor: theme.surface }]}>
           <Logo height={40} />
         </View>
       ) : null}

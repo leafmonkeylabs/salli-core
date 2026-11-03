@@ -540,7 +540,7 @@ export const strings = {
     auto: 'Auto follows your phone.',
     icon: 'The app icon changes with it.',
     typeLater: 'Its type shows the next time Salli opens.',
-    names: { ledger: 'Ledger', ledgerRounded: 'Ledger Rounded', bold: 'Bold', sticker: 'Sticker', aurora: 'Aurora' },
+    names: { ledger: 'Ledger', bold: 'Bold', aurora: 'Aurora' },
   },
   more: {
     title: 'More',

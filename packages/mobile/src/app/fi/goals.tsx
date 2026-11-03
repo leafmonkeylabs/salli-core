@@ -39,7 +39,7 @@ export default function Goals() {
                   accessibilityRole="button"
                   accessibilityLabel={t.goalSpoken(g.name, amountParts(g.allocated_amount, g.currency).spoken, amountParts(g.target_amount, g.currency).spoken)}
                   onPress={() => setEditing(g)}
-                  style={[styles.goal, i < all.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}
+                  style={[styles.goal, i < all.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}
                 >
                   <View style={styles.goalHead}>
                     <Body style={{ flex: 1 }}>{g.name}</Body>
@@ -47,15 +47,15 @@ export default function Goals() {
                       {wholeDigits(g.allocated_amount, g.currency)} <Text style={{ color: theme.muted }}>/ {wholeDigits(g.target_amount, g.currency)}</Text>
                     </Text>
                   </View>
-                  <View style={[styles.track, { backgroundColor: theme.rule }]}>
-                    <View style={[styles.track, { width: `${share * 100}%`, backgroundColor: theme.chart }]} />
+                  <View style={[styles.track, { backgroundColor: theme.line }]}>
+                    <View style={[styles.track, { width: `${share * 100}%`, backgroundColor: theme.green }]} />
                   </View>
                   <View style={styles.goalHead}>
                     <Body small muted style={{ flex: 1 }}>
                       {g.target_date ? t.by(displayMonth(g.target_date)) : t.noDate}
                     </Body>
                     <Pressable accessibilityRole="button" accessibilityLabel={t.fundLabel(g.name)} onPress={() => setFunding(g)} style={[styles.fund, { backgroundColor: theme.button2, borderRadius: theme.control }]}>
-                      <Text style={[styles.fundText, { color: theme.button2Text }]}>{t.fund}</Text>
+                      <Text style={[styles.fundText, { color: theme.text }]}>{t.fund}</Text>
                     </Pressable>
                   </View>
                 </Pressable>
@@ -124,7 +124,7 @@ function GoalSheet({
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const exact = normalizeAmountInput(amount);
   const done = useDoneBar(true);
-  const input = [styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
+  const input = [styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
   return (
     <Sheet visible={!!goal} onClose={onClose} label={existing ? existing.name : t.newGoal}>
       <SheetTitle style={[styles.title, { color: theme.text }]}>
@@ -184,7 +184,7 @@ function FundSheet({ goal, onClose, onSaved }: { goal: Goal | undefined; onClose
             placeholderTextColor={theme.muted}
             keyboardType="decimal-pad"
             accessibilityLabel={t.fromAccount(a.name)}
-            style={[styles.input, styles.amount, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+            style={[styles.input, styles.amount, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
           />
         </View>
       ))}

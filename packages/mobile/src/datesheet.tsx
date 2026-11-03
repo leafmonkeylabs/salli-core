@@ -52,7 +52,7 @@ export function DayChooser({ value, onPick }: { value: string; onPick: (iso: str
               accessibilityRole="radio"
               accessibilityState={{ checked: on }}
               onPress={() => pick(q.iso)}
-              style={[styles.quickButton, { borderColor: on ? theme.button : theme.rule, backgroundColor: on ? theme.button : theme.chrome, borderRadius: Math.min(theme.control, 12) }]}
+              style={[styles.quickButton, { borderColor: on ? theme.button : theme.line, backgroundColor: on ? theme.button : theme.surface, borderRadius: Math.min(theme.control, 12) }]}
             >
               <Text style={[styles.quickText, { color: on ? theme.buttonText : theme.text }]}>{q.label}</Text>
             </Pressable>

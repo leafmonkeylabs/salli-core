@@ -100,7 +100,7 @@ function Place({ title, value, onPress, last }: { title: string; value: string; 
       accessibilityRole="button"
       accessibilityLabel={value ? `${title}, ${value}` : title}
       onPress={onPress}
-      style={[styles.place, last ? null : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule }]}
+      style={[styles.place, last ? null : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line }]}
     >
       <Body style={{ flex: 1 }}>{title}</Body>
       {value ? (
@@ -126,15 +126,15 @@ function Projection({ points, target, label }: { points: { low?: string | null; 
       <View onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)} style={{ height }}>
         {chart ? (
           <Svg width={width} height={height}>
-            {chart.band ? <Path d={chart.band} fill={theme.chart} opacity={0.12} /> : null}
-            <Line x1={0} x2={width} y1={chart.target} y2={chart.target} stroke={theme.negative} strokeWidth={1} strokeDasharray="4 4" />
-            {chart.base ? <Path d={chart.base} stroke={theme.chart} strokeWidth={1.5} fill="none" /> : null}
+            {chart.band ? <Path d={chart.band} fill={theme.green} opacity={0.12} /> : null}
+            <Line x1={0} x2={width} y1={chart.target} y2={chart.target} stroke={theme.red} strokeWidth={1} strokeDasharray="4 4" />
+            {chart.base ? <Path d={chart.base} stroke={theme.green} strokeWidth={1.5} fill="none" /> : null}
           </Svg>
         ) : null}
       </View>
       <View style={styles.axis}>
         <Text style={[styles.note, { color: theme.muted }]}>{first ?? ''}</Text>
-        <Text style={[styles.note, { color: theme.negative }]}>{t.fiNumber}</Text>
+        <Text style={[styles.note, { color: theme.red }]}>{t.fiNumber}</Text>
         <Text style={[styles.note, { color: theme.muted }]}>{last ?? ''}</Text>
       </View>
     </View>

@@ -66,14 +66,14 @@ export default function BudgetEdit() {
   });
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.work }} onAccessibilityEscape={() => router.back()}>
+    <View style={{ flex: 1, backgroundColor: theme.ground }} onAccessibilityEscape={() => router.back()}>
       <View
         style={[
           styles.header,
           {
             paddingTop: Platform.OS === 'ios' ? 8 : insets.top,
-            backgroundColor: theme.chrome,
-            borderBottomColor: theme.rule,
+            backgroundColor: theme.surface,
+            borderBottomColor: theme.line,
           },
         ]}
       >
@@ -99,7 +99,7 @@ export default function BudgetEdit() {
             style={[
               styles.input,
               {
-                backgroundColor: theme.input,
+                backgroundColor: theme.fill,
                 borderColor: theme.fieldBorder,
                 color: theme.text,
                 borderRadius: Math.min(theme.control, 12),

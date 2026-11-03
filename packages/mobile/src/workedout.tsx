@@ -68,7 +68,7 @@ function Part({ label, amount, currency, less, total }: { label: string; amount:
     <View
       accessible
       accessibilityLabel={less ? t.less(label, spoken) : `${label}: ${spoken}`}
-      style={[styles.part, { borderTopColor: total ? theme.text : theme.rule, borderTopWidth: total ? 1 : StyleSheet.hairlineWidth }]}
+      style={[styles.part, { borderTopColor: total ? theme.text : theme.line, borderTopWidth: total ? 1 : StyleSheet.hairlineWidth }]}
     >
       <Text style={[styles.label, { color: theme.text }, weight]}>{label}</Text>
       <View style={styles.amount}>
