@@ -2,10 +2,10 @@ import { insightsSignals, remindersCreate, remindersDelete, remindersList, type 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useApi, useRead } from '../api';
-import { Body, Button, Card, Icon, SectionLabel, Waiting } from '../kit';
+import { Body, Button, Card, Chip, Field, Icon, Notice, Press, RoundButton, Section, Waiting, radii, shape } from '../kit';
 import { displayDate, displayDay, todayIso } from '../lib/display';
 import { listMotion, useReducedMotion } from '../motion';
 import { useMarkDone } from '../reminders';
@@ -94,24 +94,19 @@ export default function Attention() {
     <Page
       title={t.title}
       back={{ label: strings.more.title, onPress: () => (router.canGoBack() ? router.back() : router.replace('/more')) }}
-      action={
-        <Pressable accessibilityRole="button" accessibilityLabel={t.add} onPress={plus} style={styles.plus}>
-          <Icon name="plus" colour={theme.text} />
-        </Pressable>
-      }
+      action={<RoundButton icon="plus" tone="ink" label={t.add} onPress={plus} />}
       onRefresh={() => Promise.all([signals.refetch(), reminders.refetch()])}
     >
-      <Card style={{ paddingVertical: 4 }}>
-        <View style={{ paddingTop: 8 }}>
-          <SectionLabel>{t.noticed}</SectionLabel>
-        </View>
+      <View style={{ gap: size.section }}>
+      <Section title={t.noticed}>
+      <Card style={{ paddingVertical: 8 }}>
         {signals.data ? (
           signals.data.signals.length ? (
             signals.data.signals.map((s, i) => {
               const place = placeOf(s);
               const row = (
                 <>
-                  <View style={[styles.marker, { backgroundColor: s.severity === 'info' ? theme.muted : theme.red, borderRadius: theme.marker === 'dot' ? 4 : 0 }]} />
+                  <View style={[styles.marker, shape(radii.pill), { backgroundColor: s.severity === 'info' ? theme.muted : theme.red }]} />
                   <View style={{ flex: 1, gap: 2 }}>
                     <Body>{s.title}</Body>
                     {s.detail ? (
@@ -127,9 +122,9 @@ export default function Attention() {
               return (
                 <Animated.View key={`${s.kind}-${i}`} {...list}>
                   {place ? (
-                    <Pressable accessibilityRole="button" onPress={() => router.push(place)} style={style}>
+                    <Press highlight accessibilityRole="button" onPress={() => router.push(place)} style={style}>
                       {row}
-                    </Pressable>
+                    </Press>
                   ) : (
                     <View accessible style={style}>
                       {row}
@@ -147,11 +142,10 @@ export default function Attention() {
           <Waiting query={signals} what="what Salli noticed" />
         )}
       </Card>
+      </Section>
 
-      <Card style={{ paddingVertical: 4 }}>
-        <View style={{ paddingTop: 8 }}>
-          <SectionLabel>{t.reminders}</SectionLabel>
-        </View>
+      <Section title={t.reminders}>
+      <Card style={{ paddingVertical: 8 }}>
         {reminders.data ? (
           <>
             {overdue.length ? <Group label={t.overdue} items={overdue} late onDone={askDone} list={list} /> : null}
@@ -162,7 +156,8 @@ export default function Attention() {
               </Body>
             ) : null}
             {finished.length ? (
-              <Pressable
+              <Press
+                highlight
                 accessibilityRole="button"
                 accessibilityState={{ expanded: showDone }}
                 onPress={() => setShowDone((s) => !s)}
@@ -172,7 +167,7 @@ export default function Attention() {
                   {t.doneCount(finished.length)}
                 </Body>
                 <Icon name={showDone ? 'down' : 'chevron'} size={16} colour={theme.muted} />
-              </Pressable>
+              </Press>
             ) : null}
             {showDone
               ? finished.map((r) => (
@@ -189,6 +184,8 @@ export default function Attention() {
           <Waiting query={reminders} what="your reminders" />
         )}
       </Card>
+      </Section>
+      </View>
 
       <AddSheet
         key={adding ? 'open' : 'closed'}
@@ -209,7 +206,7 @@ function Group({ label, items, late, onDone, list }: { label: string; items: Rem
   const theme = useTheme();
   return (
     <Animated.View {...list}>
-      <Text style={[styles.sub, { color: theme.muted }]}>{label.toUpperCase()}</Text>
+      <Text style={[styles.sub, { color: theme.muted }]}>{label}</Text>
       {items.map((r, i) => (
         <Animated.View key={r.id} {...list} style={[styles.row, i < items.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}>
           <View accessible accessibilityLabel={`${r.kind}, ${displayDate(r.due_date)}`} style={{ flex: 1 }}>
@@ -242,47 +239,28 @@ function AddSheet({ visible, onClose, onAdd }: { visible: boolean; onClose: () =
       <SheetTitle style={[styles.sheetTitle, { color: theme.text }]}>
         {t.newReminder}
       </SheetTitle>
-      <TextInput
-        value={kind}
-        onChangeText={setKind}
-        placeholder={t.what}
-        placeholderTextColor={theme.muted}
-        accessibilityLabel={t.what}
-        autoFocus
-        style={[styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
-      />
+      <Field value={kind} onChangeText={setKind} placeholder={t.what} accessibilityLabel={t.what} autoFocus />
       <View accessibilityRole="radiogroup" style={styles.chips}>
         {quick.map((q) => {
           const on = !typed.trim() && q.due === due;
           return (
-            <Pressable
+            <Chip
               key={q.label}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on }}
+              label={q.label}
+              selected={on}
               onPress={() => {
                 setDue(q.due);
                 setTyped('');
               }}
-              style={[styles.chip, { borderColor: on ? theme.text : theme.line, backgroundColor: on ? theme.text : theme.card, borderRadius: Math.min(theme.control, 999) }]}
-            >
-              <Text style={[styles.chipText, { color: on ? theme.ground : theme.text }]}>{q.label}</Text>
-            </Pressable>
+            />
           );
         })}
       </View>
-      <TextInput
-        value={typed}
-        onChangeText={setTyped}
-        placeholder={t.orDate}
-        placeholderTextColor={theme.muted}
-        accessibilityLabel={t.orDate}
-        keyboardType="numbers-and-punctuation"
-        style={[styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
-      />
+      <Field value={typed} onChangeText={setTyped} placeholder={t.orDate} accessibilityLabel={t.orDate} keyboardType="numbers-and-punctuation" />
       <Body small muted>
         {displayDate(chosen)}
       </Body>
-      {problem ? <Body alert>{problem}</Body> : null}
+      {problem ? <Notice tone="warn">{problem}</Notice> : null}
       <Button
         label={t.addReminder}
         busy={busy}
@@ -300,14 +278,10 @@ function AddSheet({ visible, onClose, onAdd }: { visible: boolean; onClose: () =
 }
 
 const styles = StyleSheet.create({
-  plus: { width: size.target, height: size.target, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8 },
   marker: { width: 8, height: 8 },
-  sub: { fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.1, paddingTop: 10 },
+  sub: { fontFamily: font.medium, fontSize: size.label, paddingTop: 10 },
   when: { fontFamily: font.regular, fontSize: size.small, fontVariant: ['tabular-nums'] },
-  sheetTitle: { fontFamily: font.medium, fontSize: size.heading },
-  input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
+  sheetTitle: { fontFamily: font.semibold, fontSize: size.title },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
-  chipText: { fontFamily: font.regular, fontSize: size.body },
 });
