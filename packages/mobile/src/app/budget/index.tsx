@@ -1,9 +1,9 @@
 import { accountsList, budgetsCurrent, budgetsTrend, formatAmount, isNegativeAmount, isZeroAmount, negateAmount, type CurrentBudgetLine } from '@leafmonkeylabs/salli-sdk';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRead } from '../../api';
-import { Body, Button, Card, CardHead, Waiting, useLargeText } from '../../kit';
+import { Body, Button, Press, ProgressBar, Section, Surface, Tag, Waiting, radii, shape, useLargeText } from '../../kit';
 import { monthBars, shareOf } from '../../lib/chart';
 import { displayMonth, monthNameOf, wholeDigits } from '../../lib/display';
 import { Picker } from '../../picker';
@@ -43,46 +43,45 @@ export default function Budget() {
       onRefresh={() => Promise.all([current.refetch(), trend.refetch()])}
     >
       {data ? (
-        <Card style={{ paddingBottom: 4 }}>
-          <CardHead label={t.month(monthNameOf(`${data.month.slice(0, 7)}-01`), data.currency)} end={t.day(day, days)} />
-          {data.lines.length ? (
-            data.lines.map((line) => <Line key={line.account_id} line={line} currency={data.currency} gone={gone} onPress={() => edit(line.account_id)} />)
-          ) : (
-            <Body muted style={{ paddingVertical: 12 }}>
-              {t.none}
+        <Section title={t.month(monthNameOf(`${data.month.slice(0, 7)}-01`), data.currency)}>
+          <Surface pad={false} style={styles.list}>
+            <Body small muted style={{ paddingTop: size.pad }}>
+              {t.day(day, days)}
             </Body>
-          )}
-          {data.lines.length ? (
-            <View style={styles.legend}>
-              <View style={[styles.legendMark, { backgroundColor: theme.text }]} />
-              <Text style={[styles.small, { color: theme.muted }]}>{t.monthGone}</Text>
-            </View>
-          ) : null}
-        </Card>
+            {data.lines.length ? (
+              data.lines.map((line, i) => <Line key={line.account_id} line={line} currency={data.currency} gone={gone} last={i === data.lines.length - 1} onPress={() => edit(line.account_id)} />)
+            ) : (
+              <Body muted style={{ paddingVertical: 12 }}>
+                {t.none}
+              </Body>
+            )}
+            {data.lines.length ? (
+              <View style={styles.legend}>
+                <View style={[styles.legendMark, shape(radii.pill), { backgroundColor: theme.text }]} />
+                <Text style={[styles.small, { color: theme.muted }]}>{t.monthGone}</Text>
+              </View>
+            ) : null}
+          </Surface>
+        </Section>
       ) : (
         <Waiting query={current} what="your budget" />
       )}
       <Button kind="secondary" label={t.edit} onPress={() => setChoosing(true)} />
       {trend.data && trend.data.months.length ? (
-        <Card>
-          <CardHead label={t.trend(String(trend.data.months.length))} />
-          <View accessible accessibilityLabel={t.trendLabel(trend.data.months.map((m, i) => `${displayMonth(m)} ${wholeDigits(trend.data?.totals[i] ?? '0', trend.data?.currency ?? '')}`).join(', '))} style={styles.bars}>
-            {monthBars(trend.data.categories, trend.data.months.length).map((h, i, all) => (
-              <View key={trend.data.months[i]} style={styles.barCol}>
-                {/* A chart's labels grow a little only: six columns share the width. */}
-                <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.barFigure, { color: theme.muted }]}>{wholeDigits(trend.data.totals[i] ?? '0', trend.data.currency)}</Text>
-                <View
-                  style={{
-                    width: 24,
-                    height: Math.max(2, h * 64),
-                    backgroundColor: i === all.length - 1 ? theme.muted : theme.green,
-                  }}
-                />
-                <Text maxFontSizeMultiplier={1.3} style={[styles.small, { color: theme.muted }]}>{displayMonth(trend.data.months[i] ?? '').slice(0, 3)}</Text>
-              </View>
-            ))}
-          </View>
-        </Card>
+        <Section title={t.trend(String(trend.data.months.length))}>
+          <Surface>
+            <View accessible accessibilityLabel={t.trendLabel(trend.data.months.map((m, i) => `${displayMonth(m)} ${wholeDigits(trend.data?.totals[i] ?? '0', trend.data?.currency ?? '')}`).join(', '))} style={styles.bars}>
+              {monthBars(trend.data.categories, trend.data.months.length).map((h, i, all) => (
+                <View key={trend.data.months[i]} style={styles.barCol}>
+                  {/* A chart's labels grow a little only: six columns share the width. */}
+                  <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.barFigure, { color: theme.muted }]}>{wholeDigits(trend.data.totals[i] ?? '0', trend.data.currency)}</Text>
+                  <View style={[{ width: 24, height: Math.max(6, h * 64), backgroundColor: i === all.length - 1 ? theme.muted : theme.green }, shape(radii.pill)]} />
+                  <Text maxFontSizeMultiplier={1.3} style={[styles.small, { color: theme.muted }]}>{displayMonth(trend.data.months[i] ?? '').slice(0, 3)}</Text>
+                </View>
+              ))}
+            </View>
+          </Surface>
+        </Section>
       ) : null}
       <Picker
         title={choosing ? t.which : undefined}
@@ -105,18 +104,18 @@ export default function Budget() {
  * available, and the bar. At large text the name has its own line, then
  * Limit, Spent and Over or Left, one to a line (design LargeBudget).
  */
-function Line({ line, currency, gone, onPress }: { line: CurrentBudgetLine; currency: string; gone: number; onPress: () => void }) {
+function Line({ line, currency, gone, last, onPress }: { line: CurrentBudgetLine; currency: string; gone: number; last?: boolean; onPress: () => void }) {
   const theme = useTheme();
   const large = useLargeText();
   const digits = (amount: string) => formatAmount(amount, currency, { display: 'none' });
   const over = isNegativeAmount(line.left);
   const left = over ? t.over(digits(negateAmount(line.left))) : t.left(digits(line.left));
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${line.category}, ${left}, ${t.of(digits(line.spent), digits(line.available))}`} onPress={onPress} style={[styles.line, { borderTopColor: theme.line }]}>
+    <Press highlight accessibilityRole="button" accessibilityLabel={`${line.category}, ${left}, ${t.of(digits(line.spent), digits(line.available))}`} onPress={onPress} style={[styles.line, last ? null : { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth }]}>
       {large ? (
         <>
           <Text style={[styles.title, { color: theme.text }]}>{line.category}</Text>
-          {!isZeroAmount(line.carried) ? <Text style={[styles.carried, { color: theme.muted, borderColor: theme.line, alignSelf: 'flex-start' }]}>{t.rollover(digits(line.carried))}</Text> : null}
+          {!isZeroAmount(line.carried) ? <Tag>{t.rollover(digits(line.carried))}</Tag> : null}
           {[
             { key: 'limit', label: t.limitLabel, figure: digits(line.available), colour: theme.text },
             { key: 'spent', label: t.spentLabel, figure: digits(line.spent), colour: theme.text },
@@ -133,64 +132,35 @@ function Line({ line, currency, gone, onPress }: { line: CurrentBudgetLine; curr
           <View style={styles.top}>
             <View style={styles.name}>
               <Text style={[styles.title, { color: theme.text }]}>{line.category}</Text>
-              {!isZeroAmount(line.carried) ? <Text style={[styles.carried, { color: theme.muted, borderColor: theme.line }]}>{t.rollover(digits(line.carried))}</Text> : null}
+              {!isZeroAmount(line.carried) ? <Tag>{t.rollover(digits(line.carried))}</Tag> : null}
             </View>
             <Text style={[styles.figure, { color: over ? theme.red : theme.text }]}>{left}</Text>
           </View>
           <Text style={[styles.small, { color: theme.muted }]}>{t.of(digits(line.spent), digits(line.available))}</Text>
         </>
       )}
-      <View style={[styles.track, { backgroundColor: theme.ground }]}>
-        <View
-          style={{
-            width: `${shareOf(line.spent, line.available) * 100}%`,
-            height: '100%',
-            backgroundColor: over ? theme.red : theme.green,
-          }}
-        />
-        <View style={[styles.mark, { left: `${gone * 100}%`, backgroundColor: theme.text }]} />
+      <View style={styles.track}>
+        <ProgressBar ratio={shareOf(line.spent, line.available)} tone={over ? 'red' : 'green'} />
+        <View pointerEvents="none" style={[styles.mark, shape(radii.pill), { left: `${gone * 100}%`, backgroundColor: theme.text }]} />
       </View>
-    </Pressable>
+    </Press>
   );
 }
 
 const styles = StyleSheet.create({
-  line: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 12,
-    gap: 2,
-  },
+  list: { paddingHorizontal: size.pad },
+  line: { paddingVertical: 14, gap: 4 },
   stackRow: { flexDirection: 'row', alignItems: 'baseline', columnGap: 12, flexWrap: 'wrap' },
   top: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  name: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  name: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   title: { fontFamily: font.medium, fontSize: size.body },
-  carried: {
-    fontFamily: font.regular,
-    fontSize: 12,
-    borderWidth: 1,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-  },
-  figure: {
-    fontFamily: font.regular,
-    fontSize: size.body,
-    fontVariant: ['tabular-nums'],
-  },
-  small: {
-    fontFamily: font.regular,
-    fontSize: 13,
-    fontVariant: ['tabular-nums'],
-  },
-  track: { height: 8, marginTop: 8, position: 'relative' },
-  mark: { position: 'absolute', top: -3, bottom: -3, width: 2 },
-  legend: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingBottom: 8,
-  },
-  legendMark: { width: 2, height: 12 },
+  figure: { fontFamily: font.regular, fontSize: size.body, fontVariant: ['tabular-nums'] },
+  small: { fontFamily: font.regular, fontSize: size.label, fontVariant: ['tabular-nums'] },
+  track: { marginTop: 8, position: 'relative', justifyContent: 'center' },
+  mark: { position: 'absolute', top: -3, bottom: -3, width: 3 },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
+  legendMark: { width: 3, height: 12 },
   bars: { flexDirection: 'row', alignItems: 'flex-end', height: 104, gap: 6 },
   barCol: { flex: 1, alignItems: 'center', gap: 4 },
-  barFigure: { fontFamily: font.regular, fontSize: 11, fontVariant: ['tabular-nums'] },
+  barFigure: { fontFamily: font.regular, fontSize: size.caption, fontVariant: ['tabular-nums'] },
 });

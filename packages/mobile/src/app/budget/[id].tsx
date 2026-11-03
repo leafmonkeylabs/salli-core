@@ -2,13 +2,13 @@ import { accountsList, budgetsMonthlyGet, budgetsMonthlySet, budgetsTrend, forma
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, Toggle, useDoneBar } from '../../kit';
+import { Body, Button, Field, Notice, Press, Surface, Toggle, useDoneBar, radii, shape } from '../../kit';
 import { useKeepDraft } from '../../draft';
 import { strings } from '../../strings';
-import { font, size, useTheme } from '../../theme';
+import { elevation, font, size, useTheme } from '../../theme';
 
 const t = strings.budget;
 
@@ -67,56 +67,37 @@ export default function BudgetEdit() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.ground }} onAccessibilityEscape={() => router.back()}>
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: Platform.OS === 'ios' ? 8 : insets.top,
-            backgroundColor: theme.surface,
-            borderBottomColor: theme.line,
-          },
-        ]}
-      >
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <Body max={1.5}>{strings.add.cancel}</Body>
-        </Pressable>
+      <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top }]}>
+        <Press accessibilityRole="button" hitSlop={4} onPress={() => router.back()} style={[styles.headerButton, shape(radii.pill), { backgroundColor: theme.surface }, elevation(theme, 'card')]}>
+          <Body max={1.5} small>{strings.add.cancel}</Body>
+        </Press>
         <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={[styles.headerTitle, { color: theme.text }]}>
           {name}
         </Text>
-        <View style={styles.headerButton} />
+        <View style={styles.headerSpace} />
       </View>
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
-        <Card style={{ gap: 6 }}>
-          <Text style={[styles.label, { color: theme.text }]}>{t.limit(currency)}</Text>
-          <TextInput
+        <Surface style={{ gap: 12 }}>
+          <Field
             {...done.field('limit')}
+            label={t.limit(currency)}
             value={limit}
             onChangeText={setLimit}
             keyboardType="decimal-pad"
-            accessibilityLabel={t.limit(currency)}
             placeholder="0.00"
-            placeholderTextColor={theme.muted}
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.fill,
-                borderColor: theme.fieldBorder,
-                color: theme.text,
-                borderRadius: Math.min(theme.control, 12),
-              },
-            ]}
+            amount
+            {...(limit && !exact ? { error: strings.add.notAnAmount } : {})}
           />
-          {limit && !exact ? <Body alert>{strings.add.notAnAmount}</Body> : null}
           {spent.length ? (
             <Body small muted>
               {t.lastMonths(spent.map((s) => formatAmount(s, currency, { display: 'none' })).join(', '))}
             </Body>
           ) : null}
-        </Card>
-        <Card style={{ paddingVertical: 0 }}>
+        </Surface>
+        <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
           <Toggle label={t.rolloverLabel} help={t.rolloverHelp} value={rollover} onChange={setRollover} />
-        </Card>
-        {save.error ? <Body alert>{save.error.message}</Body> : null}
+        </Surface>
+        {save.error ? <Notice tone="warn">{save.error.message}</Notice> : null}
         <View style={{ gap: 4 }}>
           <Button label={t.save} busy={save.isPending} disabled={!exact || !monthly.data || save.isPending} onPress={() => exact && save.mutate(withLine({ account_id: id, limit_amount: exact, rollover }))} />
           {existing ? <Button kind="tertiary" label={t.remove} disabled={save.isPending} onPress={() => save.mutate(others)} /> : null}
@@ -128,29 +109,9 @@ export default function BudgetEdit() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 8,
-  },
-  headerButton: {
-    minHeight: size.target,
-    minWidth: 72,
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  headerTitle: { flex: 1, textAlign: 'center', fontFamily: font.medium, fontSize: 17 },
-  page: { padding: size.gutter, gap: 12 },
-  label: { fontFamily: font.medium, fontSize: 14 },
-  input: {
-    minHeight: size.target,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    fontFamily: font.regular,
-    fontSize: 22,
-    textAlign: 'right',
-    fontVariant: ['tabular-nums'],
-  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: size.gutter, paddingBottom: 8, columnGap: 12 },
+  headerButton: { minHeight: 40, minWidth: 72, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
+  headerSpace: { minWidth: 72 },
+  headerTitle: { flex: 1, textAlign: 'center', fontFamily: font.semibold, fontSize: size.headline },
+  page: { padding: size.gutter, gap: size.gap },
 });
