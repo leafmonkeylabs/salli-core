@@ -16,7 +16,7 @@
 
 # Base images are pinned by digest, so a build is the same build tomorrow; the
 # uv version matches CI's.
-FROM ghcr.io/astral-sh/uv:0.12.18@sha256:3adc3706091ce7c2fe595e669628caedd6d951551b92b258b7e7dbe06d9440bc AS uv
+FROM ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 AS uv
 
 # ── Build: the console ────────────────────────────────────────────────────────
 # Static files, the same on every platform: built once, on the builder's own
