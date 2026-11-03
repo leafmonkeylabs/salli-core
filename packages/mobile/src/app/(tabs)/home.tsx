@@ -14,12 +14,12 @@ import {
 } from '@leafmonkeylabs/salli-sdk';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useContext, useState, type ReactNode } from 'react';
+import { ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import Animated from 'react-native-reanimated';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { useApi, useRead, useReach } from '../../api';
-import { Body, Button, Card, Icon, Loading, Money, SectionLabel, useLargeText } from '../../kit';
+import { Body, Button, Card, Icon, Loading, Money, Notice, Press, Ring, Section, Skeleton, Surface, radii, shape, useLargeText } from '../../kit';
 import { filled, lineChart } from '../../lib/chart';
 import { scoreShown } from '../../lib/fi';
 import { listMotion, useReducedMotion } from '../../motion';
@@ -28,7 +28,7 @@ import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, d
 import { useSession, labelIn } from '../../session';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
-import { AIButton, Glow, Header, Pull } from '../../shell';
+import { Glow, Header, HeaderActions, Pull, TabInset } from '../../shell';
 import { WorkedOut } from '../../workedout';
 
 const t = strings.home;
@@ -36,6 +36,7 @@ const t = strings.home;
 export default function Home() {
   const theme = useTheme();
   const large = useLargeText();
+  const inset = useContext(TabInset);
   const today = todayIso();
   const month = monthOf(today);
   const safe = useRead('insights.safeToSpend', insightsSafeToSpend);
@@ -71,32 +72,27 @@ export default function Home() {
         server
         unreachable={reach.unreachable}
         action={
-          <View style={styles.actions}>
-          <AIButton from="home" />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={reach.unreachable ? strings.reach.needsServer(t.add) : t.add}
-            accessibilityState={{ disabled: reach.unreachable }}
-            disabled={reach.unreachable}
-            onPress={() => router.push('/add')}
-            style={styles.plus}
-          >
-            <Icon name="plus" colour={reach.unreachable ? theme.muted : theme.text} />
-          </Pressable>
-          </View>
+          <HeaderActions
+            from="home"
+            add={{ label: reach.unreachable ? strings.reach.needsServer(t.add) : t.add, onPress: () => router.push('/add'), disabled: reach.unreachable }}
+          />
         }
       />
-      <ScrollView contentContainerStyle={styles.page} refreshControl={<Pull read={readAgain} />}>
+      <ScrollView contentContainerStyle={[styles.page, { paddingBottom: inset }]} refreshControl={<Pull read={readAgain} />}>
         {reach.unreachable ? (
-          <View accessibilityRole="alert" style={[styles.reach, { backgroundColor: theme.card, borderColor: theme.text, borderRadius: theme.radius }]}>
-            <Body>
+          <Notice
+            tone="warn"
+            action={
+              <View style={{ alignSelf: 'flex-start' }}>
+                <Button small kind="secondary" label={strings.reach.tryAgain} busy={reads.some((r) => r.isRefetching)} onPress={() => void readAgain()} />
+              </View>
+            }
+          >
+            <Body small>
               <Text style={{ fontFamily: font.medium }}>{strings.reach.cantReach(host)}</Text>
               {reach.lastAnswer ? strings.reach.sentAt(displayMoment(reach.lastAnswer)) : strings.reach.nothingYet}
             </Body>
-            <View style={{ alignSelf: 'flex-start' }}>
-              <Button label={strings.reach.tryAgain} busy={reads.some((r) => r.isRefetching)} onPress={() => void readAgain()} />
-            </View>
-          </View>
+          </Notice>
         ) : null}
         {endedOn && dismissed !== endedOn ? (
           <Card style={{ gap: 8 }}>
@@ -104,45 +100,63 @@ export default function Home() {
             <Button kind="tertiary" label={strings.servers.dismiss} onPress={() => setDismissed(endedOn)} />
           </Card>
         ) : null}
-        <Card tile style={{ gap: 4 }}>
-          <SectionLabel onTile>{t.left}</SectionLabel>
+        <Surface kind="key" style={{ gap: 6 }}>
+          <Text maxFontSizeMultiplier={1.7} style={[styles.tileLabel, { color: theme.muted }]}>
+            {t.left}
+          </Text>
           {safe.data ? (
             <>
-              <Money amount={safe.data.amount} currency={safe.data.currency} figure="hero" onTile />
-              <Text style={[styles.tileLine, { color: theme.tileMuted }]}>
+              <Money amount={safe.data.amount} currency={safe.data.currency} figure="hero" />
+              <Text style={[styles.tileLine, { color: theme.muted }]}>
                 {safe.data.next_income ? t.leftUntil(displayDay(safe.data.until), safe.data.next_income.description) : t.leftNoIncome}
               </Text>
               {/* As of a time only when the figures are old: the server is out of reach. */}
               {reach.unreachable && reach.lastAnswer ? (
-                <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{strings.reach.asOfThen(displayDateTime(reach.lastAnswer))}</Text>
+                <Text style={[styles.tileSmall, { color: theme.muted }]}>{strings.reach.asOfThen(displayDateTime(reach.lastAnswer))}</Text>
               ) : null}
               {forecast.data && forecast.data.daily.length > 1 ? (
-                <View style={{ marginTop: 6 }}>
+                <View style={{ marginTop: 10 }}>
                   <Spark
                     amounts={forecast.data.daily.map((d) => d.balance)}
                     low={forecast.data.daily.findIndex((d) => d.date === forecast.data?.lowest_date)}
-                    colour={theme.tileMuted}
-                    height={44}
+                    colour={theme.green}
+                    height={72}
+                    area
                     label={t.lowSpoken(`${forecast.data.lowest} ${forecast.data.currency}`, displayDate(forecast.data.lowest_date))}
                   />
                 </View>
               ) : null}
-              <Pressable accessibilityRole="button" onPress={() => setExplain(true)} style={[styles.workedOut, { borderTopColor: theme.tileMuted }]}>
-                <Text style={[styles.tileLine, { color: theme.tileText, flex: 1 }]}>{t.workedOut}</Text>
-                <Icon name="chevron" size={16} colour={theme.tileText} />
-              </Pressable>
+              <Press accessibilityRole="button" onPress={() => setExplain(true)} style={[styles.workedOut, shape(radii.pill), { backgroundColor: theme.fill }]}>
+                <Text maxFontSizeMultiplier={1.6} style={[styles.workedOutText, { color: theme.text }]}>
+                  {t.workedOut}
+                </Text>
+                <Icon name="chevron" size={16} colour={theme.muted} />
+              </Press>
               <WorkedOut safe={safe.data} visible={explain} onClose={() => setExplain(false)} />
             </>
+          ) : reach.unreachable ? (
+            <Text style={[styles.tileSmall, { color: theme.muted }]}>{strings.reach.notKnown}</Text>
           ) : (
-            <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{reach.unreachable ? strings.reach.notKnown : t.loading('left to spend')}</Text>
+            <View accessible accessibilityLabel={t.loading('left to spend')} style={{ gap: 10, paddingTop: 4 }}>
+              <Skeleton width="70%" height={46} radius={radii.field} />
+              <Skeleton width="55%" height={14} />
+              <Skeleton height={72} radius={radii.card} />
+              <Skeleton width={170} height={40} radius={radii.pill} />
+            </View>
           )}
-        </Card>
+        </Surface>
 
-        {/* At large text, one tile to a row (design LargeHome). */}
+        {/* Net worth takes a row; Spent and the FI score share the next, and at large text each has a row (design LargeHome). */}
+        <Tile
+          row
+          label={t.netWorth}
+          spoken={sheet.data ? t.netWorthSpoken(amountParts(sheet.data.net_worth, sheet.data.currency).spoken) : undefined}
+          figure={sheet.data ? wholeDigits(sheet.data.net_worth, sheet.data.currency) : undefined}
+          missing={missing}
+        >
+          {history.data && history.data.points.length > 1 ? <Spark amounts={history.data.points.map((p) => p.net_worth)} colour={theme.green} height={36} width={96} /> : null}
+        </Tile>
         <View style={[styles.tiles, large ? { flexDirection: 'column' } : null]}>
-          <Tile label={t.netWorth} spoken={sheet.data ? t.netWorthSpoken(amountParts(sheet.data.net_worth, sheet.data.currency).spoken) : undefined} figure={sheet.data ? wholeDigits(sheet.data.net_worth, sheet.data.currency) : undefined} missing={missing}>
-            {history.data && history.data.points.length > 1 ? <Spark amounts={history.data.points.map((p) => p.net_worth)} colour={theme.green} height={24} /> : null}
-          </Tile>
           <Tile
             label={t.spentShort(monthName.slice(0, 3))}
             spoken={
@@ -164,7 +178,7 @@ export default function Home() {
           <Tile label={t.fiScore} spoken={fi.data ? (scoreShown(fi.data) ? t.fiSpoken(fi.data.overall_score, fi.data.grade) : `${t.fiScore}: ${t.fiTooSoon}`) : undefined} figure={undefined} missing={missing}>
             {fi.data ? (
               scoreShown(fi.data) ? (
-                <Ring share={filled(fi.data.overall_score)} text={fi.data.overall_score.replace(/\.\d+$/, '')} />
+                <ScoreRing share={filled(fi.data.overall_score)} text={fi.data.overall_score.replace(/\.\d+$/, '')} />
               ) : (
                 <Text style={[styles.tileLabel, { color: theme.text }]}>{t.fiTooSoon}</Text>
               )
@@ -179,45 +193,70 @@ export default function Home() {
   );
 }
 
-/** A key figure at a glance: its label, the figure in whole units, a small chart under it; read out in full. */
-function Tile({ label, figure, spoken, missing, children }: { label: string; figure: string | undefined; spoken: string | undefined; missing: ReactNode; children?: ReactNode }) {
+/**
+ * A key figure at a glance: its label, the figure in whole units, a small
+ * chart beside or under it; read out in full. A `row` tile has the screen's
+ * width, its label and figure on the left and its line at the end.
+ */
+function Tile({ label, figure, spoken, missing, children, row }: { label: string; figure: string | undefined; spoken: string | undefined; missing: ReactNode; children?: ReactNode; row?: boolean }) {
   const theme = useTheme();
   const large = useLargeText();
+  const side = row && !large;
+  const body = (
+    <View style={{ gap: 6, flexShrink: 1 }}>
+      <Text maxFontSizeMultiplier={1.7} style={[styles.tileLabel, { color: theme.muted }]}>
+        {label}
+      </Text>
+      {figure === undefined && children ? null : figure !== undefined ? (
+        // Never shrunk to fit: it wraps, and Spent and FI score stack at large text.
+        <Text style={[styles.tileFigure, { color: theme.text }]}>{figure}</Text>
+      ) : (
+        (missing ?? <Skeleton width={96} height={22} />)
+      )}
+      {side ? null : children}
+    </View>
+  );
   return (
-    <Card style={large ? styles.tileLarge : styles.tile}>
-      <View accessible accessibilityLabel={spoken ?? label} style={{ gap: 6 }}>
-        <Text style={[styles.tileLabel, { color: theme.muted }]} numberOfLines={large ? undefined : 1}>
-          {label}
-        </Text>
-        {figure === undefined && children ? null : figure !== undefined ? (
-          // Never shrunk to fit: at large text the tile has the row to itself.
-          <Text style={[styles.tileFigure, { color: theme.text }]}>
-            {figure}
-          </Text>
-        ) : (
-          (missing ?? <Loading what="…" />)
-        )}
-        {children}
+    <Surface style={[styles.tile, side ? styles.tileRow : null]}>
+      <View accessible accessibilityLabel={spoken ?? label} style={side ? styles.tileSide : { gap: 6 }}>
+        {body}
+        {side ? children : null}
       </View>
-    </Card>
+    </Surface>
   );
 }
 
-/** A small line of amounts, oldest first, filling the width it is given; the low point marked when given. */
-function Spark({ amounts, colour, height, low, label }: { amounts: readonly string[]; colour: string; height: number; low?: number; label?: string }) {
-  const [width, setWidth] = useState(0);
-  const chart = width ? lineChart(amounts, width, height) : undefined;
+/** A small line of amounts, oldest first, filling the width it is given (or `width`): 2 wide with round ends, an area that fades to nothing, the low point as a ring. */
+function Spark({ amounts, colour, height, low, label, area, width: fixed }: { amounts: readonly string[]; colour: string; height: number; low?: number; label?: string; area?: boolean; width?: number }) {
+  const theme = useTheme();
+  const [measured, setWidth] = useState(0);
+  const width = fixed ?? measured;
+  const chart = width ? lineChart(amounts, width, height, 5) : undefined;
   const dot = chart && low !== undefined && low >= 0 ? chart.points[low] : undefined;
+  const first = chart?.points[0];
+  const last = chart?.points[chart.points.length - 1];
+  const fill = chart && area && first && last ? `${chart.path} L${last.x.toFixed(1)} ${height} L${first.x.toFixed(1)} ${height} Z` : undefined;
   return (
     <View
       onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}
-      style={{ height }}
+      style={fixed ? { height, width: fixed } : { height }}
       {...(label ? { accessible: true, accessibilityLabel: label } : { accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants' as const })}
     >
       {chart ? (
         <Svg width={width} height={height}>
-          <Path d={chart.path} stroke={colour} strokeWidth={1.5} fill="none" />
-          {dot ? <Circle cx={dot.x} cy={dot.y} r={3.5} fill={colour} /> : null}
+          {fill ? (
+            <>
+              <Defs>
+                <LinearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={colour} stopOpacity={0.22} />
+                  <Stop offset="1" stopColor={colour} stopOpacity={0} />
+                </LinearGradient>
+              </Defs>
+              <Path d={fill} fill="url(#area)" />
+            </>
+          ) : null}
+          <Path d={chart.path} stroke={colour} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          {dot ? <Circle cx={dot.x} cy={dot.y} r={5} fill={theme.surface} stroke={colour} strokeWidth={2} /> : null}
         </Svg>
       ) : null}
     </View>
@@ -225,19 +264,12 @@ function Spark({ amounts, colour, height, low, label }: { amounts: readonly stri
 }
 
 /** How far a score fills its ring, the score inside it. */
-function Ring({ share, text }: { share: number; text: string }) {
+function ScoreRing({ share, text }: { share: number; text: string }) {
   const theme = useTheme();
-  const box = 56;
-  const r = 24;
-  const round = 2 * Math.PI * r;
   return (
-    <View style={{ width: box, height: box, alignItems: 'center', justifyContent: 'center' }}>
-      <Svg width={box} height={box} style={StyleSheet.absoluteFill}>
-        <Circle cx={box / 2} cy={box / 2} r={r} stroke={theme.line} strokeWidth={5} fill="none" />
-        <Circle cx={box / 2} cy={box / 2} r={r} stroke={theme.green} strokeWidth={5} fill="none" strokeDasharray={`${share * round} ${round}`} transform={`rotate(-90 ${box / 2} ${box / 2})`} />
-      </Svg>
-      <Text style={[styles.tileFigure, { color: theme.text, fontSize: 16 }]}>{text}</Text>
-    </View>
+    <Ring ratio={share} diameter={56} stroke={6}>
+      <Text style={[styles.tileFigure, { color: theme.text, fontSize: size.body }]}>{text}</Text>
+    </Ring>
   );
 }
 
@@ -311,37 +343,39 @@ function Attention({ unreachable, noFlows }: { unreachable: boolean; noFlows: bo
   // Nothing can be said to need nothing when a read never came back.
   const unknown = !signals.data || !reminders.data || !reviews.data;
 
+  const empty = (text: string) => (
+    <View style={styles.attentionNote}>
+      <Body muted>{text}</Body>
+    </View>
+  );
   return (
-    <Card style={{ paddingVertical: 4 }}>
-      <View style={styles.attentionHead}>
-        <SectionLabel>{t.attention}</SectionLabel>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/attention')} style={styles.seeAll}>
-          <Text style={[styles.seeAllText, { color: theme.muted }]}>{strings.attention.seeAll}</Text>
-          <Icon name="chevron" size={14} colour={theme.muted} />
-        </Pressable>
-      </View>
-      {loading && !(unreachable && unknown) ? (
-        <Loading what={t.loading('what needs attention')} />
-      ) : unknown && rows.length === 0 ? (
-        <Body muted style={{ paddingVertical: 12 }}>
-          {strings.reach.notKnown}
-        </Body>
-      ) : rows.length === 0 && noBuffer ? (
-        <Line title={t.addOwn} {...open(() => router.push({ pathname: '/first-run', params: { own: '1' } }))} last />
-      ) : rows.length === 0 && noFlows ? (
-        <Line title={t.importStatement} {...open(() => router.push('/import'))} last />
-      ) : rows.length === 0 ? (
-        <Body muted style={{ paddingVertical: 12 }}>
-          {t.nothingNeedsAttention}
-        </Body>
-      ) : (
-        rows.map(({ key, ...row }, i) => (
-          <Animated.View key={key} {...list}>
-            <Line {...row} last={i === rows.length - 1} />
-          </Animated.View>
-        ))
-      )}
-    </Card>
+    <View style={{ marginTop: size.section - size.gap }}>
+      <Section title={t.attention} action={{ label: strings.attention.seeAll, onPress: () => router.push('/attention') }}>
+        <Surface pad={false} style={styles.attentionCard}>
+          {loading && !(unreachable && unknown) ? (
+            <View accessible accessibilityLabel={t.loading('what needs attention')} style={{ gap: 14, paddingVertical: 16 }}>
+              <Skeleton height={20} />
+              <Skeleton width="80%" height={20} />
+              <Skeleton width="60%" height={20} />
+            </View>
+          ) : unknown && rows.length === 0 ? (
+            empty(strings.reach.notKnown)
+          ) : rows.length === 0 && noBuffer ? (
+            <Line title={t.addOwn} {...open(() => router.push({ pathname: '/first-run', params: { own: '1' } }))} last />
+          ) : rows.length === 0 && noFlows ? (
+            <Line title={t.importStatement} {...open(() => router.push('/import'))} last />
+          ) : rows.length === 0 ? (
+            empty(t.nothingNeedsAttention)
+          ) : (
+            rows.map(({ key, ...row }, i) => (
+              <Animated.View key={key} {...list}>
+                <Line {...row} last={i === rows.length - 1} />
+              </Animated.View>
+            ))
+          )}
+        </Surface>
+      </Section>
+    </View>
   );
 }
 
@@ -372,7 +406,7 @@ function Line({ title, detail, spoken, late, onPress, action, last }: { title: s
     </>
   ) : (
     <>
-      <View style={[styles.marker, { backgroundColor: late ? theme.red : theme.muted, borderRadius: theme.marker === 'dot' ? 3 : 0 }]} />
+      <View style={[styles.marker, shape(radii.pill), { backgroundColor: late ? theme.red : theme.muted }]} />
       <Text style={[styles.lineTitle, { color: theme.text }]} numberOfLines={whole ? undefined : 1}>
         {title}
       </Text>
@@ -383,36 +417,34 @@ function Line({ title, detail, spoken, late, onPress, action, last }: { title: s
   );
   const label = spoken ?? [title, detail].filter(Boolean).join(', ');
   return onPress ? (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={style}>
+    <Press highlight accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={style}>
       {content}
-    </Pressable>
+    </Press>
   ) : (
-    <Pressable accessibilityLabel={label} accessibilityHint={whole || large ? undefined : strings.home.showWhole} onPress={() => setWhole((w) => !w)} style={style}>
+    <Press highlight accessibilityLabel={label} accessibilityHint={whole || large ? undefined : strings.home.showWhole} onPress={() => setWhole((w) => !w)} style={style}>
       {content}
-    </Pressable>
+    </Press>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { padding: size.gutter, gap: size.gap },
-  plus: { width: size.target, height: size.target, alignItems: 'center', justifyContent: 'center' },
-  tileLine: { fontFamily: font.regular, fontSize: 15, lineHeight: 21 },
+  page: { paddingHorizontal: size.gutter, paddingTop: size.gap, gap: size.gap },
+  tileLine: { fontFamily: font.regular, fontSize: size.small, lineHeight: 21 },
   tileSmall: { fontFamily: font.regular, fontSize: size.small },
-  workedOut: { flexDirection: 'row', alignItems: 'center', minHeight: size.target, marginTop: 2, borderTopWidth: StyleSheet.hairlineWidth },
-  tiles: { flexDirection: 'row', gap: 8 },
-  tile: { flex: 1, padding: 12 },
-  tileLarge: { padding: 16 },
-  actions: { flexDirection: 'row' },
-  tileLabel: { fontFamily: font.regular, fontSize: 13 },
-  tileNote: { fontFamily: font.regular, fontSize: 13, fontVariant: ['tabular-nums'] },
-  tileFigure: { fontFamily: font.medium, fontSize: 18, fontVariant: ['tabular-nums'] },
-  attentionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 },
-  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: size.target },
-  seeAllText: { fontFamily: font.regular, fontSize: size.small },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 6 },
+  workedOut: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 16, marginTop: 10 },
+  workedOutText: { fontFamily: font.medium, fontSize: size.small },
+  tiles: { flexDirection: 'row', gap: size.gap },
+  tile: { flex: 1, minWidth: 0 },
+  tileRow: { flex: 0, alignSelf: 'stretch' },
+  tileSide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  tileLabel: { fontFamily: font.medium, fontSize: size.label },
+  tileNote: { fontFamily: font.regular, fontSize: size.label, fontVariant: ['tabular-nums'] },
+  tileFigure: { fontFamily: font.medium, fontSize: size.figure, fontVariant: ['tabular-nums'], letterSpacing: -0.01 * size.figure },
+  attentionCard: { paddingHorizontal: size.pad, paddingVertical: 4 },
+  attentionNote: { paddingVertical: 16 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6 },
   marker: { width: 6, height: 6 },
   lineTitle: { flex: 1, fontFamily: font.regular, fontSize: size.body },
   lineDetailShort: { flexShrink: 1, maxWidth: '50%' },
   lineDetail: { fontFamily: font.regular, fontSize: size.small, fontVariant: ['tabular-nums'] },
-  reach: { borderWidth: 1, padding: 14, gap: 10 },
 });
