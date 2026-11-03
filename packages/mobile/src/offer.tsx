@@ -42,7 +42,7 @@ export function Offer() {
         <>
           <SheetTitle style={[styles.title, { color: theme.text }]}>{shown.title}</SheetTitle>
           <Body muted>{shown.detail}</Body>
-          <View style={{ gap: 10 }}>
+          <View style={{ gap: 12 }}>
             {to ? (
               <Button
                 label={shown.label}
@@ -61,5 +61,5 @@ export function Offer() {
 }
 
 const styles = StyleSheet.create({
-  title: { fontFamily: font.medium, fontSize: size.heading },
+  title: { fontFamily: font.semibold, fontSize: size.title },
 });
