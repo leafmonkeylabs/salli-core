@@ -1,9 +1,9 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { listModels } from '../ai/agent';
 import { useYourAI } from '../ai/store';
-import { Body, Button, Card, CardHead, Icon, Option, Toggle, useLargeText } from '../kit';
+import { Body, Button, Field, Icon, Notice, Option, Press, Section, Skeleton, Surface, Tag, Toggle, useLargeText } from '../kit';
 import { PROVIDERS, providerOf, type Model, type ProviderId } from '../lib/ai';
 import { displayMoment } from '../lib/display';
 import { Page } from '../shell';
@@ -38,12 +38,12 @@ export default function YourAISettings() {
 
   return (
     <Page title={t.title} back={{ label: t.back, onPress: () => (router.canGoBack() ? router.back() : router.replace('/more')) }}>
-      <Card style={{ paddingVertical: 4 }}>
+      <Surface pad={false} style={styles.list}>
         <Toggle label={t.use} value={ai.enabled} onChange={(on) => void ai.setEnabled(on)} />
-      </Card>
+      </Surface>
       {ai.enabled ? (
         <>
-          <Card style={{ paddingVertical: 0 }}>
+          <Surface pad={false} style={styles.list}>
             <SettingRow label={t.provider} value={provider?.name ?? t.choose} unset={!provider} onPress={() => setOpen('provider')} />
             <SettingRow label={t.key} value={ai.keyEnd ? `••••${ai.keyEnd}` : t.notSet} unset={!ai.keyEnd} mono={Boolean(ai.keyEnd)} {...(!provider ? { needs: t.needProvider } : {})} onPress={() => setOpen('key')} />
             <SettingRow label={t.model} value={ai.model ?? t.notSet} unset={!ai.model} {...(!provider ? { needs: t.needProvider } : !ai.keyEnd ? { needs: t.needKeyFirst } : {})} onPress={() => setOpen('model')} />
@@ -51,47 +51,47 @@ export default function YourAISettings() {
               <Text style={[styles.label, { color: theme.muted }]}>{t.tools}</Text>
               {ai.connectedSince ? (
                 <>
-                  <Text accessibilityLabel={`${t.connected}, ${displayMoment(new Date(ai.connectedSince))}`} style={[styles.value, { color: theme.text }]}>
-                    ✓ {t.connected}
-                  </Text>
-                  <Button kind="secondary" label={t.disconnect} onPress={() => void ai.disconnect()} />
+                  <View accessible accessibilityLabel={`${t.connected}, ${displayMoment(new Date(ai.connectedSince))}`}>
+                    <Tag tone="green">{t.connected}</Tag>
+                  </View>
+                  <Button small kind="secondary" label={t.disconnect} onPress={() => void ai.disconnect()} />
                 </>
               ) : (
-                <Button kind="secondary" label={t.connect} busy={connecting} disabled={connecting} onPress={() => void connect()} />
+                <Button small kind="secondary" label={t.connect} busy={connecting} disabled={connecting} onPress={() => void connect()} />
               )}
             </View>
-          </Card>
-          {problem ? <Body alert>{problem}</Body> : null}
+          </Surface>
+          {problem ? <Notice tone="warn">{problem}</Notice> : null}
           <Body small muted>
             {provider ? t.note(provider.name) : t.setUpNote}
           </Body>
 
-          <Card style={{ paddingVertical: 4 }}>
-            <View style={{ paddingTop: 8 }}>
-              <CardHead label={t.conversations} />
-            </View>
-            {ai.conversations.length === 0 ? (
-              <Body muted style={{ paddingVertical: 12 }}>
-                {t.noConversations}
-              </Body>
-            ) : (
-              ai.conversations.map((c, i) => (
-                <Pressable
-                  key={c.id}
-                  accessibilityRole="button"
-                  onPress={() => router.push({ pathname: '/agent', params: { id: c.id } })}
-                  style={[styles.conversation, i < ai.conversations.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}
-                >
-                  <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
-                    {c.title}
-                  </Text>
-                  <Body small muted>
-                    {displayMoment(new Date(c.at))}
-                  </Body>
-                </Pressable>
-              ))
-            )}
-          </Card>
+          <Section title={t.conversations}>
+            <Surface pad={false} style={styles.list}>
+              {ai.conversations.length === 0 ? (
+                <Body muted style={{ paddingVertical: 16 }}>
+                  {t.noConversations}
+                </Body>
+              ) : (
+                ai.conversations.map((c, i) => (
+                  <Press
+                    highlight
+                    key={c.id}
+                    accessibilityRole="button"
+                    onPress={() => router.push({ pathname: '/agent', params: { id: c.id } })}
+                    style={[styles.conversation, i < ai.conversations.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}
+                  >
+                    <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
+                      {c.title}
+                    </Text>
+                    <Body small muted>
+                      {displayMoment(new Date(c.at))}
+                    </Body>
+                  </Press>
+                ))
+              )}
+            </Surface>
+          </Section>
           {ai.conversations.length ? <Button kind="tertiary" label={t.deleteAll} onPress={confirmDelete} /> : null}
         </>
       ) : (
@@ -128,13 +128,13 @@ function SettingRow({ label, value, mono, unset, needs, onPress }: { label: stri
     );
   }
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} onPress={onPress} style={[styles.row, rule, large ? styles.rowLarge : null]}>
+    <Press highlight accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} onPress={onPress} style={[styles.row, rule, large ? styles.rowLarge : null]}>
       <Text style={[styles.label, { color: theme.text }, large ? { flexBasis: '100%' } : null]}>{label}</Text>
       <Text style={[styles.value, { color: unset ? theme.muted : theme.text, fontFamily: mono ? font.mono : font.regular }]} numberOfLines={1}>
         {value}
       </Text>
       <Icon name="chevron" size={16} colour={theme.muted} />
-    </Pressable>
+    </Press>
   );
 }
 
@@ -165,7 +165,6 @@ function ProviderSheet({ visible, chosen, onClose, onPick }: { visible: boolean;
 }
 
 function KeySheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const theme = useTheme();
   const ai = useYourAI();
   const [key, setKey] = useState('');
   const name = providerOf(ai.provider)?.name ?? '';
@@ -176,21 +175,7 @@ function KeySheet({ visible, onClose }: { visible: boolean; onClose: () => void 
   return (
     <Sheet visible={visible} onClose={close} label={t.keyTitle(name)}>
       <Heading>{t.keyTitle(name)}</Heading>
-      <View style={{ gap: 6 }}>
-        <TextInput
-          value={key}
-          onChangeText={setKey}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoFocus
-          accessibilityLabel={t.key}
-          style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
-        />
-        <Body small muted>
-          {t.keyHelp}
-        </Body>
-      </View>
+      <Field value={key} onChangeText={setKey} secureTextEntry autoCapitalize="none" autoCorrect={false} autoFocus mono label={t.key} help={t.keyHelp} />
       <View style={{ gap: 4 }}>
         <Button label={t.save} disabled={!key.trim()} onPress={() => void ai.setKey(key).then(close)} />
         {ai.keyEnd ? <Button kind="tertiary" label={t.removeKey} onPress={() => void ai.removeKey().then(close)} /> : null}
@@ -200,7 +185,6 @@ function KeySheet({ visible, onClose }: { visible: boolean; onClose: () => void 
 }
 
 function ModelSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const theme = useTheme();
   const ai = useYourAI();
   const [models, setModels] = useState<Model[] | undefined>(undefined);
   const [problem, setProblem] = useState<string | undefined>(undefined);
@@ -220,11 +204,11 @@ function ModelSheet({ visible, onClose }: { visible: boolean; onClose: () => voi
       <View onLayout={() => (models === undefined && !problem ? void load() : undefined)} style={{ gap: 12 }}>
         <Heading>{t.model}</Heading>
         {problem ? (
-          <Body alert>{problem}</Body>
+          <Notice tone="warn">{problem}</Notice>
         ) : models === undefined ? (
-          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-            <ActivityIndicator color={theme.muted} />
-            <Body muted>{t.loadingModels}</Body>
+          <View accessible accessibilityLabel={t.loadingModels} style={{ gap: 10 }}>
+            <Skeleton height={20} />
+            <Skeleton height={20} width="70%" />
           </View>
         ) : (
           <Choices options={models} chosen={ai.model} onPick={(id) => void ai.setModel(id).then(onClose)} />
@@ -235,7 +219,8 @@ function ModelSheet({ visible, onClose }: { visible: boolean; onClose: () => voi
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 0 },
+  list: { paddingHorizontal: size.pad },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },
   label: { flex: 1, fontFamily: font.regular, fontSize: size.body },
   rowLarge: { flexWrap: 'wrap', paddingVertical: 8, rowGap: 2 },
   waiting: { justifyContent: 'center', gap: 2, minHeight: 64, paddingVertical: 8 },
@@ -243,6 +228,5 @@ const styles = StyleSheet.create({
   value: { fontFamily: font.regular, fontSize: size.body, flexShrink: 1 },
   title: { flex: 1, fontFamily: font.regular, fontSize: size.body },
   conversation: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },
-  sheetTitle: { fontFamily: font.medium, fontSize: size.heading },
-  input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontFamily: font.mono, fontSize: size.body },
+  sheetTitle: { fontFamily: font.semibold, fontSize: size.title },
 });

@@ -2,15 +2,15 @@ import type { ModelMessage } from 'ai';
 import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { answers, modelFor, runTurn, type Approval } from '../ai/agent';
 import { useYourAI, type Conversation } from '../ai/store';
-import { Body, Button, Icon } from '../kit';
+import { Body, Button, Icon, IconTile, Notice, Press, RoundButton, Surface, radii, shape } from '../kit';
 import { Markdown } from '../markdown';
 import { blocksOf, changeOf, pendingOf, titleOf } from '../lib/ai';
 import { strings } from '../strings';
-import { font, size, useTheme } from '../theme';
+import { elevation, font, size, useTheme } from '../theme';
 
 const t = strings.ai;
 
@@ -104,55 +104,55 @@ export default function Agent() {
   const starters = !messages.length && !busy && ai.ready ? (strings.ai.starters[from ?? 'home'] ?? []) : [];
   const blocks = blocksOf(messages);
 
+  const canSend = !!draft.trim() && ai.ready && !pending.length;
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { paddingTop: insets.top, borderBottomColor: theme.line }]}>
-        <Pressable accessibilityRole="button" onPress={back} style={styles.back}>
-          <Icon name="back" size={24} colour={theme.text} />
-          <Body>{backLabel}</Body>
-        </Pressable>
-        {ai.model ? (
-          <Body small muted style={{ marginLeft: 'auto', paddingRight: 8 }}>
-            {ai.model}
-          </Body>
-        ) : null}
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.ground }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <View style={styles.bar}>
+          <RoundButton icon="close" label={backLabel} onPress={back} />
+          <View style={styles.headTitle}>
+            {/* No heading beyond the one: the page is named once, for VoiceOver too. */}
+            <Text accessibilityRole="header" maxFontSizeMultiplier={1.5} style={[styles.headline, { color: theme.text }]}>
+              {t.title}
+            </Text>
+            {ai.model ? (
+              <Text maxFontSizeMultiplier={1.5} numberOfLines={1} style={[styles.caption, { color: theme.muted }]}>
+                {ai.model}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.bar40} />
+        </View>
       </View>
 
       <ScrollView
         ref={scroll}
+        keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
         contentContainerStyle={[styles.page, starters.length ? styles.empty : null]}
       >
-        {/* No heading on screen (design 20): the page is named for VoiceOver only. */}
-        <Text accessibilityRole="header" style={styles.unseen}>
-          {t.title}
-        </Text>
         {starters.length ? (
-          <View accessibilityLabel={t.startWith} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }}>
-            {starters.map((starter) => (
-              <Pressable
-                key={starter}
-                accessibilityRole="button"
-                onPress={() => send(starter)}
-                style={[styles.starter, { borderBottomColor: theme.line }]}
-              >
-                <Body style={{ flex: 1 }}>{starter}</Body>
-                <Icon name="chevron" size={16} colour={theme.muted} />
-              </Pressable>
-            ))}
-          </View>
+          <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
+            <View accessibilityLabel={t.startWith}>
+              {starters.map((starter, i) => (
+                <Press highlight key={starter} accessibilityRole="button" onPress={() => send(starter)} style={[styles.starter, i < starters.length - 1 ? { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth } : null]}>
+                  <Body style={{ flex: 1 }}>{starter}</Body>
+                  <Icon name="chevron" size={16} colour={theme.muted} />
+                </Press>
+              ))}
+            </View>
+          </Surface>
         ) : null}
         {!ai.ready && ai.loaded ? (
-          <View style={{ gap: 12 }}>
-            <Body muted>{t.notReady}</Body>
-            <Button label={t.setUp} onPress={() => router.push('/ai')} />
-          </View>
+          <Notice tone="neutral" action={<Button small label={t.setUp} onPress={() => router.push('/ai')} />}>
+            {t.notReady}
+          </Notice>
         ) : null}
 
         {blocks.map((block, i) =>
           block.kind === 'you' ? (
-            <View key={i} style={[styles.you, { backgroundColor: theme.ground, borderRadius: theme.radius }]}>
-              <Body>{block.text}</Body>
+            <View key={i} style={[styles.you, youShape, { backgroundColor: theme.button }]}>
+              <Body style={{ color: theme.buttonText }}>{block.text}</Body>
             </View>
           ) : (
             <Answer key={i} reads={block.reads} text={block.text} />
@@ -161,55 +161,62 @@ export default function Agent() {
         {live ? <Answer reads={live.reads} text={live.text} /> : null}
 
         {pending.length && !busy ? (
-          <View style={[styles.card, { borderColor: theme.text, borderRadius: theme.radius }]}>
-            <Text style={[styles.cardHead, { color: theme.muted }]}>{t.changes(pending.length).toUpperCase()}</Text>
-            <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }}>
-              {pending.map((p, i) => (
-                <View key={p.approvalId} style={[styles.change, i < pending.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line } : null]}>
+          <Surface style={{ gap: 12 }}>
+            <Text accessibilityRole="header" maxFontSizeMultiplier={1.7} style={[styles.label, { color: theme.muted }]}>
+              {t.changes(pending.length)}
+            </Text>
+            {pending.map((p) => (
+              <View key={p.approvalId} style={styles.change}>
+                <IconTile name="check" tone="fill" />
+                <View style={{ flex: 1 }}>
                   <Body>{changeOf(p.tool, p.input)}</Body>
                 </View>
-              ))}
-            </View>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+              </View>
+            ))}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
               <View style={{ flex: 1 }}>
-                <Button label={t.approve} onPress={() => answer(true)} />
+                <Button small label={t.approve} onPress={() => answer(true)} />
               </View>
               <View style={{ flex: 1 }}>
-                <Button kind="secondary" label={t.notNow} onPress={() => answer(false)} />
+                <Button small kind="secondary" label={t.notNow} onPress={() => answer(false)} />
               </View>
             </View>
-          </View>
+          </Surface>
         ) : null}
-        {problem ? <Body alert>{problem}</Body> : null}
+        {problem ? <Notice tone="warn">{problem}</Notice> : null}
       </ScrollView>
 
-      <View style={[styles.composer, { borderTopColor: theme.line, paddingBottom: insets.bottom + 10 }]}>
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          multiline
-          editable={ai.ready && !pending.length}
-          placeholder={pending.length ? t.approveFirst : t.placeholder}
-          placeholderTextColor={theme.muted}
-          accessibilityLabel={t.placeholder}
-          style={[styles.input, { backgroundColor: theme.ground, borderRadius: Math.min(theme.control, 24), borderColor: pending.length ? theme.line : theme.fieldBorder, color: theme.text }]}
-        />
-        {busy ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={t.stop} onPress={() => abort.current?.abort()} style={[styles.send, { borderRadius: Math.min(theme.control, 24), borderColor: theme.fieldBorder, borderWidth: 1 }]}>
-            <View style={{ width: 12, height: 12, backgroundColor: theme.text }} />
-          </Pressable>
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t.send}
-            accessibilityState={{ disabled: !draft.trim() || !ai.ready || pending.length > 0 }}
-            disabled={!draft.trim() || !ai.ready || pending.length > 0}
-            onPress={() => send(draft)}
-            style={[styles.send, { borderRadius: Math.min(theme.control, 24), backgroundColor: draft.trim() && ai.ready && !pending.length ? theme.button : theme.surface, borderColor: theme.fieldBorder, borderWidth: draft.trim() ? 0 : 1 }]}
-          >
-            <Icon name="up" size={20} colour={draft.trim() && ai.ready && !pending.length ? theme.buttonText : theme.muted} />
-          </Pressable>
-        )}
+      <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 8, paddingTop: 8 }}>
+        <View style={[styles.composer, shape(radii.pill), { backgroundColor: theme.surface }, elevation(theme, 'floating')]}>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            multiline
+            editable={ai.ready && !pending.length}
+            placeholder={pending.length ? t.approveFirst : t.placeholder}
+            placeholderTextColor={theme.muted}
+            selectionColor={theme.green}
+            accessibilityLabel={t.placeholder}
+            style={[styles.input, { color: theme.text }]}
+          />
+          {busy ? (
+            <Press accessibilityRole="button" accessibilityLabel={t.stop} hitSlop={6} onPress={() => abort.current?.abort()} style={[styles.send, shape(radii.pill), { backgroundColor: theme.fill }]}>
+              <View style={[{ width: 12, height: 12, backgroundColor: theme.text }, shape(3)]} />
+            </Press>
+          ) : (
+            <Press
+              accessibilityRole="button"
+              accessibilityLabel={t.send}
+              accessibilityState={{ disabled: !canSend }}
+              hitSlop={6}
+              disabled={!canSend}
+              onPress={() => send(draft)}
+              style={[styles.send, shape(radii.pill), { backgroundColor: canSend ? theme.button : theme.fill }]}
+            >
+              <Icon name="up" size={20} colour={canSend ? theme.buttonText : theme.muted} />
+            </Press>
+          )}
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -218,13 +225,13 @@ export default function Agent() {
 function Answer({ reads, text }: { reads: number; text: string }) {
   const theme = useTheme();
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 10, maxWidth: '92%' }}>
       {reads ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={[styles.read, shape(radii.pill), { backgroundColor: theme.fill }]}>
           <Icon name="check" size={16} colour={theme.muted} />
-          <Body small muted>
+          <Text maxFontSizeMultiplier={1.6} style={[styles.caption, { color: theme.muted, fontSize: size.label, fontFamily: font.medium }]}>
             {t.read(reads)}
-          </Body>
+          </Text>
         </View>
       ) : null}
       {text ? <Markdown text={text} /> : null}
@@ -232,18 +239,24 @@ function Answer({ reads, text }: { reads: number; text: string }) {
   );
 }
 
+/** A message from the person: the one rounded corner tucked in at its foot. */
+const youShape = { borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 22, borderBottomRightRadius: radii.tag, borderCurve: 'continuous' } as const;
+
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-  back: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: size.target, paddingRight: 12 },
-  page: { padding: size.gutter, gap: 14 },
-  unseen: { position: 'absolute', width: 1, height: 1, opacity: 0 },
+  header: { paddingHorizontal: size.gutter },
+  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: size.target },
+  bar40: { width: 40 },
+  headTitle: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  headline: { fontFamily: font.semibold, fontSize: size.headline },
+  caption: { fontFamily: font.regular, fontSize: size.caption },
+  label: { fontFamily: font.medium, fontSize: size.label },
+  page: { paddingHorizontal: size.gutter, paddingTop: size.gap, paddingBottom: size.gutter, gap: 16 },
   empty: { flexGrow: 1, justifyContent: 'flex-end' },
-  starter: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, borderBottomWidth: StyleSheet.hairlineWidth },
-  you: { alignSelf: 'flex-end', maxWidth: '82%', paddingHorizontal: 14, paddingVertical: 12 },
-  card: { borderWidth: 1, padding: 14, gap: 12 },
-  cardHead: { fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
-  change: { paddingVertical: 10 },
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: size.gutter, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
-  input: { flex: 1, minHeight: size.target, maxHeight: 140, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, paddingVertical: 12, fontFamily: font.regular, fontSize: size.body },
-  send: { width: size.target, height: size.target, alignItems: 'center', justifyContent: 'center' },
+  starter: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },
+  you: { alignSelf: 'flex-end', maxWidth: '82%', paddingHorizontal: 16, paddingVertical: 12 },
+  change: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  read: { alignSelf: 'flex-start', minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10 },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, minHeight: 56, paddingLeft: 20, paddingRight: 8, paddingVertical: 8 },
+  input: { flex: 1, minHeight: 40, maxHeight: 140, paddingVertical: 8, fontFamily: font.regular, fontSize: size.body },
+  send: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 });
