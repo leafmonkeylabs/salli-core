@@ -8,6 +8,7 @@ const { elevation, light, night, radii, shape, size, space, themeOf } = await im
 /** WCAG relative luminance of #RRGGBB. */
 function luminance(hex: string): number {
   const channel = (i: number) => {
+    // eslint-disable-next-line no-restricted-syntax -- not money: a colour channel
     const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
     return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   };
