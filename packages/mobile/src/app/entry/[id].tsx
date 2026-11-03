@@ -1,14 +1,13 @@
 import { accountsList, accountsOverview, entriesGet, entriesProvenance, entriesRecategorise, entriesReverse, formatAmount } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AccessibilityInfo, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, LinesTable, Option, Title, Waiting } from '../../kit';
+import { Body, Button, Card, Field, LinesTable, Notice, Option, Press, Surface, Tag, Title, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
-import { success, useReducedMotion } from '../../motion';
+import { haptic, success, useReducedMotion } from '../../motion';
 import { Page } from '../../shell';
 import { Sheet, SheetTitle } from '../../sheet';
 import { strings } from '../../strings';
@@ -32,7 +31,7 @@ export default function Entry() {
     mutationFn: (reason: string) => api.call(entriesReverse, { path: { entry_id: id }, body: { reason } }),
     onSuccess: () => {
       setAsking(false);
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      haptic.warn();
       return queryClient.invalidateQueries({ queryKey: [api.server] });
     },
   });
@@ -72,9 +71,9 @@ export default function Entry() {
       {...(booked
         ? {
             action: (
-              <Pressable accessibilityRole="button" onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} style={styles.done}>
-                <Text style={[styles.doneText, { color: theme.text }]}>{t.done}</Text>
-              </Pressable>
+              <Press accessibilityRole="button" onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} style={styles.done}>
+                <Text style={[styles.doneText, { color: theme.green }]}>{t.done}</Text>
+              </Press>
             ),
           }
         : {})}
@@ -85,22 +84,17 @@ export default function Entry() {
           entering={success(reduced)}
           accessible
         >
-          <Card>
-            <Body alert>{`✓ ${moved && now ? t.bookedNow(moved.name, now) : t.booked}`}</Body>
-          </Card>
+          <Notice tone="good">{moved && now ? t.bookedNow(moved.name, now) : t.booked}</Notice>
         </Animated.View>
       ) : null}
       {dated ? (
-        <Card>
-          <Body alert>{`✓ ${t.categoryChanged}`}</Body>
-          <Body small muted>
-            {dated === 'today' ? t.datedToday(why ?? '') : t.datedOriginal}
-          </Body>
-        </Card>
+        <Notice tone="good">
+          <Body small>{`${t.categoryChanged} ${dated === 'today' ? t.datedToday(why ?? '') : t.datedOriginal}`}</Body>
+        </Notice>
       ) : null}
       {data ? (
         <>
-          <View style={{ gap: 6 }}>
+          <View style={{ gap: 12 }}>
             <Title>{data.description}</Title>
             <View style={styles.chips}>
               {[
@@ -111,14 +105,14 @@ export default function Entry() {
                 ...(statement?.statement?.bank ? [statement.statement.bank] : []),
                 ...(data.reversed_by ? [strings.entries.reversed] : []),
               ].map((fact, i) => (
-                <Text key={fact} style={[styles.chip, i === 1 ? styles.mono : null, { color: theme.text, borderColor: theme.line, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), overflow: 'hidden' }]}>
+                <Tag key={fact} {...(i === 1 ? { mono: true } : {})}>
                   {fact}
-                </Text>
+                </Tag>
               ))}
             </View>
           </View>
 
-          <Card style={{ paddingVertical: 12 }}>
+          <Card>
             <LinesTable
               currency={data.postings[0]?.currency ?? ''}
               lines={data.postings.map((posting) => ({
@@ -152,14 +146,10 @@ export default function Entry() {
             </View>
           )}
           {reverse.isSuccess ? (
-            <Card>
-              <Body alert>{`✓ ${t.reversed}`}</Body>
-            </Card>
+            <Notice tone="good">{t.reversed}</Notice>
           ) : null}
           {reverse.error && !asking ? (
-            <Card>
-              <Body>{reverse.error.message}</Body>
-            </Card>
+            <Notice tone="warn">{reverse.error.message}</Notice>
           ) : null}
         </>
       ) : (
@@ -188,7 +178,7 @@ export default function Entry() {
           <Body small muted>
             {t.moveBody}
           </Body>
-          {recategorise.error ? <Body alert>{recategorise.error.message}</Body> : null}
+          {recategorise.error ? <Notice tone="warn">{recategorise.error.message}</Notice> : null}
           <Button
             label={moveTo ? t.moveButton(names.get(moveTo) ?? '') : t.chooseCategory}
             busy={recategorise.isPending}
@@ -203,7 +193,7 @@ export default function Entry() {
             {t.confirmTitle(data.description)}
           </SheetTitle>
           <Body>{t.confirmBody}</Body>
-          <View style={[styles.reversal, { borderColor: theme.line, backgroundColor: theme.card, borderRadius: theme.radius }]}>
+          <Surface kind="inset" pad={false} style={styles.reversal}>
             <Text style={[styles.reversalTitle, { color: theme.text }]}>{t.reversalOf(data.description)}</Text>
             <LinesTable
               total={false}
@@ -219,17 +209,9 @@ export default function Entry() {
                   currency: posting.currency,
                 }))}
             />
-          </View>
-          <TextInput
-            value={reason}
-            onChangeText={setReason}
-            placeholder={t.reason}
-            placeholderTextColor={theme.muted}
-            accessibilityLabel={t.reason}
-            maxLength={200}
-            style={[styles.input, { backgroundColor: theme.fill, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
-          />
-          {reverse.error ? <Body alert>{reverse.error.message}</Body> : null}
+          </Surface>
+          <Field value={reason} onChangeText={setReason} placeholder={t.reason} accessibilityLabel={t.reason} maxLength={200} />
+          {reverse.error ? <Notice tone="warn">{reverse.error.message}</Notice> : null}
           <View style={{ gap: 4 }}>
             <Button label={t.confirm} busy={reverse.isPending} disabled={reverse.isPending || !reason.trim()} onPress={() => reverse.mutate(reason.trim())} />
             <Button kind="tertiary" label={t.keep} disabled={reverse.isPending} onPress={() => setAsking(false)} />
@@ -241,15 +223,12 @@ export default function Entry() {
 }
 
 const styles = StyleSheet.create({
-  actions: { flexDirection: 'row', gap: 8 },
-  moveTitle: { fontFamily: font.medium, fontSize: 17 },
+  actions: { flexDirection: 'row', gap: 12 },
+  moveTitle: { fontFamily: font.semibold, fontSize: size.title },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { fontFamily: font.regular, fontSize: 13, paddingHorizontal: 8, paddingVertical: 3, borderWidth: StyleSheet.hairlineWidth },
-  mono: { fontFamily: font.mono },
   done: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 12 },
   doneText: { fontFamily: font.medium, fontSize: size.body },
-  sheetTitle: { fontFamily: font.medium, fontSize: size.heading, lineHeight: size.heading * 1.3 },
-  reversal: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, gap: 6 },
+  sheetTitle: { fontFamily: font.semibold, fontSize: size.title, lineHeight: size.title * 1.25 },
+  reversal: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6, gap: 6 },
   reversalTitle: { fontFamily: font.medium, fontSize: size.body },
-  input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
 });

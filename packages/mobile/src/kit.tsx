@@ -439,13 +439,13 @@ export function Notice({ tone = 'info', icon, children, action }: { tone?: Notic
 }
 
 /** A small fact about a thing: draft, a rule, "By hand". Capitals never; 6 corners. */
-export function Tag({ children, tone = 'neutral' }: { children: string; tone?: 'neutral' | 'green' | 'red' }) {
+export function Tag({ children, tone = 'neutral', mono }: { children: string; tone?: 'neutral' | 'green' | 'red'; mono?: boolean }) {
   const theme = useTheme();
   const bg = tone === 'green' ? theme.greenTint : tone === 'red' ? theme.redTint : theme.fill;
   const fg = tone === 'green' ? theme.green : tone === 'red' ? theme.red : theme.muted;
   return (
     <View style={[styles.tag, shape(radii.tag), { backgroundColor: bg }]}>
-      <Text maxFontSizeMultiplier={1.6} style={[styles.tagText, { color: fg }]}>
+      <Text maxFontSizeMultiplier={1.6} style={[styles.tagText, { color: fg }, mono ? { fontFamily: font.mono } : null]}>
         {children}
       </Text>
     </View>
