@@ -635,6 +635,36 @@ needs from the server:
 | Grant ids, reuse detection, the console's absolute lifetime, `authenticated_at` and step-up | Section 2 | none (OAuth plumbing) |
 | The six number-or-string request fields become strings; `FireStrategy.target_monthly_expenses` a string | Money never a float | none (shapes only) |
 
+## Panels
+
+A server that says `panels: true` in `/v1/meta` describes pages of its own
+(`salli.panel/1`: `GET /v1/panels`, `GET /v1/panels/{id}`; an account, a
+request, a move) and the console draws them, with no word of its own beyond
+"Not now", "Required" and the loading and empty sentences (`strings.panel`).
+This is the generic page that stands in for a separate web portal.
+
+- **The page** (`/console/panel/<id>`, `pages/panel/Panel.tsx`, its own chunk):
+  `kit/PanelView.tsx` draws the sections as the kit's cards, text rows as a
+  label and a muted value, links as links in a new tab (`noopener`), an
+  action as a button (secondary for a DELETE) that asks in the kit's
+  `Confirm` when the server gave `confirm`, a form of the kit's fields
+  (a number field is a decimal input and stays a string, a select is the
+  kit's `SelectField`). A refusal shows as a compact problem in the row that
+  asked. `then: refresh` is the write's invalidation of the panel reads (how a
+  request shows as requested); `then: close` goes back.
+- **The navigation:** each panel `/v1/panels` lists is a place after
+  the console's own and an edition's (`panels.ts`, `usePanelNavigation`), and in
+  More on a phone, titled by the server; nothing is asked of a server that
+  does not say `panels: true`.
+- **Through the SDK only:** a panel's document and an action go through
+  `client.send` (`useGet`, `useWrite`), whose path the SDK's `parsePanel` has
+  checked is under `/v1/`; a document that is not `salli.panel/1` is refused
+  as "This page can't be shown", and a row it cannot draw safely is left out.
+- **Tests:** `test/panels.test.tsx` (every row kind, the confirmation, the
+  refresh, a form, a refusal, a bad document, a server with none) on
+  `test/fixtures/panels.ts`; `e2e/panel.spec.ts` (axe with the confirmation
+  open, CSP, no other origin).
+
 ## 6. An AI in the console?
 
 The console shows Salli's figures. Should it also hold a chat with an AI?

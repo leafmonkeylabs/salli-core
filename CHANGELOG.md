@@ -4,6 +4,25 @@
 
 ### Added
 
+- **Pages a server describes, in the phone and the console.** A server that
+  says `panels: true` in `/v1/meta` lists pages (`GET /v1/panels`,
+  `salli.panel/1`: sections of text, link, action and form rows) and the apps
+  draw them without a word of their own: the phone as a pushed screen from More
+  (`app/panel/[id]`, `src/panel.tsx`), the console at `/console/panel/<id>`
+  and in its navigation (`kit/PanelView.tsx`). An action asks first when the
+  server gave words to ask with, then refreshes the page or closes it; a form
+  sends what was typed; a refusal shows in its row; links open in the secure
+  browser sheet (phone) or a new tab (console). The SDK reads the document
+  defensively (`parsePanel`: a link that is not https or an action outside
+  `/v1/` is left out), adds `client.send` for a path no generated function
+  names and `onApiError`. On the phone a refusal that carries an `offer` opens
+  one generic sheet, from the request layer once, with its button to the
+  panel; and, when the build names a server (`EXPO_PUBLIC_HOSTED_SERVER`), the
+  first screen's "Salli's server" opens that server's `/signup` page in the
+  secure browser sheet and signs in on return, with "Have an invitation?" and
+  "Already have an account? Sign in" beside it. docs/design/mobile.md and
+  docs/design/console.md, "Panels".
+
 - **The phone at every text size, and to VoiceOver.** From xxxL rows stack
   their title over their details, Home's and More's tiles and Books'
   actions go one to a row, a budget line puts its category on its own line
