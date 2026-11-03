@@ -7,7 +7,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../api';
-import { Body, Button, Choice, Icon, Notice, Press, Section, Surface, Toggle, Waiting, radii, shape } from '../kit';
+import { Body, Button, Choice, Notice, Press, Section, Surface, Toggle, Waiting, radii, shape } from '../kit';
 import { storeKeyOf } from '../lib/servers';
 import { Sheet } from '../sheet';
 import { Page } from '../shell';

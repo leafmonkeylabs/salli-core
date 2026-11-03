@@ -1,7 +1,7 @@
 import { isPanelId } from '@leafmonkeylabs/salli-sdk';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Body, Button, Loading } from '../../kit';
+import { Body, Button, Loading, Notice } from '../../kit';
 import { PanelView, usePanel, useRefreshPanels } from '../../panel';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
@@ -44,8 +44,8 @@ export default function PanelScreen() {
         <Loading what={t.loading} />
       ) : (
         <>
-          <Body alert>{panel.error ? panel.error.message : t.cantShow}</Body>
-          <Button kind="secondary" label={t.tryAgain} busy={again} disabled={again} onPress={read} />
+          <Notice tone="warn">{panel.error ? panel.error.message : t.cantShow}</Notice>
+          <Button kind="secondary" small label={t.tryAgain} busy={again} disabled={again} onPress={read} />
         </>
       )}
     </Page>

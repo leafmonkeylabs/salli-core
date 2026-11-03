@@ -111,7 +111,6 @@ function Unread() {
 
 /** A message pasted by hand, read by every rule, and sent for review on a tap. */
 function TryMessage({ accounts }: { accounts: readonly Account[] }) {
-  const theme = useTheme();
   const accountOf = (id: string) => accounts.find((a) => a.id === id);
   const api = useApi();
   const reach = useReach();

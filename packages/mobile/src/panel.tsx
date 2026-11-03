@@ -10,9 +10,9 @@ import { describeDetail, formBody, missingFields, panelsList, panelsShow, parseP
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from './api';
-import { Body, Button, Card, Choice, Icon, Press, SectionLabel, useLargeText } from './kit';
+import { Body, Button, Choice, Field as KitField, Icon, Notice, Press, Section as KitSection, Surface, useLargeText } from './kit';
 import { placesOf } from './lib/panel';
 import { strings } from './strings';
 import { font, size, useTheme } from './theme';
@@ -55,31 +55,28 @@ function whyOf(error: unknown): string {
 
 /** The panel's sections as cards, then its note. `after` is told what a row's `then` asks for. */
 export function PanelView({ panel, after }: { panel: PanelDocument; after: (then: 'refresh' | 'close') => void }) {
-  const theme = useTheme();
   return (
     <>
       {panel.sections.map((section, i) => (
-        <Section key={i} section={section} after={after} />
+        <SectionView key={i} section={section} after={after} />
       ))}
-      {panel.note ? (
-        <View style={[styles.note, { backgroundColor: theme.tile, borderColor: theme.line }]}>
-          <Body>{panel.note}</Body>
-        </View>
-      ) : null}
+      {panel.note ? <Notice tone="info">{panel.note}</Notice> : null}
     </>
   );
 }
 
-function Section({ section, after }: { section: PanelSection; after: (then: 'refresh' | 'close') => void }) {
+function SectionView({ section, after }: { section: PanelSection; after: (then: 'refresh' | 'close') => void }) {
   if (!section.rows.length && !section.heading) return null;
+  const rows = (
+    <Surface style={{ gap: 12 }}>
+      {section.rows.map((row, i) => (
+        <RowView key={i} row={row} after={after} last={i === section.rows.length - 1} />
+      ))}
+    </Surface>
+  );
   return (
-    <View style={{ gap: 6 }}>
-      <Card style={{ gap: 12 }}>
-        {section.heading ? <SectionLabel>{section.heading}</SectionLabel> : null}
-        {section.rows.map((row, i) => (
-          <RowView key={i} row={row} after={after} last={i === section.rows.length - 1} />
-        ))}
-      </Card>
+    <View style={{ gap: 8 }}>
+      {section.heading ? <KitSection title={section.heading}>{rows}</KitSection> : rows}
       {section.footnote ? (
         <Body small muted>
           {section.footnote}
@@ -120,6 +117,7 @@ function LinkRow({ row, rule }: { row: Extract<PanelRow, { kind: 'link' }>; rule
   const theme = useTheme();
   return (
     <Press
+      highlight
       accessibilityRole="link"
       accessibilityLabel={[row.label, row.detail].filter(Boolean).join(', ')}
       accessibilityHint={t.opensBrowser}
@@ -189,24 +187,10 @@ function FormRow({ row, after, rule }: { row: Extract<PanelRow, { kind: 'form' }
 }
 
 function Field({ field, value, onChange }: { field: PanelField; value: string; onChange: (value: string) => void }) {
-  const theme = useTheme();
   if (field.type === 'select') {
     return <Choice list label={field.label} options={(field.options ?? []).map((o) => ({ id: o.value, text: o.label }))} chosen={value || undefined} onPick={onChange} />;
   }
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={[styles.fieldLabel, { color: theme.text }]}>{field.label}</Text>
-      <TextInput
-        accessibilityLabel={field.label}
-        value={value}
-        onChangeText={onChange}
-        keyboardType={field.type === 'number' ? 'decimal-pad' : 'default'}
-        autoCorrect={false}
-        placeholderTextColor={theme.muted}
-        style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
-      />
-    </View>
-  );
+  return <KitField label={field.label} value={value} onChangeText={onChange} keyboardType={field.type === 'number' ? 'decimal-pad' : 'default'} autoCorrect={false} />;
 }
 
 /** What the server said when it refused, in the row that asked, with a way to ask again. */
@@ -214,9 +198,9 @@ function Why({ error, onAgain }: { error: unknown; onAgain: () => void }) {
   if (!error) return null;
   return (
     <View accessibilityLiveRegion="polite" style={{ gap: 6 }}>
-      <Body alert>{whyOf(error)}</Body>
+      <Notice tone="warn">{whyOf(error)}</Notice>
       <View style={{ alignSelf: 'flex-start' }}>
-        <Button kind="tertiary" label={t.tryAgain} onPress={onAgain} />
+        <Button small kind="tertiary" label={t.tryAgain} onPress={onAgain} />
       </View>
     </View>
   );
@@ -230,10 +214,7 @@ export function useRefreshPanels(id: string) {
 }
 
 const styles = StyleSheet.create({
-  line: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   target: { minHeight: size.target },
-  note: { borderWidth: StyleSheet.hairlineWidth, padding: 14 },
-  formTitle: { fontFamily: font.medium, fontSize: size.body },
-  fieldLabel: { fontFamily: font.medium, fontSize: size.small },
-  input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
+  formTitle: { fontFamily: font.semibold, fontSize: size.headline },
 });
