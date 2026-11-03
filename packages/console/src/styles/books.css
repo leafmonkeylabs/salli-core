@@ -1,6 +1,6 @@
 /*
  * Books, tax and settings (C4): the review queue, rules, the tax pages and
- * the rest of Settings. Tokens only (tokens.css); square corners.
+ * the rest of Settings. Tokens only (tokens.css).
  */
 
 /* The review queue */
@@ -19,7 +19,8 @@
 }
 
 .review-item-selected {
-  background: var(--c-well);
+  border-radius: var(--radius-field);
+  background: var(--c-selected);
 }
 
 .review-select {
@@ -28,7 +29,7 @@
   padding-top: 4px;
 }
 
-/* Its checkbox is the kit's (kit.css): square, 18 px. */
+/* Its checkbox is the kit's (kit.css): 20 px, corners 5. */
 
 .review-body {
   display: grid;
@@ -104,9 +105,9 @@
 .condition {
   display: grid;
   gap: 6px;
-  padding: 10px 12px;
-  border: 1px solid var(--c-rule);
-  border-radius: var(--radius-card);
+  padding: 12px 14px;
+  border-radius: var(--radius-field);
+  background: var(--c-page);
 }
 
 .condition-fields {
@@ -132,9 +133,8 @@
 .explanation {
   margin-top: 12px;
   padding: 12px 16px;
-  border: 1px solid var(--c-rule);
-  border-radius: var(--radius-card);
-  background: var(--c-well);
+  border-radius: var(--radius-field);
+  background: var(--c-page);
 }
 
 .change-item,
@@ -184,9 +184,9 @@
 
 .digest-text {
   margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--c-rule);
-  border-radius: var(--radius-card);
+  padding: 12px 16px;
+  border-radius: var(--radius-field);
+  background: var(--c-page);
   font-family: var(--font-sans);
   font-size: var(--size-small);
   white-space: pre-wrap;
@@ -206,9 +206,9 @@
   margin-right: 12px;
   min-height: 32px;
   padding: 4px 12px;
-  border: 1px solid var(--c-rule);
-  border-radius: var(--radius-button);
-  background: var(--c-page);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--c-button-2);
   color: var(--c-text);
   font: inherit;
   cursor: pointer;

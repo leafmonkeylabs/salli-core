@@ -1,10 +1,10 @@
 /*
  * The decision lab's pages (C3): its own row of places, the options side by
  * side, the trade, principles kept and broken, the journal. Tokens only
- * (tokens.css); square corners.
+ * (tokens.css).
  */
 
-/* A place's own places: a segmented row on a bone track (kit.css has the
+/* A place's own places: a segmented row on a pill track (kit.css has the
    rest of the kit; this stays with the lab, which drew the first). */
 .subnav {
   min-width: 0;
@@ -19,31 +19,32 @@
   gap: 2px;
   width: max-content;
   max-width: 100%;
+  border-radius: var(--radius-pill);
   background: var(--c-well);
-  border: 1px solid var(--c-rule);
 }
 
 .subnav a {
   display: inline-flex;
   align-items: center;
   min-height: max(34px, var(--target));
-  padding: 0 12px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
   color: var(--c-muted);
   font-weight: 500;
   text-decoration: none;
-  border: 1px solid transparent;
 }
 
 .subnav a:hover {
   color: var(--c-text);
 }
 
-/* The card and its hairline are under 3:1 on the track, so a bar marks it too. */
+/* The raised thumb is under 3:1 on the track, so the place you are in is also
+   in ink and weight 600, the others muted and 500. */
 .subnav a[aria-current='page'] {
   background: var(--c-card);
   color: var(--c-text);
-  border-color: var(--c-rule);
-  box-shadow: inset 0 -2px 0 var(--c-brand);
+  font-weight: 600;
+  box-shadow: var(--elev-thumb);
 }
 
 /* On a phone the row wraps onto lines of 44 px places; nothing scrolls sideways. */
@@ -93,7 +94,8 @@
 
 .result-title {
   font-size: var(--size-h2);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  font-weight: 600;
   border-top: 1px solid var(--c-rule);
   padding-top: 24px;
 }

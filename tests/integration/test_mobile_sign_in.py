@@ -106,8 +106,9 @@ async def test_the_app_signs_in_on_salli_s_own_page_and_gets_api_tokens(salli):
     page = await salli.get(to_page.headers["location"].removeprefix(BASE))
     assert page.status_code == 200
     assert "<h1>Sign in to Salli</h1>" in page.text
-    # One button, as the console's: signing in to Salli itself.
-    assert page.text.count("<button") == 1 and "name=decision value=deny" not in page.text
+    # One main button, as the console's, and a Cancel (the deny path).
+    assert page.text.count("<button") == 2 and ">Sign in</button>" in page.text
+    assert "<button class=q name=decision value=deny formnovalidate>Cancel</button>" in page.text
 
     tokens = await _sign_in(salli)
     assert tokens["access_token"].startswith("salli_at_")

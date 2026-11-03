@@ -1,8 +1,8 @@
 /**
  * Page layout from the brand's components (docs/brand/README.md, "Layout and
- * components"): a header card with one h1 per page, sections as paper
- * cards with hairline borders and a small outlined square before a tracked
- * capital label, and figures with their provenance beside them.
+ * components"): an unboxed header with one h1 per page, sections as cards
+ * with a soft shadow and a sentence-case heading, and figures with their
+ * provenance beside them.
  */
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
@@ -145,9 +145,16 @@ export function Loading({ lines = 3, what }: { lines?: number; what?: string | u
   );
 }
 
-/** A quiet sentence for an empty section. */
+/** An empty section: an icon in a round tile and one sentence. */
 export function Empty({ children }: { children: ReactNode }) {
-  return <p className="empty">{children}</p>;
+  return (
+    <div className="empty">
+      <span className="empty-icon" aria-hidden="true">
+        <Icon name="check" />
+      </span>
+      <p>{children}</p>
+    </div>
+  );
 }
 
 /** A word in place of a figure the server didn't give ("None", "Not sent"), in the muted colour. */

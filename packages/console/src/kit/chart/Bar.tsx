@@ -7,9 +7,9 @@
 export function Bar({ length, alt }: { /** 0 to 100: the share of the track it fills. */ length: number; alt?: boolean }) {
   const fill = Math.max(0, Math.min(100, length));
   return (
-    <svg className="bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-      <rect className="bar-track" x="0" y="0" width="100" height="10" />
-      {fill > 0 ? <rect className={alt ? 'bar-fill bar-fill-2' : 'bar-fill'} x="0" y="0" width={fill.toFixed(2)} height="10" /> : null}
+    <svg className="bar" width="100%" height="10" aria-hidden="true" focusable="false">
+      <rect className="bar-track" x="0" y="0" width="100%" height="10" rx="5" />
+      {fill > 0 ? <rect className={alt ? 'bar-fill bar-fill-2' : 'bar-fill'} x="0" y="0" width={`${fill.toFixed(2)}%`} height="10" rx="5" /> : null}
     </svg>
   );
 }

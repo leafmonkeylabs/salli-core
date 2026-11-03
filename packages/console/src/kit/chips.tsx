@@ -1,9 +1,9 @@
 /**
  * Chips, marks and badges (C5): small facts beside a title or in a table.
- * A chip is a fact in a hairline box; an id chip is an id in Geist Mono,
+ * A chip is a fact in a pill; an id chip is an id in Geist Mono,
  * its first eight characters as the salli command shows them; an account
- * chip is an account's code and name after a small square for its type; a
- * status badge is a word in capitals. None carries meaning by colour alone:
+ * chip is an account's code and name after a small mark for its type; a
+ * status badge is a word in a pill. None carries meaning by colour alone:
  * each says it in words too.
  */
 import { Link } from '@tanstack/react-router';
@@ -32,7 +32,7 @@ export function IdChip({ id }: { id: string }) {
 
 export type AccountType = 'asset' | 'liability' | 'equity' | 'income' | 'expense';
 
-/** An account's type as a small square: asset filled, liability hollow, income sand, spending graphite, equity brass. */
+/** An account's type as a small mark: asset filled, liability hollow, income half-tone, spending grey, equity dotted. */
 export function TypeMark({ type }: { type: string }) {
   return <span className={`type-mark type-${type}`} aria-hidden="true" />;
 }

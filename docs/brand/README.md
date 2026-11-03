@@ -28,9 +28,8 @@ casino, a crypto app or a gamified budget tracker.
 Capital's site (reckoner.com):
 - warm paper backgrounds;
 - a single deep heritage colour;
-- sand accents;
+- warm neutrals and one calm green;
 - a quiet neo-grotesk set tight at large sizes;
-- small square markers before section labels;
 - fine engraved line art.
 
 We share that temperament, not its specifics. Salli has its own colour (ledger
@@ -158,64 +157,56 @@ Never redraw it by eye. Use the files.
 
 - Recolour the logo outside the palette, or put it on a gradient or a photo.
 - Stretch it, outline it, or add shadows.
-- Rearrange or round the bars.
+- Rearrange the bars. Their ends are round (v2); never square them again.
 - Retype the wordmark in another face.
 - Use any earlier Salli logo.
 
 ## Colour
 
-> The phone app has its own roles since November 2026 (ground, surface, fill, line, ink, muted, green, green tint, red, red tint, a side each for day and night): [docs/design/mobile.md](../design/mobile.md#the-look-v2). Bone, sand and oxblood below belong to the console, the site and print; the app no longer uses them.
+**Design direction v2 (November 2026): quiet colour, soft shape.** Ten roles a
+side, and nothing else is coloured. Bone, sand, oxblood and brass are retired:
+they competed on one screen. In code the roles are `packages/console/src/styles/tokens.css`. The phone app uses the same roles ([docs/design/mobile.md](../design/mobile.md#the-look-v2)).
 
-| Token | Hex | Use |
-|---|---|---|
-| **Paper** | `#F6F3EC` | The page. Salli is warm paper, not white. |
-| **Bone** | `#ECE6D9` | Panels, inputs, alternate surfaces |
-| **Hairline** | `#DCD4C4` | Rules and borders, 1 px |
-| **Ink** | `#1C1B19` | Text and positive figures |
-| **Graphite** | `#57524A` | Secondary text |
-| **Stone** | `#8A8378` | Large labels, decoration and a field's border only (3.4:1 on paper, 3.0:1 on bone) |
-| **Ledger green** | `#173B33` | The brand colour: headers, primary actions, the mark |
-| **Deep green** | `#0F2924` | The terminal, dark panels |
-| **Sand** | `#D8CBAE` | Secondary actions, highlights |
-| **Brass** | `#B39A6B` | Rules, arrows, engraving. Decoration only (2.4:1 on paper). |
-| **Oxblood** | `#6B2620` | Negative figures and debits. Used sparingly. |
-
-**Proportions:** roughly 70% paper, 15% ink, 10% ledger green, 4% sand and
-brass, and 1% oxblood.
+| Role | Light | Dark | Use |
+|---|---|---|---|
+| **Ground** | `#F3F2EF` | `#0E1110` | Behind cards |
+| **Surface** | `#FFFFFF` | `#171B19` | Cards, sheets, bars |
+| **Fill** | `#EFEEEA` | `#232825` | Fields, chips, quiet buttons |
+| **Line** | `#ECEBE7` | white at 7% | Between rows only |
+| **Ink** | `#18201C` | `#ECEFEC` | Text, amounts, the main button |
+| **Muted** | `#5F6661` | `#9BA39D` | Labels, details |
+| **Green** | `#2E6A55` | `#7CC0A5` | Current place, progress, links |
+| **Green tint** | `#E4EFE9` | `#1F3A30` | Selected tab, notes |
+| **Red** | `#A8483A` | `#E58E7C` | Below zero, overdue |
+| **Red tint** | `#F8E9E5` | `#3B2622` | Behind a warning |
 
 **Meaning:**
-- Green is the brand, not "good". Positive figures are ink.
-- Negative figures are oxblood in parentheses.
-- Warnings use a clay `!` and words, never flashing red.
+- Amounts are ink. Money out keeps its brackets and stays ink: a list of
+  payments is never a wall of red.
+- Green says where you are and what is on track: the current place, progress,
+  links, the forecast line. It is not "good".
+- Red only for a fact that needs you: cash below zero, a budget over, a
+  reminder overdue. Warnings say it in words too.
 - Success is quiet: a ✓ and a sentence.
+- The main button is ink (the light ink on dark).
 
-### On dark
-
-| Token | Hex | |
-|---|---|---|
-| **Night** | `#0E1513` | The dark page, a green-black |
-| **Paper on dark** | `#F2ECDF` | Text |
-| **Muted on dark** | `#9AAAA2` | Secondary text |
-| **Sand on dark** | `#CDBF9F` | Accents, the mark |
-| **Clay** | `#E2A58F` | Negatives and warnings |
+**Depth** is shadow, never an outline. Four tiers: flat (the ground), card,
+floating (the tab bar, menus) and sheet (sheets, dialogs). On dark a lighter
+surface with a 1 px top highlight takes the place of the shadow.
 
 ### Contrast (WCAG 2.2)
 
-| Pair | Ratio | Passes |
+| Pair | Light | Dark |
 |---|---|---|
-| Ink on paper | 15.5:1 | AAA |
-| Ledger green on paper, or paper on ledger green | 11.1:1 | AAA |
-| Oxblood on paper | 9.9:1 | AAA |
-| Graphite on paper | 7.0:1 | AA |
-| Paper on dark (`#F2ECDF`) on ledger green | 10.4:1 | AAA |
-| Sand on ledger green | 7.6:1 | AAA |
-| Paper on dark (`#F2ECDF`) on night | 15.7:1 | AAA |
-| Muted on night | 7.6:1 | AAA |
-| Clay on night | 8.8:1 | AAA |
-| Stone on bone (a field's border) | 3.0:1 | 3:1 for a boundary |
-| Muted on night (a field's border on dark) | 7.6:1 | 3:1 for a boundary |
+| Ink on surface | 16.6:1 | 15.0:1 |
+| Muted on surface | 5.9:1 | 6.7:1 |
+| Muted on ground | 5.3:1 | 7.3:1 |
+| Green on surface | 6.3:1 | 8.2:1 |
+| Green on its tint | 5.3:1 | 5.8:1 |
+| Red on surface | 5.4:1 | 7.0:1 |
 
-A ratio is the same whichever colour is in front, so a pair is listed once.
+A field is a fill on a card, not an outline, and takes a green focus ring with a
+tint around it; an unchecked checkbox or radio keeps an edge at 3:1.
 
 ## Typography
 
@@ -237,14 +228,14 @@ Sizes in px, then line height, then tracking:
 | Heading 3 | 22 | 1.3 | −1% |
 | Body | 16 | 1.55 | 0 |
 | Small | 14 | 1.5 | 0 |
-| Label (Geist 500, capitals) | 12–13 | 1.4 | +12% |
+| Label (Geist 500, sentence case) | 13 | 1.4 | 0 |
 | Mono | 14 | 1.5 | 0 |
 
 ### Rules
 
 - Tighten as type grows, and never track body text.
-- Use sentence case. Capitals are for small labels only, each after a small
-  outlined square (as in the README).
+- Use sentence case, headings and section labels included, with no marker
+  before them. Capitals are for a table's column heads only.
 - Emphasise with weight 500, not italics.
 - Keep lines under about 68 characters.
 
@@ -279,49 +270,54 @@ values is `packages/console/src/styles/tokens.css`.
 - **Grid:** 12 columns with 24 px gutters, content up to 1200 px wide. Leave
   generous space: 96–128 px between sections on the website, 32–48 px in the
   app.
-- **Corners are square** on the console and the website. (The phone app is the exception: from November 2026 it uses the v2 look in [docs/design/mobile.md](../design/mobile.md#the-look-v2), with soft corners from one scale, a new palette and floating bars; this section's palette below is the brand's, for the console, the site and print.) Buttons, fields, selects, cards, panels, tables,
-  dialogs, popovers, menus, toasts, badges, chips, code blocks, tooltips and
-  the focus ring have no radius; chart bars and boxes have none either. Only
-  what is a circle by meaning stays round: a chart's dot, a radio button's
-  indicator, a step's number disc. In code the radius tokens stay, set to 0,
-  so it is one switch.
+- **Corners come from one scale:** 6 (tags, swatches), 10 (icon tiles), 14
+  (fields), 20 (cards, lists), 26 (the key figure's card), 32 (the tops of
+  sheets) and the pill, 999 (buttons, chips, badges, status, the segmented
+  control, the current place in a menu or tab bar). What is a circle by
+  meaning stays round: an avatar, a radio, a chart's dot. A checkbox is 5.
+  Nothing is square, and every component names its radius from the tokens in
+  `tokens.css`; the focus ring follows the element's own corners.
 - **Surfaces:**
-  - paper, with bone panels;
-  - cards with a 1 px hairline border and square corners;
-  - no drop shadows, except one faint shadow for overlays.
-- **Section labels:** a small outlined square, then a tracked capital label.
-- **Buttons:** 40 px tall, 44 px on touch (phone width, 720 px and below,
-  where fields are 44 px too); square corners, no gradients.
-  - Primary: ledger green fill, paper text.
-  - Secondary: sand fill, ink text.
+  - cards on the ground colour, the surface colour with the card shadow and no
+    outline; fewer boxes inside boxes; the page's header sits unboxed on the
+    ground;
+  - tables in a rounded container that clips the header's well;
+  - a floating bar on a phone, bottom sheets for dialogs, a side sheet inset
+    and rounded on a wide screen.
+- **Section labels:** a headline in sentence case (17, weight 600), no marker.
+- **Buttons:** pills, 40 px tall, 44 px on touch (phone width, 720 px and below,
+  where fields are 48 px); hover and pressed states, no gradients.
+  - Primary: ink fill.
+  - Secondary: fill colour, ink text.
   - Tertiary: text, underlined on hover.
+  - Unavailable: the fill colour and muted text, never dimmed.
 - **Tables:**
   - hairline row rules, no zebra stripes;
-  - a sticky header in the label style;
+  - a sticky header in small capitals (12, weight 600) on a fill well;
   - figures right-aligned.
 - **Charts:**
-  - 1.5 px lines; the baseline in ink, options in ledger green and graphite,
-    told apart by dash pattern and end labels as well as colour (graphite
-    dashed for comparisons);
-  - brass and sand only decorate: brass is 2.4:1 on paper, below the 3:1 WCAG
-    asks of graphics that carry meaning. On night, paper on dark, sand on
-    dark and muted on dark take the places of ink, ledger green and graphite;
-  - shortfalls in oxblood at 12% opacity;
+  - 2 px lines with round ends; the baseline in ink, options in green and
+    grey, told apart by dash pattern and end labels as well as colour (grey
+    dashed for comparisons); bars have rounded ends;
+  - on dark, ink, green and grey take their dark values;
+  - shortfalls in red at 12% opacity;
   - hairline gridlines;
   - label the figures on the chart, each the server's own figure.
   - No 3D. No pie chart with more than five slices. No animation into place.
-- **Forms:** labels above the inputs; inputs on bone with a stone border
-  (muted on dark), not hairline: a field's edge needs 3:1, and hairline is
-  1.2:1 on bone. A 2 px focus ring in ledger green (sand on dark). Not
-  brass: a focus indicator needs 3:1, and brass is 2.4:1 on paper.
-- **Icons:** a 24 px grid, 1.5 px strokes, square caps and joins, geometric.
-  Filled squares for bullets.
+- **Forms:** labels above the inputs; a field is 48 px tall with 14 px corners
+  on the fill colour. Focus lifts it to the surface colour in a 1.5 px green
+  ring with a 4 px tint around it. An error is a red ring and words. Checkbox
+  and radio are drawn to agree (20 px, an edge at 3:1 when empty, green when
+  chosen).
+- **Icons:** a 24 px grid, 1.75 px strokes, round caps and joins, inner
+  corners 2.5 to 3.5. Round dots for bullets.
 - **Motion:** fades and short slides of 120–200 ms, easing out, and none when
   the reader asks for reduced motion. No bounces, no confetti.
 
 The chart colours and the focus ring were changed from brass and sand for
-contrast by the console's design (docs/design/console.md, decision 11); the
-square corners by the owner in October 2026.
+contrast by the console's design (docs/design/console.md, decision 11). The
+owner replaced the square corners and the paper-and-ledger-green palette with
+the rounded design (v2) in November 2026.
 
 ## Motifs and imagery
 
@@ -383,10 +379,11 @@ node <repo>/docs/brand/build/render.mjs /tmp/salli-brand <repo>/docs/brand/asset
 
 Change the tokens in `build_assets.py`, in this document and in
 `packages/console/src/styles/tokens.css` together. The build scripts are kept
-outside the repository (`.gitignore` excludes `build/`); the square corners
-were applied to the SVGs in `assets/` directly (no `rx` on any frame, panel,
-swatch or the app icon's tile) and `salli-icon.png` rendered again from its
-SVG.
+outside the repository (`.gitignore` excludes `build/`); the round bar ends
+(`rx` of half a bar's height) were applied to the logo, mark and icon SVGs in
+`assets/` directly; `salli-icon.png` and the SVGs that embed the logo as paths
+(the README header, specimen and social card) still show the square bars until
+they are rendered again.
 
 ## For agents writing for Salli
 

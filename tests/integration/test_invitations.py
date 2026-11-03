@@ -123,6 +123,13 @@ async def test_two_step_sign_in_can_be_turned_on_when_joining(salli):
     token = await salli.services.logins.invite("ines@example.org")
     page = await salli.get("/join", params={"t": token})
     secret = re.search(r'name=totp_secret value="([A-Z2-7]+)"', page.text).group(1)
+    # The otpauth URI is a plain link, and the key sits in a mono box.
+    assert (
+        'href="otpauth://totp/Salli:ines%40example.org?secret=' + secret
+        in page.text.replace("&amp;", "&")
+        or f"secret={secret}" in page.text
+    )
+    assert "Add to an authenticator app</a>" in page.text and "<div class=key>" in page.text
 
     wrong = await salli.post(
         "/join",
@@ -134,12 +141,15 @@ async def test_two_step_sign_in_can_be_turned_on_when_joining(salli):
         },
     )
     assert wrong.status_code == 400
+    # The refusal is a notice above the form.
+    assert wrong.text.index("role=alert") < wrong.text.index("<form")
     code = totp.code_at(secret, totp.step_of(time.time()))
     joined = await salli.post(
         "/join",
         data={"t": token, "password": "ines's long password", "totp_secret": secret, "code": code},
     )
     assert joined.status_code == 200 and "recovery codes" in joined.text
+    assert joined.text.count("<code>") >= 10 and "<div class=codes>" in joined.text
     [(enabled,)] = await _rows(
         salli, "select totp_enabled_at is not null from logins where email = 'ines@example.org'"
     )

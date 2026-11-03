@@ -1,8 +1,8 @@
 /*
- * Salli's brand tokens for the console, from the design direction (version 1,
- * October 2026): docs/brand/README.md. The site mirrors the same tables
- * (site/src/styles/tokens.css in leafmonkeylabs/salli); change a value here
- * only when it changes there. No other file in the console names a colour.
+ * Salli's design tokens for the console, from the rounded design (version 2,
+ * November 2026): docs/brand/README.md. The site and the server-rendered
+ * pages mirror the same tables; change a value here only when it changes
+ * there. No other file in the console names a colour.
  *
  * Light and dark come from one set of roles: each is light-dark(light, dark),
  * resolved by `color-scheme`, which follows the system unless the person
@@ -10,120 +10,130 @@
  */
 
 :root {
-  /* Colour: the palette, by name (brand README, "Colour") */
-  --paper: #f6f3ec; /* the page */
-  --bone: #ece6d9; /* panels, inputs */
-  --hairline: #dcd4c4; /* rules and borders, 1 px */
-  --ink: #1c1b19; /* text and positive figures */
-  --graphite: #57524a; /* secondary text */
-  --stone: #8a8378; /* large labels and decoration only (3.4:1) */
-  --ledger-green: #173b33; /* the brand colour */
-  --deep-green: #0f2924; /* dark panels */
-  --sand: #d8cbae; /* secondary actions, highlights */
-  --brass: #b39a6b; /* decoration only (2.4:1) */
-  --oxblood: #6b2620; /* negative figures, sparingly */
+  /* Colour: ten roles a side. Nothing else is coloured. */
+  --ground: light-dark(#f3f2ef, #0e1110); /* behind cards */
+  --surface: light-dark(#ffffff, #171b19); /* cards, sheets, bars */
+  --fill: light-dark(#efeeea, #232825); /* fields, chips, quiet buttons */
+  --line: light-dark(#ecebe7, rgb(255 255 255 / 0.07)); /* between rows only */
+  --ink: light-dark(#18201c, #ecefec); /* text, amounts, the main button */
+  --muted: light-dark(#5f6661, #9ba39d); /* labels, details */
+  --green: light-dark(#2e6a55, #7cc0a5); /* current place, progress, links */
+  --green-tint: light-dark(#e4efe9, #1f3a30); /* selected tab, notes */
+  --red: light-dark(#a8483a, #e58e7c); /* below zero, overdue */
+  --red-tint: light-dark(#f8e9e5, #3b2622); /* behind a warning */
 
-  /* Colour: on dark (brand README, "On dark") */
-  --night: #0e1513;
-  --paper-on-dark: #f2ecdf;
-  --muted-on-dark: #9aaaa2;
-  --sand-on-dark: #cdbf9f;
-  --clay: #e2a58f;
+  /* Roles: what the console uses. */
+  --c-page: var(--ground);
+  --c-chrome: var(--ground);
+  --c-work: var(--ground);
+  --c-card: var(--surface);
+  --c-well: var(--fill);
+  --c-input: var(--fill);
+  --c-rule: var(--line);
+  --c-text: var(--ink);
+  --c-muted: var(--muted);
+  --c-brand: var(--green);
+  --c-on-brand: light-dark(#ffffff, #0e1110); /* on a green fill */
+  --c-negative: var(--red);
+  --c-warn: var(--red);
+  --c-notice: var(--green-tint);
+  --c-notice-text: light-dark(#24574a, #a9dcc6);
+  --c-problem: var(--red-tint);
+  --c-problem-text: light-dark(#7e3226, #f3b6a8);
+  --c-selected: var(--green-tint);
+  --c-hover: light-dark(rgb(24 32 28 / 0.045), rgb(255 255 255 / 0.05));
+  /* An unchecked box's or radio's edge: 3:1 on a card (muted is darker). */
+  --c-control-edge: light-dark(#8c928e, #6f7773);
+  /* A switch's or track's off colour, and a bar's track. */
+  --c-track: light-dark(#e3e2dd, #2d332f);
 
-  /* Roles: what the console uses, light then dark. */
-  --c-page: light-dark(var(--paper), var(--night));
-  --c-panel: light-dark(var(--bone), var(--deep-green));
-  --c-input: light-dark(var(--bone), var(--night));
-  /* A field's edge needs 3:1 against what it sits on: stone is 3.0:1 on bone
-     and 3.4:1 on paper (hairline is 1.2:1); muted on dark is 6.3:1 or more. */
-  --c-field-border: light-dark(var(--stone), var(--muted-on-dark));
-  --c-rule: light-dark(var(--hairline), rgb(242 236 223 / 0.16));
-  --c-text: light-dark(var(--ink), var(--paper-on-dark));
-  --c-muted: light-dark(var(--graphite), var(--muted-on-dark));
-  --c-brand: light-dark(var(--ledger-green), var(--sand-on-dark));
-  --c-mark: light-dark(var(--ledger-green), var(--sand-on-dark));
-  --c-wordmark: light-dark(var(--ink), var(--paper-on-dark));
-  --c-negative: light-dark(var(--oxblood), var(--clay));
-  /* The "!" before a warning: words always say it too. Clay is 2.0:1 on
-     paper, so light uses oxblood (decision 11's reasoning). */
-  --c-warn: light-dark(var(--oxblood), var(--clay));
-  --c-button: light-dark(var(--ledger-green), var(--sand-on-dark));
-  --c-button-text: light-dark(var(--paper), var(--night));
-  --c-button-2: light-dark(var(--sand), var(--deep-green));
-  --c-button-2-text: light-dark(var(--ink), var(--paper-on-dark));
-  --c-mark-square: light-dark(var(--graphite), var(--muted-on-dark));
-  --c-decoration: light-dark(var(--brass), var(--sand-on-dark));
+  /* The main button is ink; on dark it is the light ink. */
+  --c-button: var(--ink);
+  --c-button-text: light-dark(#ffffff, #0e1110);
+  --c-button-hover: light-dark(#2f3a34, #ffffff);
+  --c-button-active: light-dark(#3f4b44, #d4d8d5);
+  --c-button-2: var(--fill);
+  --c-button-2-text: var(--ink);
+  --c-button-2-hover: light-dark(#e6e5e0, #2c322e);
+  --c-button-2-active: light-dark(#dddcd6, #353c37);
 
-  /* The shell and its cards (C5): the bars and the side menu on paper, the
-     working area bone, each section a paper card with a hairline border;
-     wells (inputs, table headers, a segmented control's track) bone. On
-     dark, night with deep-green cards. */
-  --c-chrome: light-dark(var(--paper), var(--night));
-  --c-work: light-dark(var(--bone), var(--night));
-  --c-card: light-dark(var(--paper), var(--deep-green));
-  --c-well: light-dark(var(--bone), var(--night));
-  --c-hover: light-dark(rgb(28 27 25 / 0.035), rgb(242 236 223 / 0.04));
-  --c-selected: light-dark(rgb(23 59 51 / 0.07), rgb(205 191 159 / 0.1));
-  --c-tile: light-dark(var(--ledger-green), var(--sand-on-dark));
-  --c-tile-text: light-dark(var(--paper-on-dark), var(--night));
+  /* The logo's mark and wordmark are ink. */
+  --c-mark: var(--ink);
+  --c-wordmark: var(--ink);
+  --c-tile: var(--green-tint);
+  --c-tile-text: var(--green);
+  --c-focus: var(--green);
   /* A dashed outline (the Filters button): decoration, its words say it. */
-  --c-dash: light-dark(var(--stone), var(--muted-on-dark));
-  /* An account's type, as a small square beside its name: asset filled,
-     liability hollow, income sand, spending graphite, equity brass. The
+  --c-dash: var(--c-control-edge);
+
+  /* An account's type, as a small mark beside its name: asset filled green,
+     liability hollow, income half-tone, spending grey, equity dotted. The
      type is in words too (a heading, a title, a screen reader's text). */
-  --c-type-asset: light-dark(var(--ledger-green), var(--sand-on-dark));
-  --c-type-liability: light-dark(var(--ink), var(--paper-on-dark));
-  --c-type-income: light-dark(var(--sand), var(--muted-on-dark));
-  --c-type-expense: light-dark(var(--graphite), var(--muted-on-dark));
-  --c-type-equity: var(--brass);
+  --c-type-asset: var(--green);
+  --c-type-liability: var(--ink);
+  --c-type-income: light-dark(#b2cfc2, #3b6b58);
+  --c-type-expense: var(--muted);
+  --c-type-equity: light-dark(#8a908b, #6f7773);
 
-  /* Decision 11: the focus ring is ledger green (sand on dark), not brass,
-     which is 2.4:1 on paper, below the 3:1 a focus indicator needs. */
-  --c-focus: light-dark(var(--ledger-green), var(--sand-on-dark));
-
-  /* Decision 11: charts. The baseline in ink, options in ledger green and
-     graphite (dashed), told apart by dash and labels as well as colour;
-     brass and sand only decorate. On dark, sand and muted take their places.
-     Shortfalls in oxblood at 12%. */
-  --c-chart-baseline: light-dark(var(--ink), var(--paper-on-dark));
-  --c-chart-1: light-dark(var(--ledger-green), var(--sand-on-dark));
-  --c-chart-2: light-dark(var(--graphite), var(--muted-on-dark));
-  --c-chart-grid: light-dark(var(--hairline), rgb(242 236 223 / 0.16));
-  --c-chart-shortfall: light-dark(rgb(107 38 32 / 0.12), rgb(226 165 143 / 0.16));
-  --chart-line: 1.5px;
-  --c-scrim: rgb(14 21 19 / 0.4); /* behind a dialog: night at 40% */
-  --shadow-overlay: 0 12px 32px rgb(14 21 19 / 0.18); /* the one faint shadow, for overlays */
+  /* Charts: the baseline in ink, options in green and grey (dashed), told
+     apart by dash and labels as well as colour. Shortfalls in red at 12%. */
+  --c-chart-baseline: var(--ink);
+  --c-chart-1: var(--green);
+  --c-chart-1-soft: var(--green-tint);
+  --c-chart-2: light-dark(#858b87, #6f7773);
+  --c-chart-grid: var(--line);
+  --c-chart-shortfall: light-dark(rgb(168 72 58 / 0.12), rgb(229 142 124 / 0.16));
+  --chart-line: 2px;
   --chart-dash: 5 4;
+  --c-scrim: light-dark(rgb(24 32 28 / 0.4), rgb(0 0 0 / 0.6));
 
-  /* Type (brand README, "Typography") */
+  /* Depth: shadow, never an outline. On dark a lighter surface with a 1 px
+     top highlight takes the place of the shadow. */
+  --elev-card: light-dark(0 1px 2px rgb(24 32 28 / 0.05), inset 0 1px 0 rgb(255 255 255 / 0.06)), light-dark(0 4px 14px rgb(24 32 28 / 0.05), 0 0 0 0 transparent);
+  --elev-float: light-dark(0 2px 6px rgb(24 32 28 / 0.06), inset 0 1px 0 rgb(255 255 255 / 0.08)), light-dark(0 16px 36px rgb(24 32 28 / 0.12), 0 12px 32px rgb(0 0 0 / 0.45));
+  --elev-sheet: light-dark(0 8px 20px rgb(24 32 28 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.1)), light-dark(0 28px 64px rgb(24 32 28 / 0.16), 0 24px 64px rgb(0 0 0 / 0.55));
+  --elev-thumb: light-dark(0 1px 2px rgb(24 32 28 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4)), light-dark(0 2px 8px rgb(24 32 28 / 0.06), 0 0 0 0 transparent);
+
+  /* Type */
   --font-sans: 'Geist Variable', 'Geist', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
-  --size-h1: 44px; /* 1.1, −2.5% */
-  --size-h2: 30px; /* 1.2, −2% */
-  --size-h3: 22px; /* 1.3, −1% */
+  --size-h1: 32px; /* a large title: 600, tracking -3% */
+  --size-h2: 26px;
+  --size-h3: 22px; /* a title: 600 */
+  --size-head: 17px; /* a headline: 600 */
   --size-body: 16px; /* 1.55 */
   --size-small: 14px; /* 1.5 */
-  --size-label: 12.5px; /* Geist 500, capitals, +12% */
+  --size-label: 13px; /* 500, sentence case */
+  --size-caption: 12px; /* nothing is smaller */
   --size-mono: 14px; /* 1.5 */
-  --size-figure: 30px; /* a headline figure: Heading 2's size */
+  --size-figure: 30px;
 
-  /* Layout (brand README, "Layout and components"): 32–48 px in the app */
+  /* Corners: one scale. Tags 6, icon tiles 10, fields 14, cards 20, the key
+     figure's card 26, sheets 32; buttons, chips, badges, status, the segmented
+     control and the current place are pills. What is round by meaning (an
+     avatar, a radio, a chart's dot) is a circle. */
+  --radius-tag: 6px;
+  --radius-tile: 10px;
+  --radius-field: 14px;
+  --radius-card: 20px;
+  --radius-hero: 26px;
+  --radius-sheet: 32px;
+  --radius-pill: 999px;
+  --radius-button: var(--radius-pill);
+  --radius-chip: var(--radius-pill);
+  --radius-check: 5px;
+
+  /* Layout: 20 from the screen's edges, 12 to 16 between cards. */
   --content-max: 1200px;
-  --gutter: 24px;
-  --section-gap: 40px;
-  /* Corners are square (brand README, "Corners"): every radius is 0, kept
-     as tokens so it stays one switch. Only what is a circle by meaning (a
-     chart's dot, a radio's indicator) is round. */
-  --radius-card: 0; /* cards, panels, tables, dialogs, banners, problems */
-  --radius-button: 0; /* buttons, links styled as places */
-  --radius-field: 0; /* inputs, selects, text areas */
-  --radius-chip: 0; /* tags, badges, loading lines */
-  --radius-focus: 0; /* the focus ring's outline */
+  --page-max: 1400px;
+  --gutter: 20px;
+  --section-gap: 28px;
   --button-height: 40px;
-  --topbar-height: 56px;
+  --field-height: 48px;
+  --topbar-height: 64px;
   --side-width: 236px;
-  --side-rail: 64px;
+  --side-rail: 72px;
   --target: 24px; /* WCAG 2.2's 2.5.8; 44 px at phone width, below */
   --measure: 68ch;
 
@@ -147,18 +157,17 @@
     /* Touch: every button and field 44 px, every other target at least 44. */
     --button-height: 44px;
     --target: 44px;
-    --size-h1: 32px;
-    --size-h2: 26px;
+    --size-h1: 28px;
+    --size-h2: 24px;
     --size-h3: 20px;
     --size-figure: 26px;
-    --section-gap: 32px;
+    --section-gap: 24px;
+    --topbar-height: 56px;
   }
 }
 
 @media (max-width: 480px) {
   :root {
-    --gutter: 16px;
-    --size-h1: 28px;
     --size-mono: 13px;
   }
 }

@@ -186,8 +186,9 @@ async def test_the_console_signs_in_on_salli_s_own_page_and_gets_api_tokens(sall
     assert page.status_code == 200
     assert "<title>Sign in to Salli</title>" in page.text
     assert "<h1>Sign in to Salli</h1>" in page.text
-    # One button: the console has no deny path, only closing the page.
-    assert page.text.count("<button") == 1 and "name=decision value=deny" not in page.text
+    # One main button, and a Cancel that is the deny path (no sign-in needed).
+    assert page.text.count("<button") == 2 and ">Sign in</button>" in page.text
+    assert "<button class=q name=decision value=deny formnovalidate>Cancel</button>" in page.text
     assert "require-trusted-types-for 'script'" in page.headers["content-security-policy"]
 
     tokens = await _sign_in(salli)
@@ -209,6 +210,18 @@ async def test_a_wrong_password_on_the_page_signs_nobody_in(salli):
     assert decided.status_code == 401
     assert "location" not in decided.headers
     assert "a wrong guess" not in decided.text
+    # The refusal sits above the form and the email stays for the next try.
+    assert decided.text.index("role=alert") < decided.text.index("<form")
+    assert f'value="{OWNER}"' in decided.text
+
+
+async def test_cancel_on_the_page_returns_to_the_console_denied(salli):
+    to_page = await _authorize(salli)
+    rt = parse_qs(urlparse(to_page.headers["location"]).query)["rt"][0]
+    cancelled = await salli.post("/mcp/oauth/consent-page", data={"rt": rt, "decision": "deny"})
+    assert cancelled.status_code == 303
+    assert "error=access_denied" in cancelled.headers["location"]
+    assert "/console/callback" in cancelled.headers["location"]
 
 
 async def test_pkce_is_s256_only_and_a_wrong_verifier_is_refused(salli):

@@ -553,11 +553,11 @@ WCAG 2.2 AA, checked at 360, 768 and 1280 px, light and dark.
 - **Tokens in one file,** `packages/console/src/styles/tokens.css`, the code
   copy of the brand README's tables, mirrored by the site. The brand README's
   "change the tokens together" note gains this file.
-- **The brand's components:** 12 columns, bone panels with hairline borders,
-  sticky table headers, figures right-aligned in tabular figures, totals with
-  a hairline above and a double rule below, section labels after a small
-  outlined square.
-- **Phones:** a bottom bar with five places (Home, Cash, Decide, Books,
+- **The brand's components:** 12 columns, cards with a soft shadow, sticky
+  table headers in a rounded container, figures right-aligned in tabular
+  figures, totals with a hairline above and a double rule below, headings in
+  sentence case.
+- **Phones:** a floating bottom bar with five places (Home, Cash, Decide, Books,
   More); tables become lists of rows that keep their figures right-aligned.
 
 ### Numbers, dates and language
@@ -1148,9 +1148,12 @@ Playwright's image, where the screenshots are made.
    a golden household's books.
 6. **The warning mark is oxblood on light.** Clay is 2.0:1 on paper; the
    words say it too.
-7. **Square corners.** The owner changed the design system during C1: every
-   radius token is 0, and only dots and radio indicators are round. The
-   brand README records it with decision 11's chart and focus-ring change.
+7. **Rounded corners (superseding the square corners the owner chose during
+   C1).** In November 2026 the owner approved the rounded design (v2): one
+   radius scale (6, 10, 14, 20, 26, 32 and the pill), soft shadows instead of
+   outlines, and a quieter palette (ground, surface, fill, ink, green, red;
+   bone, sand, oxblood and brass retired). Every component names its radius
+   from `tokens.css`. The brand README records it.
 8. **The npm package is the console's source**, which an edition's Vite
    build compiles, and depends on the SDK at an exact version (0.4.0), which
    must be released first; `release.yml` stops a `server-v` tag until it is.
@@ -1610,9 +1613,8 @@ sessionStorage, localStorage, the query cache and the mutation cache.
 **The kit grew; nothing forked.** `FileField` (the browser's own file
 input), `CheckboxField`, `Secret`, `Field` taking a password type and a
 list of suggestions, and `useWrite`'s `secret`; all exported for editions.
-Every checkbox is drawn square in `kit.css`, since the browser's own box is
-rounded; a radio stays the browser's, a circle by meaning, and with forced
-colours the system draws the checkbox again.
+Every checkbox and radio is drawn in `kit.css` so they agree (20 px, corners
+5 and a circle); with forced colours the system draws them again.
 
 **No API change.** Every page reads and writes through operations the CLI
 already has.
@@ -1774,8 +1776,8 @@ the logo, the theme and who is signed in.
   crumbs. A `Section` is a card with its label inside, and `aside` puts a
   control at its head (a chart's range); a `Panel` in a section is the
   card's body.
-- `SubNav` is a segmented row on a bone track.
-- `Icon` (24 px grid, 1.5 px strokes, square caps); `Chip`, `IdChip` (an
+- `SubNav` is a segmented row on a pill track.
+- `Icon` (24 px grid, 1.75 px strokes, round caps and joins); `Chip`, `IdChip` (an
   id's first eight characters, as the salli command shows them, the
   whole id on hover), `AccountChip` and `TypeMark` (asset filled,
   liability hollow, income sand, spending graphite, equity brass, the

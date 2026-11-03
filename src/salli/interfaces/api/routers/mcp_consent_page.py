@@ -36,6 +36,7 @@ import hashlib
 import html
 from dataclasses import dataclass
 from typing import Annotated, Any
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -52,65 +53,107 @@ from salli.interfaces.api.deps import AppServices
 
 router = APIRouter(tags=["mcp-oauth"])
 
-# The brand (docs/brand/README.md): paper and ink, ledger green for the
-# primary action, sand for the secondary, oxblood (clay at night) for an
-# error; night, paper-on-dark and sand-on-dark in the dark. System fonts, so
-# the page makes no font request. The focus ring is ledger green, and
-# sand-on-dark at night, not the brand's brass: brass is 2.4:1 on paper, below
-# the 3:1 a focus indicator needs (console decision 11). A field's border is
-# stone (muted on dark), not hairline, so its edge is at least 3:1. Inputs and
-# buttons are 44 px, a touch target.
+# The brand, rounded (docs/brand/README.md, v2): a centred card on the ground
+# colour, ink for the main button, green for focus and the checked box, red
+# (a softer red at night) for an error; the v2 dark palette under
+# prefers-color-scheme. System fonts, so the page makes no font request.
+# Fields and buttons are 48 px; a field is a fill with a visible green focus
+# ring; the secondary button has its own ring, so it reads on dark too. One
+# <style> block, no style= attribute, no script, no image: its size matters,
+# every response carries it.
 _STYLE = (
-    ":root{color-scheme:light dark;--paper:#F6F3EC;--bone:#ECE6D9;--hairline:#DCD4C4;"
-    "--field:#8A8378;--ink:#1C1B19;--graphite:#57524A;--green:#173B33;--sand:#D8CBAE;"
-    "--error:#6B2620;--on-green:#F6F3EC;--focus:#173B33;--mark:#173B33}"
-    "@media (prefers-color-scheme:dark){:root{--paper:#0E1513;--bone:#0F2924;"
-    "--hairline:#2B3A35;--field:#9AAAA2;--ink:#F2ECDF;--graphite:#9AAAA2;--green:#CDBF9F;"
-    "--sand:#0F2924;--error:#E2A58F;--on-green:#0E1513;--focus:#CDBF9F;--mark:#CDBF9F}}"
+    ":root{color-scheme:light dark;--g:#F3F2EF;--s:#fff;--f:#EFEEEA;--ln:#ECEBE7;"
+    "--ink:#18201C;--mut:#5F6661;--acc:#2E6A55;--at:#E4EFE9;--neg:#A8483A;--nt:#F8E9E5;"
+    "--btx:#fff;--bth:#2F3A34;--edge:#8C928E;--q:#EFEEEA;--qr:transparent;"
+    "--sh:0 2px 6px rgba(24,32,28,.06),0 16px 40px rgba(24,32,28,.10)}"
+    "@media (prefers-color-scheme:dark){:root{--g:#0E1110;--s:#171B19;--f:#232825;"
+    "--ln:rgba(255,255,255,.08);--ink:#ECEFEC;--mut:#9BA39D;--acc:#7CC0A5;--at:#1F3A30;"
+    "--neg:#E58E7C;--nt:#3B2622;--btx:#0E1110;--bth:#fff;--edge:#6F7773;--q:#2B322E;"
+    "--qr:#4D5651;--sh:inset 0 1px 0 rgba(255,255,255,.07),0 20px 50px rgba(0,0,0,.5)}}"
     "*{box-sizing:border-box}"
-    "body{margin:0;background:var(--paper);color:var(--ink);"
-    "font:16px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif}"
-    "main{max-width:26rem;margin:0 auto;padding:4rem 1rem}"
-    ".brand{margin:0 0 2rem}"
-    ".brand svg{display:block;width:89px;height:26px}"
-    ".brand .m{fill:var(--mark)}.brand .w{fill:var(--ink)}"
-    "h1{font-size:1.4rem;line-height:1.3;letter-spacing:-.01em;font-weight:600;margin:0 0 .6rem}"
+    "body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--g);"
+    "color:var(--ink);font:16px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif}"
+    "main{width:min(100%,26rem);margin:1.5rem 1rem;padding:1.75rem;background:var(--s);"
+    "border-radius:24px;box-shadow:var(--sh)}"
+    ".top{display:flex;align-items:center;justify-content:space-between;gap:.6rem;"
+    "margin:0 0 1.5rem}"
+    ".brand{margin:0}.brand svg{display:block;width:89px;height:26px}"
+    ".brand .m,.brand .w{fill:var(--ink)}"
+    ".srv{display:inline-flex;align-items:center;gap:.4rem;height:28px;padding:0 .65rem;"
+    "border-radius:999px;background:var(--f);color:var(--mut);min-width:0;"
+    "font:12.5px ui-monospace,'SF Mono',Menlo,monospace}"
+    ".srv span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+    "svg.i{flex:none;width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;"
+    "stroke-linecap:round;stroke-linejoin:round}"
+    "h1{font-size:1.5rem;line-height:1.25;letter-spacing:-.02em;font-weight:600;margin:0 0 .6rem}"
     "p{margin:0 0 1rem}"
-    "label{display:block;margin:1rem 0 .3rem;font-size:.875rem;font-weight:500;"
-    "color:var(--graphite)}"
-    "input{width:100%;height:44px;padding:0 .7rem;font:inherit;color:var(--ink);"
-    "background:var(--bone);border:1px solid var(--field);border-radius:0}"
+    ".lede{color:var(--mut);font-size:.97rem}"
+    "label{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;"
+    "margin:1.1rem .15rem .4rem;font-size:.875rem;font-weight:500;color:var(--mut)}"
+    ".opt{padding:0 .5rem;border-radius:999px;background:var(--g);font-size:.75rem}"
+    "input{width:100%;height:48px;padding:0 .9rem;font:inherit;color:var(--ink);"
+    "background:var(--f);border:0;border-radius:14px;outline:2px solid transparent}"
+    "input:focus-visible{background:var(--s);outline:2px solid transparent;"
+    "box-shadow:inset 0 0 0 1.5px var(--acc),0 0 0 4px var(--at)}"
+    ".help{margin:.4rem .15rem 0;font-size:.8125rem;color:var(--mut)}"
     ".row{display:flex;gap:.6rem;margin-top:1.4rem}"
-    "button{flex:1;height:44px;padding:0 1rem;font:inherit;font-weight:500;cursor:pointer;"
-    "border-radius:0;border:1px solid var(--green);background:var(--green);"
-    "color:var(--on-green)}"
-    "button[value=deny]{background:var(--sand);border-color:var(--hairline);color:var(--ink)}"
-    "input:focus-visible,button:focus-visible{outline:2px solid var(--focus);"
-    "outline-offset:2px}"
-    ".err{color:var(--error);margin-top:1rem}"
-    ".muted{color:var(--graphite);font-size:.875rem;margin-top:1.4rem}"
-    ".muted+.muted{margin-top:0}"
-    ".allow{border:0;padding:0;margin:1.2rem 0 0}"
-    ".allow legend{font-weight:600;color:var(--ink)}"
-    ".allow p{display:flex;gap:.6rem;align-items:flex-start;margin:.6rem 0 0}"
-    ".allow input{flex:none;width:24px;height:24px;margin:0;accent-color:var(--green)}"
-    ".allow label{margin:0;font-size:1rem;font-weight:400;color:var(--ink)}"
-    ".allow small{display:block;color:var(--graphite);font-size:.875rem}"
-    ".unverified{display:inline-block;margin-left:.4rem;padding:0 .4rem;font-size:.75rem;"
-    "font-weight:500;letter-spacing:0;vertical-align:middle;color:var(--graphite);"
-    "border:1px solid var(--field)}"
+    "button,.btn{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;"
+    "height:48px;padding:0 1.1rem;font:inherit;font-weight:600;cursor:pointer;border:0;"
+    "border-radius:999px;background:var(--ink);color:var(--btx);text-decoration:none}"
+    ".row button{flex:1;width:auto}"
+    "button:hover{background:var(--bth)}"
+    "button[value=deny],.btn.q{background:var(--q);color:var(--ink);box-shadow:inset 0 0 0 1px var(--qr)}"
+    "button.q{height:40px;margin-top:.4rem;background:none;color:var(--mut);box-shadow:none;"
+    "font-weight:500}"
+    "button.q:hover{background:var(--f)}"
+    ".btn.q{color:var(--acc);margin-top:1rem}"
+    "button:focus-visible,.btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}"
+    ".err{display:flex;gap:.6rem;align-items:flex-start;margin:1rem 0 0;padding:.75rem .9rem;"
+    "border-radius:14px;background:var(--nt);font-size:.9rem;line-height:1.45}"
+    ".err svg{margin-top:.2rem;color:var(--neg)}"
+    ".muted{color:var(--mut);font-size:.84rem;line-height:1.5;margin:1.1rem .15rem 0;"
+    "padding-top:1rem;border-top:1px solid var(--ln)}"
+    ".muted+.muted{margin-top:.4rem;padding-top:0;border:0}"
+    ".allow{border:0;margin:1.2rem 0 0;padding:.9rem 1rem .3rem;border-radius:18px;"
+    "background:var(--g)}"
+    ".allow legend{float:left;width:100%;padding:0;font-weight:600}"
+    ".allow legend+*{clear:both}"
+    ".allow small{display:block;color:var(--mut);font-size:.84rem;font-weight:400}"
+    ".allow p{display:flex;gap:.7rem;align-items:flex-start;margin:0;padding:.65rem 0}"
+    ".allow p+p{border-top:1px solid var(--ln)}"
+    ".allow label{display:block;margin:0;font-size:1rem;font-weight:400;color:var(--ink)}"
+    "input[type=checkbox]{appearance:none;flex:none;width:22px;height:22px;margin:1px 0 0;"
+    "padding:0;display:grid;place-content:center;border-radius:7px;background:var(--s);"
+    "box-shadow:inset 0 0 0 1.5px var(--edge);cursor:pointer}"
+    "input[type=checkbox]::before{content:'';width:10px;height:5px;margin-top:-2px;"
+    "border:solid var(--btx);border-width:0 0 2.5px 2.5px;border-radius:1px;"
+    "transform:rotate(-45deg);visibility:hidden}"
+    "input[type=checkbox]:checked{background:var(--acc);box-shadow:none}"
+    "input[type=checkbox]:checked::before{visibility:visible}"
+    "input[type=checkbox]:focus-visible{outline:2px solid var(--acc);outline-offset:2px;"
+    "box-shadow:inset 0 0 0 1.5px var(--acc)}"
+    ".badge{display:inline-flex;align-items:center;gap:.4rem;height:26px;padding:0 .65rem;"
+    "margin:0 0 .7rem;border-radius:999px;background:var(--f);color:var(--mut);"
+    "font-size:.78rem;font-weight:500}"
+    "code{font:.9rem ui-monospace,'SF Mono',Menlo,monospace;overflow-wrap:anywhere}"
+    ".key,.codes{margin:1rem 0;padding:.8rem 1rem;border-radius:16px;background:var(--g)}"
+    ".key small{display:block;color:var(--mut);font-size:.78rem}"
+    ".codes{display:grid;grid-template-columns:1fr 1fr;gap:.6rem 1rem}"
+    ".ok{text-align:center}"
+    ".ok .disc{display:grid;place-items:center;width:56px;height:56px;margin:0 auto 1rem;"
+    "border-radius:50%;background:var(--acc);color:var(--btx);font-size:1.6rem}"
 )
 
 #: The logo, outlined (docs/brand/assets/salli-logo.svg; the wordmark is never
 #: retyped), inline so the page loads nothing; the stylesheet colours it for
-#: light and dark: the mark ledger green (sand on dark), the wordmark ink
-#: (paper on dark).
+#: light and dark: ink for both. The bars have round ends (rx is half a
+#: bar's height); two rows split differently, the same length in all.
 _LOGO = (
     '<svg viewBox="0 0 472.214 137.829" role="img" aria-label="Salli">'
-    '<rect class=m x="28.71" y="28.71" width="74.66" height="28.71"/>'
-    '<rect class=m x="113.42" y="28.71" width="30.15" height="28.71"/>'
-    '<rect class=m x="28.71" y="80.40" width="30.15" height="28.71"/>'
-    '<rect class=m x="68.91" y="80.40" width="74.66" height="28.71"/>'
+    '<rect class=m x="28.71" y="28.71" width="74.66" height="28.71" rx="14.355"/>'
+    '<rect class=m x="113.42" y="28.71" width="30.15" height="28.71" rx="14.355"/>'
+    '<rect class=m x="28.71" y="80.40" width="30.15" height="28.71" rx="14.355"/>'
+    '<rect class=m x="68.91" y="80.40" width="74.66" height="28.71" rx="14.355"/>'
     '<path class=w transform="translate(193.42 109.11)" d="'
     "M30.72 1.92Q22.92 1.92 16.02 0.12Q9.12 -1.68 4.92 -4.08L5.28 -22.32H14.16L17.76 "
     "-3.96L9.6 -5.52V-12.12Q12.84 -9.96 16.02 -8.46Q19.2 -6.96 22.68 -6.12Q26.16 -5.28 30.36 "
@@ -179,12 +222,45 @@ _HEADERS = {
 }
 
 
+#: A small icon, an inline SVG (the page loads no image); `svg.i` in the style.
+_ICON_LOCK = (
+    '<svg class=i viewBox="0 0 24 24" aria-hidden=true><rect x=5 y=11 width=14 height=9.5 rx=3 />'
+    '<path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'
+)
+_ICON_ALERT = (
+    '<svg class=i viewBox="0 0 24 24" aria-hidden=true><circle cx=12 cy=12 r=8.5 />'
+    '<path d="M12 7.5v5.5M12 16.2h.01"/></svg>'
+)
+_ICON_INFO = (
+    '<svg class=i viewBox="0 0 24 24" aria-hidden=true><circle cx=12 cy=12 r=8.5 />'
+    '<path d="M12 11v5M12 8h.01"/></svg>'
+)
+_ICON_KEY = (
+    '<svg class=i viewBox="0 0 24 24" aria-hidden=true><circle cx=8 cy=15 r=4 />'
+    '<path d="M11 12l8-8M16 7l2 2M14 9l2 2"/></svg>'
+)
+_ICON_TICK = (
+    '<svg class=i viewBox="0 0 24 24" aria-hidden=true><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
+)
+
+
+def _server_host() -> str:
+    """The server's address as people know it: SALLI_PUBLIC_URL's host."""
+    try:
+        return urlsplit(get_settings().salli_public_url).netloc
+    except Exception:  # a page must render even with settings unreadable
+        return ""
+
+
 def _page(body: str, status_code: int = 200, title: str = "Connect to Salli") -> HTMLResponse:
+    host = _server_host()
+    server = f"<span class=srv>{_ICON_LOCK}<span>{html.escape(host)}</span></span>" if host else ""
     return HTMLResponse(
         "<!doctype html><html lang=en-GB><head><meta charset=utf-8>"
         '<meta name=viewport content="width=device-width,initial-scale=1">'
         f"<title>{html.escape(title)}</title><style>{_STYLE}</style></head>"
-        f"<body><main><p class=brand>{_LOGO}</p>{body}</main></body></html>",
+        f"<body><main><div class=top><p class=brand>{_LOGO}</p>{server}</div>"
+        f"{body}</main></body></html>",
         status_code=status_code,
         headers=_HEADERS,
     )
@@ -201,19 +277,34 @@ def _forgotten(dev: bool) -> str:
     return "" if dev else _FORGOTTEN
 
 
-def _who(dev: bool, autofocus: bool = True) -> str:
-    focus = " autofocus" if autofocus else ""
+def _who(dev: bool, autofocus: bool = True, kept: str = "") -> str:
+    """The sign-in fields. `kept` is the email (or user id) the person typed,
+    put back after a refusal; the password never is, so focus goes to it."""
+    e = html.escape
+    focus = " autofocus" if autofocus and not kept else ""
+    value = f' value="{e(kept)}"' if kept else ""
     if dev:
-        return f"<label for=user_id>User id</label><input id=user_id name=user_id required{focus}>"
+        return (
+            f"<label for=user_id>User id</label>"
+            f"<input id=user_id name=user_id{value} required{focus}>"
+        )
+    on_password = " autofocus" if autofocus and kept else ""
     return (
         "<label for=email>Email</label>"
-        f"<input id=email name=email type=email autocomplete=username required{focus}>"
+        f"<input id=email name=email type=email autocomplete=username{value} required{focus}>"
         "<label for=password>Password</label>"
-        "<input id=password name=password type=password autocomplete=current-password required>"
-        "<label for=code>Authenticator code, if you've turned on two-step sign-in</label>"
+        "<input id=password name=password type=password autocomplete=current-password "
+        f"required{on_password}>"
+        "<label for=code>Authenticator code <span class=opt>optional</span></label>"
         "<input id=code name=code autocomplete=one-time-code autocapitalize=none "
         "spellcheck=false maxlength=64>"
+        "<p class=help>Only if you've turned on two-step sign-in. A recovery code works too.</p>"
     )
+
+
+def _error(message: str) -> str:
+    """A refusal, above the form: a rounded notice with an icon."""
+    return f"<div class=err role=alert>{_ICON_ALERT}<span>{html.escape(message)}</span></div>"
 
 
 def _asking(client: str, audience: str, client_id: str = "") -> str:
@@ -288,22 +379,30 @@ def _title(info: dict[str, Any]) -> str:
     return f"Connect {client} to your Salli?"
 
 
-def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "") -> str:
+def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "", kept: str = "") -> str:
     """The sign-in form. Salli's console and its app read plainly as signing
-    in to Salli, with one button; a client asking the person to confirm it's them
-    again says so; any other client is allowed or denied by name."""
+    in to Salli, with one main button and a Cancel; a client asking the person
+    to confirm it's them again says so; any other client is allowed or denied
+    by name. A refusal is shown above the form and the email is kept.
+
+    Cancel is the existing deny path (`decision=deny`, no sign-in needed): it
+    sends the browser to the client's own registered redirect with
+    `error=access_denied`, which the console, the app and the CLI handle."""
     e = html.escape
     audience = info.get("audience", "mcp")
     if info.get("reauthenticate"):
-        intro = "<p>Enter your password again to continue.</p>"
+        intro = "<p class=lede>Enter your password again to continue.</p>"
     elif _is_salli(info):
         intro = ""
     else:
         asking = _asking(info["client_name"], audience, str(info.get("client_id") or ""))
-        intro = f"<p>{asking}</p>"
+        intro = f"<p class=lede>{asking}</p>"
     if info.get("reauthenticate") or _is_salli(info):
         label = "Continue" if info.get("reauthenticate") else "Sign in"
-        buttons = f"<div class=row><button name=decision value=allow>{label}</button></div>"
+        buttons = (
+            f"<div class=row><button name=decision value=allow>{label}</button></div>"
+            "<button class=q name=decision value=deny formnovalidate>Cancel</button>"
+        )
     else:
         buttons = (
             "<div class=row><button name=decision value=allow>Allow</button>"
@@ -314,15 +413,15 @@ def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "") -> str:
     unverified = (
         ""
         if info.get("first_party") or info.get("reauthenticate")
-        else " <span class=unverified>Not verified by Salli</span>"
+        else f"<span class=badge>{_ICON_INFO}Not verified by Salli</span>"
     )
     return (
-        f"<h1>{e(_title(info))}{unverified}</h1>{intro}"
-        "<form method=post>"
-        f'<input type=hidden name=rt value="{e(rt)}">{_who(dev)}'
+        f"<h1>{e(_title(info))}</h1>{unverified}{intro}"
+        + (_error(error) if error else "")
+        + "<form method=post>"
+        f'<input type=hidden name=rt value="{e(rt)}">{_who(dev, kept=kept)}'
         + (_ALLOW_CHANGES if _offers_changes(info) and not info.get("reauthenticate") else "")
         + buttons
-        + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
         + (
             "<p class=muted>You can disconnect it any time.</p>"
             if _is_apps_ai(info) and not info.get("reauthenticate")
@@ -382,7 +481,7 @@ async def consent_page(
     try:
         info = await svc.mcp_oauth.get_consent_info(rt, user_id="")
     except ConsentError as exc:
-        return _page(f"<h1>Can't connect</h1><p>{html.escape(str(exc))}</p>", 400)
+        return _page(f"<h1>Can't connect</h1><p class=lede>{html.escape(str(exc))}</p>", 400)
     return _page(_form(rt, info, insecure_dev_auth(settings)), title=_title(info))
 
 
@@ -402,11 +501,15 @@ async def consent_page_decision(
     try:
         info = await svc.mcp_oauth.get_consent_info(rt, user_id="")
     except ConsentError as exc:
-        return _page(f"<h1>Can't connect</h1><p>{html.escape(str(exc))}</p>", 400)
+        return _page(f"<h1>Can't connect</h1><p class=lede>{html.escape(str(exc))}</p>", 400)
     dev = insecure_dev_auth(settings)
 
     def again(refusal: _Refusal) -> HTMLResponse:
-        return _page(_form(rt, info, dev, refusal.message), refusal.status_code, title=_title(info))
+        return _page(
+            _form(rt, info, dev, refusal.message, kept=user_id if dev else email.strip()),
+            refusal.status_code,
+            title=_title(info),
+        )
 
     approve = decision == "allow"
     if approve:
@@ -443,24 +546,28 @@ _DEVICE_TITLE = "Sign in a device"
 
 
 def _device_form(
-    user_code: str, dev: bool, error: str = "", client: str = "", ai: bool = False
+    user_code: str,
+    dev: bool,
+    error: str = "",
+    client: str = "",
+    ai: bool = False,
+    kept: str = "",
 ) -> str:
     e = html.escape
     what = (
-        f"<p>{e(client)} on another device is waiting to be signed in.</p>"
+        f"<p class=lede>{e(client)} on another device is waiting to be signed in.</p>"
         if client
-        else "<p>Enter the code your other device shows to sign it in.</p>"
+        else "<p class=lede>Enter the code your other device shows to sign it in.</p>"
     )
     return (
-        "<h1>Sign in a device</h1>" + what + "<form method=post>"
+        "<h1>Sign in a device</h1>" + what + (_error(error) if error else "") + "<form method=post>"
         "<label for=user_code>Code</label>"
         f'<input id=user_code name=user_code value="{e(user_code)}" required '
         'autocomplete=off autocapitalize=characters spellcheck=false placeholder="ABCD-EFGH">'
-        + _who(dev, autofocus=bool(user_code))
+        + _who(dev, autofocus=bool(user_code), kept=kept)
         + (_ALLOW_CHANGES if ai else "")
         + "<div class=row><button name=decision value=allow>Allow</button>"
         "<button name=decision value=deny formnovalidate>Deny</button></div>"
-        + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
         + "<p class=muted>Only approve a code you asked for, on a device you are using.</p>"
         + _forgotten(dev)
         + "</form>"
@@ -509,7 +616,12 @@ async def device_page_decision(
     def again(refusal: _Refusal) -> HTMLResponse:
         return _page(
             _device_form(
-                user_code, dev, refusal.message, client=info["client_name"], ai=_is_ai(info)
+                user_code,
+                dev,
+                refusal.message,
+                client=info["client_name"],
+                ai=_is_ai(info),
+                kept=user_id if dev else email.strip(),
             ),
             refusal.status_code,
             title=_DEVICE_TITLE,
@@ -534,8 +646,11 @@ async def device_page_decision(
     except ConsentError as exc:
         return again(_Refusal(str(exc)))
     if not approve:
-        return _page("<h1>Declined</h1><p>The device was not signed in.</p>", title=_DEVICE_TITLE)
+        return _page(
+            "<h1>Declined</h1><p class=lede>The device was not signed in.</p>", title=_DEVICE_TITLE
+        )
     return _page(
-        "<h1>Signed in</h1><p>You can close this page and go back to your other device.</p>",
+        f"<div class=ok><span class=disc>{_ICON_TICK}</span><h1>Signed in</h1>"
+        "<p class=lede>You can close this page and go back to your other device.</p></div>",
         title=_DEVICE_TITLE,
     )
