@@ -13,6 +13,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
 from salli.adapters.auth.passwords import Argon2PasswordHasher
+from salli.application.defaults import FullAccess
 from salli.application.services.access_grant_service import AccessGrantService
 from salli.application.services.login_service import LoginService
 from salli.application.services.personal_access_token_service import PersonalAccessTokenService
@@ -89,12 +90,16 @@ async def test_over_http_the_grantee_only_reads_the_grantors_books(uow_factory):
     async def member(*_: object, **__: object) -> bool:
         return True
 
+    async def profile(*_: object, **__: object) -> dict[str, str]:
+        return {"email": "someone@example.org"}
+
     app = create_app()
     app.dependency_overrides[get_services] = lambda: SimpleNamespace(
         tokens=tokens,
         access=access,
+        entitlements=FullAccess(),
         reminders=reminders,
-        profile=SimpleNamespace(ensure_user=member),
+        profile=SimpleNamespace(ensure_user=member, get_profile=profile),
     )
     app.dependency_overrides[get_settings] = lambda: Settings(
         _env_file=None, environment="production"

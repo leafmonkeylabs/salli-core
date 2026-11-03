@@ -268,22 +268,31 @@ class LoginService:
     async def create_account(
         self,
         email: str,
-        password: str,
+        password: str | None,
         *,
         base_currency: str | None = None,
         owner: bool = False,
         user_id: str | None = None,
+        password_hash: str | None = None,
     ) -> dict[str, Any]:
         """A new account that can sign in: a profile (kept in `base_currency`,
         or the instance's default) and its login. `user_id` gives a profile
         that already exists a login instead. Raises LoginExists if the email
-        has an account, or `owner` is asked for and there is one already."""
+        has an account, or `owner` is asked for and there is one already.
+
+        An extension that verified the password earlier (a sign-up that waits
+        for an emailed code keeps only a hash) passes that `password_hash`,
+        made by this service's hasher, and `password=None`: the policy was
+        its to check then."""
         address = normalize_email(email)
-        check_password(password, address)
-        password_hash = await self._hasher.hash(password)
+        if (password is None) == (password_hash is None):
+            raise ValueError("Give a password or a password_hash, not both and not neither.")
+        if password is not None:
+            check_password(password, address)
+            password_hash = await self._hasher.hash(password)
         async with self._uow_factory() as uow:
             return await self._create(
-                uow, address, password_hash, base_currency, owner=owner, user_id=user_id
+                uow, address, str(password_hash), base_currency, owner=owner, user_id=user_id
             )
 
     async def _create(

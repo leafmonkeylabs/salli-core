@@ -20,7 +20,7 @@ from salli.domain.llm import Tier
 # The message a `Notifier` delivers, built by core (domain/notifications).
 from salli.domain.notifications.digest import Notification as Notification
 from salli.domain.notifications.digest import NotificationItem as NotificationItem
-from salli.domain.usage import AIAction
+from salli.domain.usage import AIAction, CapabilityRefused
 
 
 class LedgerRepository(ABC):
@@ -2267,7 +2267,10 @@ class UsageMeter(ABC):
 
     Called before the model runs, so the user is refused before any inference
     is spent rather than after. Return to allow the action; raise
-    `salli.domain.usage.UsageLimitReached` to refuse it.
+    `salli.domain.usage.UsageLimitReached` to refuse it (with an `Offer` and
+    its own `problem_type` if it has them). `own_key` is whether the model
+    runs on the person's own key or plan, which the deployment does not pay
+    for; False when that is not known.
     """
 
     @abstractmethod
@@ -2278,6 +2281,7 @@ class UsageMeter(ABC):
         *,
         model_id: str | None = None,
         email: str | None = None,
+        own_key: bool = False,
     ) -> None: ...
 
 
@@ -2304,13 +2308,40 @@ class Surface(StrEnum):
     ADVISOR_REPORT = "advisor.report"
 
 
+class Capability(StrEnum):
+    """Something core asks `PayloadView.allows` before it does it. An
+    extension may define names of its own (any string); core asks only these."""
+
+    #: Giving another member access to the person's books.
+    MEMBER_SHARING = "member-sharing"
+    #: Reading a bank statement with a format the person supplies.
+    BANK_FORMATS = "bank-formats"
+
+
 class PayloadView(Protocol):
     """One user's view of the shapeable surfaces. Synchronous: everything it
-    needs was resolved when `EntitlementPolicy.for_user` returned it."""
+    needs was resolved when `EntitlementPolicy.for_user` returned it.
+
+    A view may also define `allows(capability: str) -> bool` (anything it does
+    not define is allowed) and `offer(capability: str) -> Offer | None`, which
+    a refusal carries; see `require_capability`."""
 
     def shape(self, surface: Surface, payload: dict[str, Any]) -> dict[str, Any]:
         """Return the payload as this user may see it. Must not mutate `payload`."""
         ...
+
+
+async def require_capability(
+    policy: EntitlementPolicy, user_id: str, email: str | None, capability: str
+) -> None:
+    """Raise `CapabilityRefused` unless the person's view allows `capability`.
+    A view without an `allows` method allows everything."""
+    view = await policy.for_user(user_id, email)
+    allows = getattr(view, "allows", None)
+    if allows is None or allows(capability):
+        return
+    offer = getattr(view, "offer", None)
+    raise CapabilityRefused(str(capability), offer(capability) if offer else None)
 
 
 class EntitlementPolicy(ABC):

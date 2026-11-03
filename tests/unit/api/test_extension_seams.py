@@ -268,7 +268,7 @@ async def test_on_a_users_own_plan_the_meter_hears_the_plans_model(client, mock_
     await client.post("/agent/chat", json={"thread_id": "t1", "message": "hi"}, headers=AUTH)
 
     mock_services.usage.charge.assert_awaited_once_with(
-        "test-user-1", AIAction.CHAT_MESSAGE, model_id="gpt-test-best", email=None
+        "test-user-1", AIAction.CHAT_MESSAGE, model_id="gpt-test-best", email=None, own_key=True
     )
     kwargs = mock_services.agent.stream_chat.call_args.kwargs
     assert kwargs["model"] == "gpt-test-best"

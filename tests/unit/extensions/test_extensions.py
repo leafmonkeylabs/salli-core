@@ -252,3 +252,87 @@ def test_action_values_are_stable():
         "advisor_run",
         "statement_upload",
     }
+
+
+# ── Panels, system paths, capabilities ───────────────────────────────────────
+
+
+async def _panel(user_id):
+    return {}
+
+
+def test_two_extensions_cannot_share_a_panel_id():
+    from salli.extensions import PanelSpec
+
+    a = Extension(name="a", panels=[PanelSpec("home", "Home", _panel)])
+    b = Extension(name="b", panels=[PanelSpec("home", "Home", _panel)])
+    with pytest.raises(ExtensionError, match="two extensions"):
+        combine([a, b])
+    assert [p.id for p in combine([a]).panels] == ["home"]
+    with pytest.raises(ExtensionError, match="not valid"):
+        combine([Extension(name="c", panels=[PanelSpec("Bad Id", "x", _panel)])])
+
+
+def test_a_system_path_needs_a_reason_and_cannot_take_a_core_name(monkeypatch):
+    from salli.application import acting
+
+    monkeypatch.setattr(acting, "SYSTEM_PATHS", dict(acting.SYSTEM_PATHS))
+
+    def load(paths):
+        from salli.extensions import ExtensionSpec
+
+        mine = ExtensionSpec(
+            name="mine", build=lambda ctx: Extension(name="mine"), system_paths=paths
+        )
+        ep = EntryPoint("mine", "tests.unit.extensions.test_extensions:_loaded", "salli.extensions")
+        globals()["_loaded"] = mine
+        return load_specs(["mine"], discover=_discover(ep))
+
+    load({"sweeper": "looks at everyone's books to sweep them"})
+    assert "sweeper" in acting.SYSTEM_PATHS
+    with pytest.raises(ExtensionError, match="already taken"):
+        load({"members": "something else"})
+    with pytest.raises(ExtensionError, match="reason"):
+        load({"quiet": " "})
+    assert "quiet" not in acting.SYSTEM_PATHS
+
+
+async def test_the_defaults_allow_every_capability_and_a_view_without_the_method_too():
+    from salli.application.defaults import FullAccess
+    from salli.application.ports import Capability, EntitlementPolicy, require_capability
+    from salli.domain.usage import CapabilityRefused, Offer
+
+    await require_capability(FullAccess(), "u", None, Capability.MEMBER_SHARING)
+
+    class Old(EntitlementPolicy):
+        async def for_user(self, user_id, email=None):
+            return object()  # a view written before capabilities
+
+    await require_capability(Old(), "u", None, Capability.BANK_FORMATS)
+
+    class Refusing(EntitlementPolicy):
+        async def for_user(self, user_id, email=None):
+            class V:
+                def allows(self, capability):
+                    return capability != "bank-formats"
+
+                def offer(self, capability):
+                    return Offer("t", "d", "l", "p")
+
+            return V()
+
+    await require_capability(Refusing(), "u", None, Capability.MEMBER_SHARING)
+    with pytest.raises(CapabilityRefused) as refused:
+        await require_capability(Refusing(), "u", None, Capability.BANK_FORMATS)
+    assert (refused.value.capability, refused.value.offer.panel) == ("bank-formats", "p")
+
+
+def test_a_problem_type_is_the_extensions_own_when_it_is_a_slug():
+    from salli.domain.usage import AIAction, UsageLimitReached
+
+    def limit(**kw):
+        return UsageLimitReached(AIAction.ENTRY_PARSE, message="m", **kw)
+
+    assert limit().problem_type == "usage-limit"
+    assert limit(problem_type="plan-limit").problem_type == "plan-limit"
+    assert limit(problem_type="../x").problem_type == "usage-limit"

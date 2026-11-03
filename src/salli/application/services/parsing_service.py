@@ -588,7 +588,12 @@ class ParsingService:
             why_not = "with no AI key set up"
         if llm is not None and self._usage is not None:
             try:
-                await self._usage.charge(user_id, AIAction.STATEMENT_IMPORT, email=email)
+                await self._usage.charge(
+                    user_id,
+                    AIAction.STATEMENT_IMPORT,
+                    email=email,
+                    **({"own_key": True} if getattr(llm, "source", "") == "user" else {}),
+                )
             except UsageLimitReached as limit:
                 if on_usage_limit == "raise":
                     raise

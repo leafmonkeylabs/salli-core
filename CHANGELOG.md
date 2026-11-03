@@ -4,6 +4,19 @@
 
 ### Added
 
+- **Extension seams, all generic.** An extension's entitlement policy may
+  now refuse giving another member access to your books and a supplied
+  bank format (`Capability`, a 403 `/problems/capability-refused`); a
+  refusal, and a usage limit, may carry an `offer` (`title`, `detail`,
+  `label`, `panel`), and a usage limit its own `/problems/` type;
+  `UsageMeter.charge` is told when the model runs on your own key. Extensions
+  may add screens, `salli.panel/1` documents (`GET /v1/panels`, `salli panels
+  list|show`, `/v1/meta.panels`; docs/design/panels.md), root-level pages,
+  system-path names of their own, and may make an account from a password hash
+  made earlier (`create_account(..., password_hash=)`). An extension's
+  routers are no longer also served at the old unversioned path.
+  docs/self-host.md, "What an extension may add".
+
 - **The phone at every text size, and to VoiceOver.** From xxxL rows stack
   their title over their details, Home's and More's tiles and Books'
   actions go one to a row, a budget line puts its category on its own line

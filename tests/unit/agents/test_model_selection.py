@@ -92,12 +92,8 @@ class TestPriceMatchesWhatRuns:
         root = pathlib.Path(__file__).resolve().parents[3] / "src" / "salli"
         sites = []
         for path in root.rglob("*.py"):
-            for line in path.read_text().splitlines():
-                m = self._CHARGE.search(line)
-                if m:
-                    sites.append(
-                        (path.relative_to(root).as_posix(), m.group(1), m.group(2) or "None")
-                    )
+            for m in self._CHARGE.finditer(path.read_text()):
+                sites.append((path.relative_to(root).as_posix(), m.group(1), m.group(2) or "None"))
         return sites
 
     def test_every_metered_site_is_accounted_for(self):

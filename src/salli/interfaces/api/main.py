@@ -52,7 +52,7 @@ from salli.domain.llm import LLMError
 from salli.domain.scenarios import ScenarioError
 from salli.domain.secrets import redact
 from salli.domain.taxrules.explain import UnknownLine
-from salli.domain.usage import UsageLimitReached
+from salli.domain.usage import CapabilityRefused, UsageLimitReached
 from salli.extensions import enabled_specs
 from salli.interfaces.api import experimental
 from salli.interfaces.api.console import NoStoreMiddleware, console_router
@@ -88,6 +88,7 @@ from salli.interfaces.api.routers import (
     meta,
     notifications,
     onboarding,
+    panels,
     portfolio,
     principles,
     reconciliation,
@@ -325,14 +326,17 @@ def create_app() -> FastAPI:
         baseline.router,
         banks.router,
     ]
-    # Routers contributed by enabled extensions (salli/extensions.py), after
-    # Salli's own, so an extension adds paths but cannot shadow one of Salli's.
-    rest += [router for spec in enabled_specs(settings) for router in spec.api_routers]
     for router in rest:
         app.include_router(router, prefix=API_PREFIX)
         app.include_router(
             router, include_in_schema=False, dependencies=[Depends(_deprecated_path)]
         )
+    # Routers contributed by enabled extensions (salli/extensions.py), after
+    # Salli's own, so an extension adds paths but cannot shadow one of Salli's.
+    # Under /v1 only: an unversioned path is for `root_routers` below.
+    for spec in enabled_specs(settings):
+        for router in spec.api_routers:
+            app.include_router(router, prefix=API_PREFIX)
     app.include_router(meta.router, prefix=API_PREFIX)
     # New in /v1, so with no unversioned path to keep.
     app.include_router(scenarios.router, prefix=API_PREFIX)
@@ -348,6 +352,12 @@ def create_app() -> FastAPI:
     app.include_router(notifications.router, prefix=API_PREFIX)
     app.include_router(devices.router, prefix=API_PREFIX)
     app.include_router(access.router, prefix=API_PREFIX)
+    app.include_router(panels.router, prefix=API_PREFIX)
+    # Pages an extension declares at the root (an unversioned path it cannot
+    # move under /v1), outside the schema and mounted as written.
+    for spec in enabled_specs(settings):
+        for router in spec.root_routers:
+            app.include_router(router, include_in_schema=False)
     # The console's static files, at /console: here, so before the MCP app's
     # catch-all mount at "/", which the lifespan adds last. None when it is
     # switched off (SALLI_CONSOLE=false) or no console is built.
@@ -605,7 +615,26 @@ def create_app() -> FastAPI:
     # JSON response rather than an SSE error event.
     @app.exception_handler(UsageLimitReached)
     async def usage_limit_handler(request: Request, exc: UsageLimitReached) -> JSONResponse:
-        return problem(exc.status_code, "usage-limit", "Usage limit reached", exc.detail)
+        return problem(
+            exc.status_code,
+            exc.problem_type,
+            "Usage limit reached",
+            exc.detail,
+            {"offer": exc.offer.as_json()} if exc.offer else None,
+        )
+
+    # The deployment's entitlement policy does not allow this (a capability
+    # core asked about, application/ports.Capability). It may say what the
+    # person can do about it: the `offer`.
+    @app.exception_handler(CapabilityRefused)
+    async def capability_refused_handler(request: Request, exc: CapabilityRefused) -> JSONResponse:
+        return problem(
+            status.HTTP_403_FORBIDDEN,
+            "capability-refused",
+            "Not available",
+            str(exc),
+            {"capability": exc.capability, **({"offer": exc.offer.as_json()} if exc.offer else {})},
+        )
 
     # A model request that could not be served: a ChatGPT plan at its usage
     # limit (429, with where to change it), a sign-in to renew (409), a

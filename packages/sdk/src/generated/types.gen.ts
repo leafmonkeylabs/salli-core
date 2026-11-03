@@ -241,6 +241,53 @@ export type AccountOverview = {
 };
 
 /**
+ * Action
+ */
+export type Action = {
+    /**
+     * Method
+     */
+    method: 'POST' | 'DELETE';
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Body
+     */
+    body?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Then
+     */
+    then: 'refresh' | 'close';
+};
+
+/**
+ * ActionRow
+ */
+export type ActionRow = {
+    /**
+     * Kind
+     */
+    kind: 'action';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Detail
+     */
+    detail?: string | null;
+    /**
+     * Confirm
+     */
+    confirm?: string | null;
+    action: Action;
+};
+
+/**
  * AddAccountRequest
  */
 export type AddAccountRequest = {
@@ -6120,6 +6167,32 @@ export type FiScoreSnapshot = {
 };
 
 /**
+ * Field_
+ */
+export type Field = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Type
+     */
+    type: 'text' | 'number' | 'select';
+    /**
+     * Options
+     */
+    options?: Array<Option> | null;
+    /**
+     * Required
+     */
+    required?: boolean;
+};
+
+/**
  * FileUpload
  *
  * A multipart/form-data body carrying one file, as `file`.
@@ -6201,6 +6274,25 @@ export type ForecastDay = {
      * Decimal string in the currency's own precision; never a float.
      */
     balance: string;
+};
+
+/**
+ * FormRow
+ */
+export type FormRow = {
+    /**
+     * Kind
+     */
+    kind: 'form';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Fields
+     */
+    fields: Array<Field>;
+    submit: Submit;
 };
 
 /**
@@ -7896,6 +7988,28 @@ export type LevelReading = {
 };
 
 /**
+ * LinkRow
+ */
+export type LinkRow = {
+    /**
+     * Kind
+     */
+    kind: 'link';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Detail
+     */
+    detail?: string | null;
+    /**
+     * Url
+     */
+    url: string;
+};
+
+/**
  * LlmKeyStatus
  *
  * A stored key, described without revealing it.
@@ -8190,6 +8304,10 @@ export type Meta = {
      * Extensions
      */
     extensions: Array<string>;
+    /**
+     * Panels
+     */
+    panels: boolean;
     oauth: OAuthInfo;
     /**
      * Default Currency
@@ -9066,6 +9184,20 @@ export type OpeningBalanceItem = {
 };
 
 /**
+ * Option
+ */
+export type Option = {
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
  * OptionSensitivity
  */
 export type OptionSensitivity = {
@@ -9076,6 +9208,60 @@ export type OptionSensitivity = {
     conservative: SensitiveFigures;
     base: SensitiveFigures;
     growth: SensitiveFigures;
+};
+
+/**
+ * Panel
+ */
+export type Panel = {
+    /**
+     * Schema
+     */
+    schema: 'salli.panel/1';
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Sections
+     */
+    sections: Array<Section>;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * PanelEntry
+ */
+export type PanelEntry = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Entry
+     */
+    entry: 'more' | 'settings' | null;
+};
+
+/**
+ * PanelList
+ */
+export type PanelList = {
+    /**
+     * Panels
+     */
+    panels: Array<PanelEntry>;
 };
 
 /**
@@ -12521,6 +12707,24 @@ export type ScheduledDigests = {
 };
 
 /**
+ * Section
+ */
+export type Section = {
+    /**
+     * Heading
+     */
+    heading?: string | null;
+    /**
+     * Rows
+     */
+    rows: Array<TextRow | LinkRow | ActionRow | FormRow>;
+    /**
+     * Footnote
+     */
+    footnote?: string | null;
+};
+
+/**
  * SeededReminders
  */
 export type SeededReminders = {
@@ -13360,6 +13564,28 @@ export type StopRecurringChange = {
      * Label
      */
     label?: string | null;
+};
+
+/**
+ * Submit
+ */
+export type Submit = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Method
+     */
+    method: 'POST';
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Then
+     */
+    then: 'refresh' | 'close';
 };
 
 /**
@@ -15567,6 +15793,24 @@ export type TemplateWhen = {
 };
 
 /**
+ * TextRow
+ */
+export type TextRow = {
+    /**
+     * Kind
+     */
+    kind: 'text';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Value
+     */
+    value?: string | null;
+};
+
+/**
  * TimelineDay
  *
  * Cash, all accounts together, at the end of a day, under the baseline
@@ -16036,6 +16280,30 @@ export type Token = {
 };
 
 /**
+ * ProblemOffer
+ *
+ * What a refused person may do next, in the deployment's words.
+ */
+export type ProblemOffer = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Panel
+     */
+    panel: string;
+};
+
+/**
  * Problem
  *
  * An error, as RFC 9457 problem details (`application/problem+json`).
@@ -16070,6 +16338,11 @@ export type Problem = {
      * Max Age
      */
     max_age?: number | null;
+    /**
+     * Capability
+     */
+    capability?: string | null;
+    offer?: ProblemOffer | null;
 };
 
 export type AuthMeData = {
@@ -25048,6 +25321,73 @@ export type AccessRevokeResponses = {
 };
 
 export type AccessRevokeResponse = AccessRevokeResponses[keyof AccessRevokeResponses];
+
+export type PanelsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/panels';
+};
+
+export type PanelsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type PanelsListError = PanelsListErrors[keyof PanelsListErrors];
+
+export type PanelsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: PanelList;
+};
+
+export type PanelsListResponse = PanelsListResponses[keyof PanelsListResponses];
+
+export type PanelsShowData = {
+    body?: never;
+    path: {
+        /**
+         * Panel Id
+         */
+        panel_id: string;
+    };
+    query?: never;
+    url: '/v1/panels/{panel_id}';
+};
+
+export type PanelsShowErrors = {
+    /**
+     * No such panel
+     */
+    404: Problem;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * It could not be built
+     */
+    500: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type PanelsShowError = PanelsShowErrors[keyof PanelsShowErrors];
+
+export type PanelsShowResponses = {
+    /**
+     * Successful Response
+     */
+    200: Panel;
+};
+
+export type PanelsShowResponse = PanelsShowResponses[keyof PanelsShowResponses];
 
 export type MetaHealthData = {
     body?: never;

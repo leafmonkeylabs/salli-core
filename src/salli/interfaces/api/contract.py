@@ -55,6 +55,9 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/access-grants"): "access.list",
     ("POST", "/access-grants"): "access.grant",
     ("DELETE", "/access-grants/{grant_id}"): "access.revoke",
+    # screens an extension adds
+    ("GET", "/panels"): "panels.list",
+    ("GET", "/panels/{panel_id}"): "panels.show",
     # accounts
     ("GET", "/accounts/"): "accounts.list",
     ("POST", "/accounts/"): "accounts.create",
@@ -488,6 +491,17 @@ CountryCode = Annotated[
 ]
 
 
+class ProblemOffer(BaseModel):
+    """What a refused person may do next, in the deployment's words."""
+
+    title: str
+    detail: str
+    #: The button.
+    label: str
+    #: The id of the panel to open (`GET /v1/panels/{id}`).
+    panel: str
+
+
 class Problem(BaseModel):
     """An error, as RFC 9457 problem details (`application/problem+json`).
 
@@ -508,6 +522,13 @@ class Problem(BaseModel):
     #: check must be. Send the person through the sign-in page again
     #: (`prompt=login`), then retry.
     max_age: int | None = None
+    #: On a `/problems/capability-refused`: what was refused (a name the
+    #: deployment's policy knows, such as `member-sharing`).
+    capability: str | None = None
+    #: On a refusal that has a way forward (`/problems/usage-limit`,
+    #: `/problems/capability-refused`, or an extension's own type): what the
+    #: person may do, and the panel (`GET /v1/panels/{id}`) that does it.
+    offer: ProblemOffer | None = None
 
 
 _PROBLEM_REF = {"$ref": "#/components/schemas/Problem"}
@@ -542,7 +563,9 @@ def document_problems(spec: dict[str, Any]) -> dict[str, Any]:
                 {"description": "An error, as RFC 9457 problem details", "content": problem_json},
             )
     schemas = spec.setdefault("components", {}).setdefault("schemas", {})
-    schemas["Problem"] = Problem.model_json_schema()
+    problem = Problem.model_json_schema(ref_template="#/components/schemas/{model}")
+    schemas.update(problem.pop("$defs", {}))
+    schemas["Problem"] = problem
     # FastAPI's validation-error shapes, now that nothing refers to them
     # (in this order: the first is what refers to the second).
     for name in ("HTTPValidationError", "ValidationError"):
