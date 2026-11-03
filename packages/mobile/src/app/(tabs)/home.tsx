@@ -19,7 +19,7 @@ import { ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'reac
 import Animated from 'react-native-reanimated';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { useApi, useRead, useReach } from '../../api';
-import { Body, Button, Card, Icon, Loading, Money, Notice, Press, Ring, Section, Skeleton, Surface, radii, shape, useLargeText } from '../../kit';
+import { Body, Button, Card, Icon, Money, Notice, Press, Ring, Section, Skeleton, Surface, radii, shape, useLargeText } from '../../kit';
 import { filled, lineChart } from '../../lib/chart';
 import { scoreShown } from '../../lib/fi';
 import { listMotion, useReducedMotion } from '../../motion';
@@ -275,7 +275,6 @@ function ScoreRing({ share, text }: { share: number; text: string }) {
 
 /** What needs attention: Salli's signals, reminders due, decisions due for review. */
 function Attention({ unreachable, noFlows }: { unreachable: boolean; noFlows: boolean }) {
-  const theme = useTheme();
   const list = listMotion(useReducedMotion());
   const signals = useRead('insights.signals', insightsSignals);
   const reminders = useRead('reminders.list', remindersList, { query: { status: 'pending' } });
