@@ -451,6 +451,50 @@ secrets in its own tables and settings, give the extension
 `user_data_purgers` and `user_data_exporters` for them, so erasing and
 exporting an account reach them, and never log a message's text.
 
+## What an extension may add beyond a notifier
+
+An extension (`salli.extensions`, `ExtensionSpec` and `Extension`) reaches core
+through generic seams only; core knows none of its words.
+
+- **Capabilities.** Before core gives another member access to a person's
+  books (`Capability.MEMBER_SHARING`) or reads a statement with a bank format
+  the person supplies (`Capability.BANK_FORMATS`), it asks the entitlement
+  policy: the `PayloadView` that `EntitlementPolicy.for_user` returns may
+  define `allows(capability: str) -> bool` (a name core does not know is the
+  extension's own; anything the view does not define is allowed) and
+  `offer(capability) -> Offer | None`. A refusal is a 403
+  `/problems/capability-refused` with `capability` and the `offer`. An
+  extension asks its own capabilities the same way, with
+  `require_capability(services.entitlements, user_id, email, "its-name")`.
+- **Offers.** An `Offer(title, detail, label, panel)` rides on a
+  `CapabilityRefused` or a `UsageLimitReached`, and shows in the problem as
+  `offer: {title, detail, label, panel}`: `panel` is the id of a panel the
+  clients open. `UsageLimitReached(..., offer=..., problem_type="its-own")`
+  also names the problem's type (`/problems/its-own`, a lower-case slug;
+  `usage-limit` otherwise). `UsageMeter.charge` receives `own_key=True` when the
+  model runs on the person's own key or plan (a meter written before it
+  existed is not passed the argument at all).
+  Problems are listed in the API document: the `Problem` schema
+  (`openapi/openapi.json`, from `interfaces/api/contract.py`) names the members
+  each type adds, and `main.py` has a handler for each core type.
+- **Panels.** `Extension.panels` is a list of `PanelSpec(id, title, builder,
+  entry)`, `builder` an async function from a user id to a `salli.panel/1`
+  document ([docs/design/panels.md](design/panels.md)); `entry` is `"more"`,
+  `"settings"` or none. `GET /v1/panels` lists them, `GET /v1/panels/{id}`
+  builds one, `salli panels list|show`. A panel that fails or is invalid is a
+  logged 500 for that panel alone.
+- **Root pages.** `ExtensionSpec.api_routers` are mounted under `/v1` only;
+  `ExtensionSpec.root_routers` at the server's root as written (a sign-up
+  page), outside the API document.
+- **Accounts with a verified password.** `LoginService.create_account(email,
+  None, password_hash=...)` makes an account from a hash made earlier with the
+  server's hasher, for a sign-up that checks the password's policy, then
+  waits for an emailed code.
+- **System paths.** `ExtensionSpec.system_paths` is a `{name: reason}`
+  mapping, added to `acting.SYSTEM_PATHS` when the extension loads, for what
+  acts across people (`acting.as_system(name)`). A core name cannot be taken,
+  and a name nobody registered is still refused.
+
 ## Push alerts
 
 The phone app registers itself for push alerts (`POST /v1/devices`; `salli

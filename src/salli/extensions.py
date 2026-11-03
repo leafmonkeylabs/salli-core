@@ -17,7 +17,8 @@ A spec has two halves, because they are needed at different times:
   ChatGPT plan: a hosted product needs OpenAI's approval first), an
   `IdentityProvider` (sign-in through an outside provider, such as OIDC), a
   `Notifier` (delivers the digests core builds: an email, a push, a chat),
-  extra services, and purgers and exporters for its own per-user tables. Called by `build_services`, before Salli's own services are built so
+  extra services, panels (server-driven screens for the phone and the console,
+  docs/design/panels.md), and purgers and exporters for its own per-user tables. Called by `build_services`, before Salli's own services are built so
   the meter and policy can be injected into them.
 
 Installing a package is not enough to activate it. Only the extensions named in
@@ -31,8 +32,9 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import EntryPoint, entry_points
-from typing import Any, cast
+from typing import Any, Literal, cast
 
+from salli.application import acting
 from salli.application.defaults import (
     ChatGPTPlanAllowed,
     FullAccess,
@@ -46,6 +48,7 @@ from salli.application.ports import (
     Notifier,
     UsageMeter,
 )
+from salli.domain.panels import PANEL_ID
 
 ENTRY_POINT_GROUP = "salli.extensions"
 
@@ -58,6 +61,23 @@ UserDataPurger = Callable[[Any, str], Awaitable[dict[str, int]]]
 #: Returns one user's data from an extension's own tables, for "export my
 #: data". Receives the user id; returns top-level keys merged into the export.
 UserDataExporter = Callable[[str], Awaitable[dict[str, Any]]]
+
+
+#: Returns one user's panel (docs/design/panels.md) as a dict. Core checks it
+#: against the schema before it is sent.
+PanelBuilder = Callable[[str], Awaitable[dict[str, Any]]]
+
+
+@dataclass(frozen=True)
+class PanelSpec:
+    """A screen the phone and the console may show, in the extension's words.
+    `entry` puts it in the "more" list or the settings list; None: only
+    reachable from an offer or another panel's link."""
+
+    id: str
+    title: str
+    builder: PanelBuilder
+    entry: Literal["more", "settings"] | None = None
 
 
 class ExtensionError(RuntimeError):
@@ -98,6 +118,8 @@ class Extension:
     notifier: Notifier | None = None
     #: Extra services, reachable as `services.extensions.services[key]`.
     services: dict[str, Any] = field(default_factory=dict[str, Any])
+    #: Screens for the clients (`GET /v1/panels`).
+    panels: list[PanelSpec] = field(default_factory=list[PanelSpec])
     user_data_purgers: list[UserDataPurger] = field(default_factory=list[UserDataPurger])
     user_data_exporters: list[UserDataExporter] = field(default_factory=list[UserDataExporter])
 
@@ -110,6 +132,12 @@ class ExtensionSpec:
     build: Callable[[ExtensionContext], Extension]
     #: FastAPI `APIRouter`s, mounted after Salli's own routers.
     api_routers: tuple[Any, ...] = ()
+    #: `APIRouter`s mounted at the server's root, as written, and nowhere
+    #: else: pages and callbacks that cannot live under /v1 (a sign-up page).
+    root_routers: tuple[Any, ...] = ()
+    #: Names this extension acts across people under, with the reason each
+    #: must (`acting.SYSTEM_PATHS`). Core's own names cannot be taken.
+    system_paths: dict[str, str] = field(default_factory=dict[str, str])
     #: (name, typer.Typer) pairs, added to the `salli-server` CLI as sub-commands.
     cli_groups: tuple[tuple[str, Any], ...] = ()
     #: The extension's own Alembic script directory, if it owns tables. Its
@@ -128,6 +156,7 @@ class Contributions:
     services: dict[str, Any]
     user_data_purgers: list[UserDataPurger]
     user_data_exporters: list[UserDataExporter] = field(default_factory=list[UserDataExporter])
+    panels: tuple[PanelSpec, ...] = ()
     names: tuple[str, ...] = ()
     chatgpt_plan: ChatGPTPlanPolicy = field(default_factory=ChatGPTPlanAllowed)
     #: None unless an extension supplied one: Salli's own sign-in is the only one.
@@ -180,8 +209,20 @@ def load_specs(
             raise ExtensionError(
                 f"Extension {name!r} resolved to {type(spec).__name__}, not an ExtensionSpec."
             )
+        _register_system_paths(spec)
         specs.append(spec)
     return specs
+
+
+def _register_system_paths(spec: ExtensionSpec) -> None:
+    for name, reason in spec.system_paths.items():
+        if not name or not reason.strip():
+            raise ExtensionError(f"Extension {spec.name!r}: a system path needs a name and reason.")
+        if name in acting.SYSTEM_PATHS and acting.SYSTEM_PATHS[name] != reason:
+            raise ExtensionError(
+                f"Extension {spec.name!r}: the system path {name!r} is already taken."
+            )
+        acting.SYSTEM_PATHS[name] = reason
 
 
 def enabled_specs(settings: Any) -> list[ExtensionSpec]:
@@ -220,6 +261,7 @@ def combine(extensions: list[Extension]) -> Contributions:
     services: dict[str, Any] = {}
     purgers: list[UserDataPurger] = []
     exporters: list[UserDataExporter] = []
+    panels: dict[str, PanelSpec] = {}
 
     for ext in extensions:
         if ext.usage_meter is not None:
@@ -252,6 +294,12 @@ def combine(extensions: list[Extension]) -> Contributions:
             if key in services:
                 raise ExtensionError(f"Service {key!r} is provided by two extensions.")
             services[key] = service
+        for panel in ext.panels:
+            if not PANEL_ID.fullmatch(panel.id) or panel.entry not in ("more", "settings", None):
+                raise ExtensionError(f"Panel {panel.id!r} of {ext.name!r} is not valid.")
+            if panel.id in panels:
+                raise ExtensionError(f"Panel {panel.id!r} is provided by two extensions.")
+            panels[panel.id] = panel
         purgers.extend(ext.user_data_purgers)
         exporters.extend(ext.user_data_exporters)
 
@@ -261,6 +309,7 @@ def combine(extensions: list[Extension]) -> Contributions:
         services=services,
         user_data_purgers=purgers,
         user_data_exporters=exporters,
+        panels=tuple(panels.values()),
         names=tuple(ext.name for ext in extensions),
         chatgpt_plan=plan[1] if plan else ChatGPTPlanAllowed(),
         identity_provider=identity[1] if identity else None,

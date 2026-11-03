@@ -33,11 +33,15 @@ class UnmeteredUsage(UsageMeter):
         *,
         model_id: str | None = None,
         email: str | None = None,
+        own_key: bool = False,
     ) -> None:
         return None
 
 
 class _FullView:
+    def allows(self, capability: str) -> bool:
+        return True
+
     def shape(self, surface: Surface, payload: dict[str, Any]) -> dict[str, Any]:
         return payload
 

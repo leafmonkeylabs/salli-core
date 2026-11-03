@@ -359,6 +359,7 @@ export class MockSalli {
       api_version: this.options.apiVersion ?? '1',
       server_version: '0.1.0',
       extensions: [],
+      panels: false,
       oauth: {
         issuer: base,
         authorization_endpoint: `${base}/mcp/oauth/authorize`,

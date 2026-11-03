@@ -128,6 +128,7 @@ EXEMPT = {
     "GET /healthz": "the operator's health check",
     "GET /v1/meta": "the server's version and extensions, for clients",
     "* /v1/auth/*": "the person's own sign-ins, password and two-step: first-party only",
+    "* /v1/panels*": "screens for Salli's own apps: their actions act for the person",
     "* /v1/tokens*": "personal access tokens: credentials an agent never mints",
     "* /v1/mcp/connections/*": "the person's AI connections: an agent never widens its own",
     "* /v1/llm-keys*": "the person's AI provider keys: secrets",

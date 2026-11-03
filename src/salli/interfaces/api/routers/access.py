@@ -18,8 +18,10 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
+from salli.application.ports import Capability, require_capability
 from salli.interfaces.api.deps import (
     AppServices,
+    CurrentEmail,
     CurrentPrincipal,
     CurrentUser,
     require_recent_password,
@@ -63,7 +65,11 @@ async def list_access_grants(user_id: CurrentUser, svc: AppServices) -> AccessGr
     },
 )
 async def grant_access(
-    body: GrantAccessRequest, user_id: CurrentUser, principal: CurrentPrincipal, svc: AppServices
+    body: GrantAccessRequest,
+    user_id: CurrentUser,
+    email: CurrentEmail,
+    principal: CurrentPrincipal,
+    svc: AppServices,
 ) -> AccessGrant:
     """Let another member read your books, until either of you ends it."""
     if principal.method == "pat" or (
@@ -74,6 +80,7 @@ async def grant_access(
             detail="Only your own sign-in to Salli (the app, the console or the salli CLI) "
             "can give access to your books.",
         )
+    await require_capability(svc.entitlements, user_id, email, Capability.MEMBER_SHARING)
     try:
         granted = await svc.access.grant(user_id, body.email)
     except LookupError as exc:
