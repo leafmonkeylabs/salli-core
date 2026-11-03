@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Body, Button, Icon, Title } from '../kit';
+import { Body, Button, Field, Icon, Press, Title } from '../kit';
+import { BackLink } from '../shell';
 import { invitationOf } from '../lib/server';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
@@ -34,53 +35,44 @@ export default function Join() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.ground }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.page, { paddingTop: insets.top + 4, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
-          <Icon name="back" colour={theme.text} />
-          <Body>{t.back}</Body>
-        </Pressable>
+        <BackLink label={t.back} onPress={() => router.back()} />
         <View style={{ gap: 8 }}>
           <Title>{t.title}</Title>
           <Body muted>{t.body}</Body>
         </View>
 
-        <View style={{ gap: 8 }}>
-          <Text style={[styles.fieldLabel, { color: theme.text }]}>
-            {t.label}
-          </Text>
-          <TextInput
-            accessibilityLabel={t.label}
+        <View style={{ gap: 12 }}>
+          <Field
+            label={t.label}
             accessibilityHint={t.help}
             value={typed}
             onChangeText={setTyped}
             onSubmitEditing={() => void go()}
             placeholder={t.placeholder}
-            placeholderTextColor={theme.muted}
             keyboardType="url"
             textContentType="URL"
             autoCapitalize="none"
             autoCorrect={false}
             spellCheck={false}
             returnKeyType="go"
-            style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
+            mono
+            {...(wrong ? { error: t.notALink } : {})}
           />
-          {wrong ? <Body alert>{t.notALink}</Body> : null}
-          <View style={{ marginTop: 8 }}>
-            <Button label={t.continue} busy={open} disabled={open} onPress={() => void go()} />
-          </View>
+          <Button label={t.continue} busy={open} disabled={open} onPress={() => void go()} />
         </View>
         <Body small muted>
           {t.note}
         </Body>
 
         <View style={{ flex: 1 }} />
-        <View style={[styles.foot, { borderTopColor: theme.line }]}>
+        <View style={styles.foot}>
           <Body style={{ fontFamily: font.medium }}>{t.noInvitation}</Body>
-          <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(t.pilotUrl)} style={styles.link}>
-            <Body style={{ flex: 1 }}>{t.pilot}</Body>
-            <Icon name="chevron" size={18} colour={theme.muted} />
-          </Pressable>
+          <Press highlight accessibilityRole="link" onPress={() => void Linking.openURL(t.pilotUrl)} style={styles.link}>
+            <Body small style={{ flex: 1, color: theme.green }}>{t.pilot}</Body>
+            <Icon name="external" size={16} colour={theme.green} />
+          </Press>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -88,10 +80,7 @@ export default function Join() {
 }
 
 const styles = StyleSheet.create({
-  page: { flexGrow: 1, paddingHorizontal: size.gutter, gap: 22 },
-  back: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingRight: 12 },
-  fieldLabel: { fontFamily: font.medium, fontSize: size.small },
-  input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontFamily: font.mono, fontSize: size.body },
-  foot: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 6 },
+  page: { flexGrow: 1, paddingHorizontal: size.gutter, gap: size.section },
+  foot: { paddingTop: 12, gap: 6 },
   link: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

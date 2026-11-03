@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Body, Button, Icon, Problem, SectionLabel } from '../kit';
+import { Body, Button, Problem, Section, Surface, Tag } from '../kit';
+import { BackLink } from '../shell';
 import { isThisMachine, type ServerCheck } from '../lib/server';
 import { findServer, useSession, type SignInResult } from '../session';
 import { strings } from '../strings';
@@ -44,11 +45,8 @@ export default function Connect() {
   };
 
   return (
-    <ScrollView style={{ backgroundColor: theme.surface }} contentContainerStyle={[styles.page, { paddingTop: insets.top + 4, paddingBottom: insets.bottom + 24 }]}>
-      <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
-        <Icon name="back" colour={theme.text} />
-        <Body>{t.back}</Body>
-      </Pressable>
+    <ScrollView style={{ backgroundColor: theme.ground }} contentContainerStyle={[styles.page, { paddingTop: insets.top + 4, paddingBottom: insets.bottom + 24 }]}>
+      <BackLink label={t.back} onPress={() => router.back()} />
 
       {found === undefined ? (
         <Text accessibilityLiveRegion="polite" style={[styles.value, { color: theme.muted }]}>
@@ -56,17 +54,16 @@ export default function Connect() {
         </Text>
       ) : found.ok ? (
         <>
-          <View style={{ gap: 8 }}>
-            <SectionLabel>{t.found}</SectionLabel>
+          <Section title={t.found}>
             <Text accessibilityRole="header" style={[styles.host, { color: theme.text }]}>
               {server}
             </Text>
-          </View>
-          <View style={{ borderTopColor: theme.line, borderTopWidth: StyleSheet.hairlineWidth }}>
-            <Fact name={t.version} value={found.meta.server_version} mono />
-            <Fact name={t.api} value={`✓ ${t.apiOk}`} />
-            <Fact name={t.connection} value={`✓ ${isThisMachine(server) && !server.startsWith('https:') ? t.local : t.https}`} />
-          </View>
+            <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
+              <Fact name={t.version} value={found.meta.server_version} mono />
+              <Fact name={t.api} value={t.apiOk} good />
+              <Fact name={t.connection} value={isThisMachine(server) && !server.startsWith('https:') ? t.local : t.https} good last />
+            </Surface>
+          </Section>
           <Body muted>{t.signInNote}</Body>
           {result && !result.ok ? (
             <Problem
@@ -106,12 +103,12 @@ export default function Connect() {
   );
 }
 
-function Fact({ name, value, mono, muted }: { name: string; value: string; mono?: boolean; muted?: boolean }) {
+function Fact({ name, value, mono, good, last }: { name: string; value: string; mono?: boolean; good?: boolean; last?: boolean }) {
   const theme = useTheme();
   return (
-    <View style={[styles.fact, { borderBottomColor: theme.line }]}>
+    <View style={[styles.fact, last ? null : { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth }]}>
       <Body muted>{name}</Body>
-      <Text style={[mono ? styles.mono : styles.value, { color: muted ? theme.muted : theme.text }]}>{value}</Text>
+      {good ? <Tag tone="green">{value}</Tag> : <Text style={[mono ? styles.mono : styles.value, { color: theme.text }]}>{value}</Text>}
     </View>
   );
 }
@@ -126,10 +123,9 @@ function Retry({ onRetry }: { onRetry: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  page: { flexGrow: 1, paddingHorizontal: size.gutter, gap: 24 },
-  back: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingRight: 12 },
-  host: { fontFamily: font.mono, fontSize: 20 },
-  fact: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  page: { flexGrow: 1, paddingHorizontal: size.gutter, gap: size.section },
+  host: { fontFamily: font.mono, fontSize: size.headline },
+  fact: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, minHeight: 56, paddingVertical: 12 },
   value: { fontFamily: font.regular, fontSize: size.body },
   mono: { fontFamily: font.mono, fontSize: size.small },
 });

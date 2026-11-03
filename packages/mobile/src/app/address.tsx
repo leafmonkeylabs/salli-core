@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Body, Button, Icon, Logo, Title } from '../kit';
+import { Body, Button, Field, Icon, IconTile, Logo, Press, Surface, Tag, Title } from '../kit';
+import { BackLink } from '../shell';
 import { serverUrlOf } from '../lib/server';
 import { useSession } from '../session';
 import { strings } from '../strings';
@@ -36,14 +37,11 @@ export default function Address() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.ground }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.page, { paddingTop: insets.top + 4, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
         {/* Reached from where the books live, Salli's server or your own. */}
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
-          <Icon name="back" colour={theme.text} />
-          <Body>{t.back}</Body>
-        </Pressable>
-        <View style={{ marginLeft: -8 }}>
+        <BackLink label={t.back} onPress={() => router.back()} />
+        <View>
           <Logo height={40} />
         </View>
         <View style={{ gap: 10 }}>
@@ -51,56 +49,48 @@ export default function Address() {
           <Body muted>{adding ? t.addBody : t.body}</Body>
         </View>
 
-        <View style={{ gap: 8 }}>
-          <Text style={[styles.fieldLabel, { color: theme.text }]}>
-            {t.label}
-          </Text>
-          <TextInput
-            accessibilityLabel={t.label}
+        <View style={{ gap: 12 }}>
+          <Field
+            label={t.label}
             accessibilityHint={t.help}
             value={typed}
             onChangeText={setTyped}
             onSubmitEditing={check}
             placeholder={t.placeholder}
-            placeholderTextColor={theme.muted}
             keyboardType="url"
             textContentType="URL"
             autoCapitalize="none"
             autoCorrect={false}
             spellCheck={false}
             returnKeyType="go"
-            style={[styles.input, { backgroundColor: theme.fill, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
+            mono
+            {...(wrong ? { error: t.notAnAddress } : {})}
           />
-          {wrong ? <Body alert>{t.notAnAddress}</Body> : null}
-          <View style={{ marginTop: 8 }}>
-            <Button label={t.check} onPress={check} />
-          </View>
+          <Button label={t.check} onPress={check} />
         </View>
 
         {/* Planned: a pairing code needs the server's side (salli ui --qr) first. */}
-        <View accessible accessibilityState={{ disabled: true }} accessibilityLabel={`${t.scan}. ${t.planned}. ${t.scanHelp}`} style={[styles.scan, { borderColor: theme.line }]}>
-          <Icon name="scan" colour={theme.muted} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Body style={{ fontFamily: font.medium }}>{t.scan}</Body>
-            <Body small muted>
-              {t.scanHelp}
-            </Body>
+        <Surface kind="inset">
+          <View accessible accessibilityState={{ disabled: true }} accessibilityLabel={`${t.scan}. ${t.planned}. ${t.scanHelp}`} style={styles.scan}>
+            <IconTile name="scan" tone="fill" />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Body style={{ fontFamily: font.medium }}>{t.scan}</Body>
+              <Body small muted>
+                {t.scanHelp}
+              </Body>
+            </View>
+            <Tag>{t.planned}</Tag>
           </View>
-          <Text style={[styles.chip, { color: theme.muted, borderColor: theme.line }]}>{t.planned}</Text>
-        </View>
+        </Surface>
 
         <View style={{ flex: 1 }} />
         {/* Adding a server, the person has one: no need to say how to run one. */}
         {adding ? null : (
           <>
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => void Linking.openURL(t.noServerUrl)}
-              style={[styles.link, { borderColor: theme.line }]}
-            >
-              <Body style={{ flex: 1 }}>{t.noServer}</Body>
-              <Icon name="external" size={16} colour={theme.muted} />
-            </Pressable>
+            <Press highlight accessibilityRole="link" onPress={() => void Linking.openURL(t.noServerUrl)} style={styles.link}>
+              <Body small style={{ flex: 1, color: theme.green }}>{t.noServer}</Body>
+              <Icon name="external" size={16} colour={theme.green} />
+            </Press>
           </>
         )}
       </ScrollView>
@@ -109,11 +99,7 @@ export default function Address() {
 }
 
 const styles = StyleSheet.create({
-  page: { flexGrow: 1, paddingHorizontal: size.gutter, gap: 28 },
-  scan: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 72, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
-  chip: { fontFamily: font.medium, fontSize: 12.5, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
-  back: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingRight: 12 },
-  fieldLabel: { fontFamily: font.medium, fontSize: size.small },
-  input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontFamily: font.mono, fontSize: size.body },
-  link: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
+  page: { flexGrow: 1, paddingHorizontal: size.gutter, gap: size.section },
+  scan: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 56 },
+  link: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

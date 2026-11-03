@@ -713,6 +713,26 @@ export function Ring({ ratio, diameter = 56, stroke = 6, tone = 'green', childre
   );
 }
 
+/** The way in while the app decides where to go: the logo on the ground, softly pulsing (still under Reduce Motion). */
+export function Splash() {
+  const theme = useTheme();
+  const reduced = useReducedMotion();
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    if (reduced) return;
+    pulse.value = withRepeat(withSequence(withTiming(0.5, { duration: 900, easing: Easing.inOut(Easing.quad) }), withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) })), -1);
+    return () => cancelAnimation(pulse);
+  }, [reduced, pulse]);
+  const animated = useAnimatedStyle(() => ({ opacity: pulse.value }));
+  return (
+    <View accessible accessibilityLabel="Salli" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.ground }}>
+      <Animated.View style={animated}>
+        <Logo height={40} />
+      </Animated.View>
+    </View>
+  );
+}
+
 /** A problem: what happened, then what to do. */
 export function Problem({ title, body, mono, children }: { title: string; body: string; mono?: string; children?: ReactNode }) {
   // The address the app tried, set in mono wherever the body names it.
