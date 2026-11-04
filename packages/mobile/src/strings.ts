@@ -237,6 +237,7 @@ export const strings = {
     title: 'Add an entry',
     cancel: 'Cancel',
     say: 'Say what happened',
+    go: 'Go',
     sayPlaceholder: 'What happened?',
     sayHelp: 'Your server’s model drafts it when you press Go. Nothing is booked until you book it.',
     drafting: 'Drafting…',
@@ -398,11 +399,7 @@ export const strings = {
     quietHelp: 'In your time zone. What waits through them comes after.',
     start: 'From',
     end: 'To',
-    lockScreen: 'On the lock screen',
-    now: 'now',
-    sampleTitle: 'A budget is over its limit',
-    sampleBody: 'Open Salli to see it.',
-    noAmounts: 'No amounts or names.',
+    noAmounts: 'Alerts never show amounts or names.',
   },
 
   budget: {
