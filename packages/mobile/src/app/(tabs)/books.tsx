@@ -15,10 +15,9 @@ import {
 } from '@leafmonkeylabs/salli-sdk';
 import { useQueries } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Badge, Body, Button, Card, IconTile, LedgerRow, Money, Notice, Press, Icon, Row, Section, Surface, Waiting, radii, shape, useLargeText } from '../../kit';
+import { Badge, Body, Button, Card, Icon, type IconName, LedgerRow, Money, Notice, Press, Row, Surface, Waiting, radii, shape, useLargeText } from '../../kit';
 import { displayRange, monthNameOf, todayIso } from '../../lib/display';
 import { useSession } from '../../session';
 import { Page } from '../../shell';
@@ -53,13 +52,13 @@ export default function Books() {
 
       <Spending />
 
-      <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
-        <Row icon="more" title={t.entries} onPress={() => router.push('/entries')} last={!consoleUrl} />
+      <View style={[styles.places, large ? styles.column : null]}>
+        <Place icon="more" title={t.entries} onPress={() => router.push('/entries')} />
         {consoleUrl ? (
           // Rules are made and changed in the console: the link opens its page.
-          <Row icon="external" title={t.rules} hint={t.rulesLabel} onPress={() => void Linking.openURL(`${consoleUrl}/books/rules`)} last />
+          <Place icon="external" title={t.rules} hint={t.rulesLabel} end="external" onPress={() => void Linking.openURL(`${consoleUrl}/books/rules`)} />
         ) : null}
-      </Surface>
+      </View>
 
       {accounts.data && sheet.data && forecast.data ? (
         accounts.data.length ? (
@@ -75,12 +74,10 @@ export default function Books() {
 }
 
 /**
- * The review queue on one row: how many transactions wait, in how many files.
- * It opens the one file's review; with several, it shows them, each opening its own.
+ * The review queue (design Books): how many transactions wait and in how many
+ * files, then each file on its own row, each opening its review.
  */
 function Queue({ waiting, names }: { waiting: readonly BankStatement[]; names: ReadonlyMap<string, string> }) {
-  const theme = useTheme();
-  const [shown, setShown] = useState(false);
   const api = useApi();
   const pending = useQueries({
     queries: waiting.map((statement) => ({
@@ -89,36 +86,35 @@ function Queue({ waiting, names }: { waiting: readonly BankStatement[]; names: R
     })),
   });
   const count = pending.every((p) => p.data) ? pending.reduce((n, p) => n + (p.data?.transactions.length ?? 0), 0) : undefined;
-  const [only] = waiting;
-  const open = () => (only && waiting.length === 1 ? router.push({ pathname: '/review/[id]', params: { id: only.id } }) : setShown((s) => !s));
   return (
-    <Surface pad={false}>
-      <Press
-        highlight
-        accessibilityRole="button"
-        accessibilityLabel={count === undefined ? strings.imports.queue : t.queueSpoken(count, waiting.length)}
-        {...(waiting.length > 1 ? { accessibilityState: { expanded: shown } } : {})}
-        onPress={open}
-        style={styles.queue}
-      >
-        <IconTile name="upload" />
-        <Body style={{ flex: 1 }}>{t.queue(count ?? 0, waiting.length)}</Body>
+    <Surface pad={false} style={styles.queueCard}>
+      <View accessible accessibilityLabel={count === undefined ? strings.imports.queue : t.queueSpoken(count, waiting.length)} style={styles.queueHead}>
         <Badge count={count ?? 0} />
-        <Icon name={waiting.length > 1 && shown ? 'down' : 'chevron'} size={16} colour={theme.muted} />
+        <Body style={{ flex: 1 }}>{t.queue(count ?? 0, waiting.length)}</Body>
+      </View>
+      {waiting.map((statement, i) => (
+        <Row
+          key={statement.id}
+          title={[statement.bank, statement.account_id ? names.get(statement.account_id) : undefined].filter(Boolean).join(' · ') || strings.imports.statement}
+          detail={[statement.period_start && statement.period_end ? displayRange(statement.period_start, statement.period_end) : '', pending[i]?.data ? strings.imports.toReview(pending[i]?.data?.transactions.length ?? 0) : ''].filter(Boolean).join(' · ')}
+          onPress={() => router.push({ pathname: '/review/[id]', params: { id: statement.id } })}
+          last={i === waiting.length - 1}
+        />
+      ))}
+    </Surface>
+  );
+}
+
+/** A place beside others, as a card: its icon, its name, and a chevron (or the arrow out, for the console). */
+function Place({ icon, title, hint, end = 'chevron', onPress }: { icon: IconName; title: string; hint?: string; end?: IconName; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <Surface pad={false} style={styles.place}>
+      <Press highlight accessibilityRole="button" accessibilityLabel={hint ?? title} onPress={onPress} style={styles.placeRow}>
+        <Icon name={icon} size={20} colour={theme.text} />
+        <Text maxFontSizeMultiplier={1.6} style={[styles.placeText, { color: theme.text }]}>{title}</Text>
+        <Icon name={end} size={end === 'chevron' ? 16 : 15} colour={theme.muted} />
       </Press>
-      {shown ? (
-        <View style={{ paddingHorizontal: size.pad, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }}>
-          {waiting.map((statement, i) => (
-            <Row
-              key={statement.id}
-              title={[statement.bank, statement.account_id ? names.get(statement.account_id) : undefined].filter(Boolean).join(' · ') || strings.imports.statement}
-              detail={[statement.period_start && statement.period_end ? displayRange(statement.period_start, statement.period_end) : '', pending[i]?.data ? strings.imports.toReview(pending[i]?.data?.transactions.length ?? 0) : ''].filter(Boolean).join(' · ')}
-              onPress={() => router.push({ pathname: '/review/[id]', params: { id: statement.id } })}
-              last={i === waiting.length - 1}
-            />
-          ))}
-        </View>
-      ) : null}
     </Surface>
   );
 }
@@ -140,9 +136,11 @@ function Spending() {
   };
   const restShare = rest.reduce((n, l) => n + share(l.share), 0);
   return (
-    <Section title={t.spending(monthNameOf(todayIso()))}>
     <Card style={{ gap: space.s12 }}>
-      <Body small muted>{spending.data.currency}</Body>
+      <View style={styles.cardHead}>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={1.7} style={[styles.heading, { color: theme.text, flexShrink: 1 }]}>{t.spending(monthNameOf(todayIso()))}</Text>
+        <Text maxFontSizeMultiplier={1.4} style={[styles.code, { color: theme.muted }]}>{spending.data.currency}</Text>
+      </View>
       <View style={[styles.stack, shape(radii.pill)]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         {shown.map((line, i) => (
           <View key={line.key} style={[{ flex: share(line.share), backgroundColor: theme.green, opacity: shades[i] }, shape(radii.pill)]} />
@@ -165,7 +163,6 @@ function Spending() {
         </View>
       ) : null}
     </Card>
-    </Section>
   );
 }
 
@@ -182,22 +179,24 @@ function Accounts({ accounts, sheet, cash }: { accounts: readonly Account[]; she
     { key: 'cash', rows: held.filter((a) => cash.has(a.id)) },
     { key: 'other', rows: held.filter((a) => !cash.has(a.id)) },
   ].filter((g) => g.rows.length);
+  const theme = useTheme();
   return (
-    <Section title={t.accounts}>
-      <Body small muted>{sheet.currency}</Body>
+    <Surface pad={false} style={{ paddingHorizontal: size.pad, paddingTop: 16, paddingBottom: 6 }}>
+      <View style={[styles.cardHead, { paddingBottom: 6 }]}>
+        <Text accessibilityRole="header" maxFontSizeMultiplier={1.7} style={[styles.heading, { color: theme.text }]}>{t.accounts}</Text>
+        <Text maxFontSizeMultiplier={1.4} style={[styles.code, { color: theme.muted }]}>{sheet.currency}</Text>
+      </View>
       {groups.map((group) => (
-        <View key={group.key} style={{ gap: space.s8 }}>
+        <View key={group.key}>
           <Body small muted style={styles.group}>
             {t.roles[group.key] ?? group.key}
           </Body>
-          <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
-            {group.rows.map((account, i) => (
-              <AccountLine key={account.id} account={account} base={sheet.currency} balance={balances.get(account.id) ?? '0'} last={i === group.rows.length - 1} />
-            ))}
-          </Surface>
+          {group.rows.map((account, i) => (
+            <AccountLine key={account.id} account={account} base={sheet.currency} balance={balances.get(account.id) ?? '0'} last={i === group.rows.length - 1} />
+          ))}
         </View>
       ))}
-    </Section>
+    </Surface>
   );
 }
 
@@ -232,8 +231,16 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: space.s12 },
   column: { flexDirection: 'column' },
   legendLarge: { flexWrap: 'wrap' },
-  group: { fontFamily: font.medium, paddingHorizontal: 4 },
-  queue: { flexDirection: 'row', alignItems: 'center', gap: space.s12, paddingHorizontal: size.pad, minHeight: 68 },
+  group: { fontFamily: font.medium, paddingTop: 6, paddingBottom: 2 },
+  cardHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
+  heading: { fontFamily: font.semibold, fontSize: size.headline, letterSpacing: -0.01 * size.headline },
+  code: { fontFamily: font.mono, fontSize: size.label },
+  places: { flexDirection: 'row', gap: space.s12 },
+  place: { flex: 1 },
+  placeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingHorizontal: 18 },
+  placeText: { flex: 1, fontFamily: font.medium, fontSize: size.body },
+  queueCard: { paddingHorizontal: size.pad, paddingTop: 16, paddingBottom: 4 },
+  queueHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 12 },
   stack: { flexDirection: 'row', height: 12, gap: 2, overflow: 'hidden' },
   legend: { flexDirection: 'row', alignItems: 'center', gap: space.s12, minHeight: 36 },
   swatch: { width: 10, height: 10 },

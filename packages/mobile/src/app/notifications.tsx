@@ -146,26 +146,9 @@ export default function NotificationsScreen() {
           ) : (
             <Waiting query={prefs} what="your alerts" />
           )}
-          <Section title={t.lockScreen}>
-            <View accessible accessibilityLabel={`${t.sampleTitle} ${t.sampleBody}`} style={[styles.lock, shape(radii.card), { backgroundColor: theme.text }]}>
-              <View style={[styles.note, shape(radii.field), { backgroundColor: theme.surface }]}>
-                <View style={[styles.appIcon, shape(radii.tile), { backgroundColor: theme.button }]}>
-                  <Text style={[styles.appLetter, { color: theme.buttonText }]}>S</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.noteTop}>
-                    <Text style={[styles.small, { color: theme.muted }]}>Salli</Text>
-                    <Text style={[styles.small, { color: theme.muted }]}>{t.now}</Text>
-                  </View>
-                  <Text style={[styles.noteTitle, { color: theme.text }]}>{t.sampleTitle}</Text>
-                  <Text style={[styles.noteBody, { color: theme.muted }]}>{t.sampleBody}</Text>
-                </View>
-              </View>
-            </View>
-            <Body small muted>
-              {t.noAmounts}
-            </Body>
-          </Section>
+          <Body small muted>
+            {t.noAmounts}
+          </Body>
         </>
       ) : (
         <Waiting query={devices} what="push alerts" />
@@ -180,12 +163,5 @@ const styles = StyleSheet.create({
   times: { flexDirection: 'row', gap: 12 },
   time: { minHeight: 52, minWidth: 110, paddingHorizontal: 12, paddingVertical: 6, justifyContent: 'center' },
   clock: { fontFamily: font.regular, fontSize: size.body, fontVariant: ['tabular-nums'] },
-  lock: { paddingVertical: 16, paddingHorizontal: 12 },
-  note: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', paddingVertical: 12, paddingHorizontal: 14, opacity: 0.94 },
-  appIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  appLetter: { fontFamily: font.semibold, fontSize: 14 },
-  noteTop: { flexDirection: 'row', justifyContent: 'space-between' },
   small: { fontFamily: font.regular, fontSize: size.label },
-  noteTitle: { fontFamily: font.medium, fontSize: size.body },
-  noteBody: { fontFamily: font.regular, fontSize: size.small },
 });

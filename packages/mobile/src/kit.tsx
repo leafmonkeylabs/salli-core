@@ -539,6 +539,8 @@ export type FieldProps = Omit<TextInputProps, 'style'> & {
   mono?: boolean;
   /** An amount: a large centred figure. */
   amount?: boolean;
+  /** With `amount`: the currency's code, small and muted before the figure. */
+  unit?: string;
   /** Something at the field's end: a unit, an icon. */
   end?: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -549,18 +551,23 @@ export type FieldProps = Omit<TextInputProps, 'style'> & {
  * green while it is being typed in (red when it is wrong). Its label sits
  * above and names it to VoiceOver.
  */
-export const Field = forwardRef<ComponentRef<typeof TextInput>, FieldProps>(function Field({ label, help, error, mono, amount, end, multiline, style, onFocus, onBlur, ...rest }, ref) {
+export const Field = forwardRef<ComponentRef<typeof TextInput>, FieldProps>(function Field({ label, help, error, mono, amount, unit, end, multiline, style, onFocus, onBlur, ...rest }, ref) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
   const ring = error ? theme.red : focused ? theme.green : 'transparent';
   return (
     <View style={[{ gap: 6 }, style]}>
       {label ? (
-        <Text maxFontSizeMultiplier={1.7} style={[styles.fieldLabel, { color: theme.text }]}>
+        <Text maxFontSizeMultiplier={1.7} style={[styles.fieldLabel, { color: theme.muted }]}>
           {label}
         </Text>
       ) : null}
       <View style={[styles.field, shape(radii.field), multiline ? styles.fieldMulti : null, amount ? styles.fieldAmount : null, { backgroundColor: theme.fill, borderColor: ring }]}>
+        {amount && unit ? (
+          <Text maxFontSizeMultiplier={1.4} style={[styles.fieldUnit, { color: theme.muted }]}>
+            {unit}
+          </Text>
+        ) : null}
         <TextInput
           ref={ref}
           accessibilityLabel={rest.accessibilityLabel ?? label}
@@ -593,6 +600,50 @@ export const Field = forwardRef<ComponentRef<typeof TextInput>, FieldProps>(func
   );
 });
 
+/** What was said: a roomy box with its Go inside, and what Go does said under it. */
+export function SayBox({ label, help, goLabel, placeholder, value, onChange, onGo, busy }: { label: string; help: string; goLabel: string; placeholder: string; value: string; onChange: (text: string) => void; onGo: () => void; busy: boolean }) {
+  const theme = useTheme();
+  const [focused, setFocused] = useState(false);
+  const can = value.trim().length > 0 && !busy;
+  return (
+    <View style={{ gap: 6 }}>
+      <Text maxFontSizeMultiplier={1.7} style={[styles.sayLabel, { color: theme.muted }]}>{label}</Text>
+      <View style={[styles.sayBox, shape(radii.card), { backgroundColor: theme.fill, borderColor: focused ? theme.green : 'transparent' }]}>
+        <TextInput
+          accessibilityLabel={label}
+          multiline
+          submitBehavior="submit"
+          returnKeyType="go"
+          autoCapitalize="none"
+          editable={!busy}
+          value={value}
+          onChangeText={onChange}
+          onSubmitEditing={onGo}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={placeholder}
+          placeholderTextColor={theme.muted}
+          selectionColor={theme.green}
+          style={[styles.sayInput, { color: theme.text, fontFamily: font.regular }]}
+        />
+        <View style={styles.goRow}>
+          <Press
+            accessibilityRole="button"
+            accessibilityLabel={goLabel}
+            accessibilityState={{ disabled: !can }}
+            disabled={!can}
+            onPress={onGo}
+            style={[styles.go, shape(radii.pill), { backgroundColor: theme.button, opacity: can ? 1 : 0.35 }]}
+          >
+            <Icon name="up" size={18} colour={theme.buttonText} />
+          </Press>
+        </View>
+      </View>
+      <Text maxFontSizeMultiplier={1.7} style={[styles.sayHelp, { color: theme.muted }]}>{help}</Text>
+    </View>
+  );
+}
+
 /**
  * One of a few options under its label: a row of chips, or with `list` a
  * list of `Option` rows, the chosen one with a checkmark.
@@ -601,7 +652,7 @@ export function Choice<V extends string | number>({ label, options, chosen, onPi
   const theme = useTheme();
   return (
     <View style={{ gap: list ? 6 : 8 }}>
-      <Text maxFontSizeMultiplier={1.7} style={[styles.fieldLabel, { color: theme.text }]}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.7} style={[styles.fieldLabel, { color: theme.muted }]}>{label}</Text>
       <View accessibilityRole="radiogroup" accessibilityLabel={label} style={list ? null : styles.choices}>
         {options.map((o) =>
           list ? <Option key={String(o.id)} label={o.text} chosen={o.id === chosen} onPress={() => onPick(o.id)} /> : <Chip key={String(o.id)} label={o.text} selected={o.id === chosen} onPress={() => onPick(o.id)} />,
@@ -1035,13 +1086,20 @@ const styles = StyleSheet.create({
   thumb: { position: 'absolute', top: 3, bottom: 3, left: 3 },
   segment: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   fieldLabel: { fontFamily: font.medium, fontSize: size.small },
+  sayLabel: { fontFamily: font.medium, fontSize: size.small, marginLeft: 4 },
+  sayBox: { paddingTop: 14, paddingBottom: 12, paddingLeft: 16, paddingRight: 14, gap: 10, borderWidth: 1.5 },
+  sayInput: { fontSize: size.body, lineHeight: size.body * 1.45, minHeight: 46, padding: 0, textAlignVertical: 'top' },
+  goRow: { alignItems: 'flex-end' },
+  go: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  sayHelp: { fontFamily: font.regular, fontSize: size.label, lineHeight: size.label * 1.45, marginHorizontal: 4 },
   fieldHelp: { fontFamily: font.regular, fontSize: size.label, lineHeight: size.label * 1.4 },
   field: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: size.control, paddingHorizontal: 16, borderWidth: 1.5 },
   fieldMulti: { alignItems: 'flex-start', minHeight: 120, paddingVertical: 12 },
-  fieldAmount: { minHeight: 72, justifyContent: 'center' },
+  fieldAmount: { minHeight: 88, justifyContent: 'center', gap: 10 },
+  fieldUnit: { fontFamily: font.mono, fontSize: size.body, marginTop: 8 },
   input: { flex: 1, minWidth: 0, fontSize: size.body, minHeight: size.target, paddingVertical: 0 },
   inputMulti: { textAlignVertical: 'top', minHeight: 96 },
-  inputAmount: { fontSize: 34, textAlign: 'center', letterSpacing: -0.02 * 34, fontVariant: ['tabular-nums'], minHeight: 64 },
+  inputAmount: { flex: 0, minWidth: 170, fontSize: 40, textAlign: 'left', letterSpacing: -0.04 * 40, fontVariant: ['tabular-nums'], minHeight: 64 },
   monoInline: { fontFamily: font.mono, fontSize: size.small },
   option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: size.target, paddingVertical: 8 },
   doneBar: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', minHeight: size.target, paddingHorizontal: 4, borderTopWidth: StyleSheet.hairlineWidth },

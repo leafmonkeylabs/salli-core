@@ -44,9 +44,10 @@ export function ServerPill({ unreachable }: { unreachable?: boolean }) {
 /**
  * The top bar: a way back, or on Home the server as a pill; the actions as
  * 40 circles at its end. It has no rule under it: the page's own title is
- * large, below it, and scrolls away.
+ * large, and stays put: on a tab it shares the bar with the actions, with a way
+ * back it sits under it.
  */
-export function Header({ server, unreachable, back, action }: { title?: string; server?: boolean; unreachable?: boolean; back?: { label: string; onPress: () => void }; action?: ReactNode }) {
+export function Header({ title, server, unreachable, back, action }: { title?: string; server?: boolean; unreachable?: boolean; back?: { label: string; onPress: () => void }; action?: ReactNode }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const large = useLargeText();
@@ -59,14 +60,17 @@ export function Header({ server, unreachable, back, action }: { title?: string; 
           <View style={[styles.bar, { justifyContent: 'flex-end' }]}>{action}</View>
           <View style={styles.bar}>{lead}</View>
         </>
-      ) : lead || action ? (
+      ) : lead || action || title ? (
         <View style={styles.bar}>
-          {lead ?? <View />}
+          {/* A tab's title shares the bar with its actions (design Cash, Decide, Books). */}
+          {title && !lead ? <View style={{ flexShrink: 1 }}><Title>{title}</Title></View> : (lead ?? <View />)}
           {action}
         </View>
       ) : (
         <View style={{ height: 8 }} />
       )}
+      {/* A place with a way back keeps its title under the bar: fixed, never in the scrolling page. */}
+      {title && lead ? <Title>{title}</Title> : null}
     </View>
   );
 }
@@ -157,14 +161,13 @@ export function Page({
   return (
     <View style={{ flex: 1, backgroundColor: theme.ground }}>
       <Glow />
-      <Header {...(back ? { back } : {})} action={ai ? <HeaderActions from={ai} /> : action} />
+      <Header {...(title ? { title } : {})} {...(back ? { back } : {})} action={ai ? <HeaderActions from={ai} /> : action} />
       <ScrollView
         contentContainerStyle={[styles.page, { paddingBottom: inset || insets.bottom + size.gutter }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         refreshControl={onRefresh ? <Pull read={onRefresh} /> : undefined}
       >
-        {title ? <Title>{title}</Title> : null}
         {children}
       </ScrollView>
     </View>
@@ -178,9 +181,8 @@ export function Later({ title }: { title: string }) {
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
   return (
     <View style={{ flex: 1, backgroundColor: theme.ground }}>
-      <Header />
+      <Header title={title} />
       <ScrollView contentContainerStyle={styles.page}>
-        <Title>{title}</Title>
         <Card style={{ gap: 12 }}>
           <Body>{strings.later.body}</Body>
           {consoleUrl ? <Button kind="secondary" label={strings.later.open} onPress={() => void Linking.openURL(consoleUrl)} /> : null}
