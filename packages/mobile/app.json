@@ -56,7 +56,8 @@
             ]
           }
         ]
-      }
+      },
+      "appleTeamId": "DUWFNX67SN"
     },
     "android": {
       "package": "money.salli.app",
@@ -125,6 +126,12 @@
           }
         ]
       ]
-    ]
+    ],
+    "owner": "chandralegend",
+    "extra": {
+      "eas": {
+        "projectId": "7164ae17-7c2c-47f3-9aa1-db6fb77683ea"
+      }
+    }
   }
 }
