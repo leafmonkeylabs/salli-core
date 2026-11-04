@@ -390,7 +390,7 @@ function Line({ title, detail, spoken, late, onPress, action, last }: { title: s
   const style = [styles.line, last ? null : { borderBottomColor: theme.line, borderBottomWidth: StyleSheet.hairlineWidth }];
   // On one line the title comes first: the detail takes at most half and ends in an ellipsis.
   const when = detail ? (
-    <Text numberOfLines={large ? undefined : 1} style={[styles.lineDetail, large ? null : styles.lineDetailShort, { color: late ? theme.red : theme.muted }]}>
+    <Text numberOfLines={large ? undefined : 2} style={[styles.lineDetail, large ? null : styles.lineDetailShort, { color: late ? theme.red : theme.muted }]}>
       {detail}
     </Text>
   ) : null;
@@ -406,7 +406,7 @@ function Line({ title, detail, spoken, late, onPress, action, last }: { title: s
   ) : (
     <>
       <View style={[styles.marker, shape(radii.pill), { backgroundColor: late ? theme.red : theme.muted }]} />
-      <Text style={[styles.lineTitle, { color: theme.text }]} numberOfLines={whole ? undefined : 1}>
+      <Text style={[styles.lineTitle, { color: theme.text }]} numberOfLines={whole ? undefined : 2}>
         {title}
       </Text>
       {when}
@@ -441,9 +441,9 @@ const styles = StyleSheet.create({
   tileFigure: { fontFamily: font.medium, fontSize: size.figure, fontVariant: ['tabular-nums'], letterSpacing: -0.01 * size.figure },
   attentionCard: { paddingHorizontal: size.pad, paddingVertical: 4 },
   attentionNote: { paddingVertical: 16 },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8 },
   marker: { width: 6, height: 6 },
   lineTitle: { flex: 1, fontFamily: font.regular, fontSize: size.body },
-  lineDetailShort: { flexShrink: 1, maxWidth: '50%' },
+  lineDetailShort: { flexShrink: 1, maxWidth: '38%' },
   lineDetail: { fontFamily: font.regular, fontSize: size.small, fontVariant: ['tabular-nums'] },
 });
