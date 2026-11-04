@@ -3,8 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, Field, Money, Notice, ProgressBar, Row, Section, Surface, Tag, Waiting, radii, shape } from '../../kit';
-import { shares } from '../../lib/chart';
+import { Body, Button, Card, Field, Icon, Notice, Press, Row, Section, SectionLabel, Surface, Tag, Waiting, radii, shape } from '../../kit';
 import { amountParts, displayDate, displayDay } from '../../lib/display';
 import { useSession } from '../../session';
 import { Page } from '../../shell';
@@ -15,6 +14,7 @@ import { font, size, space, useTheme } from '../../theme';
 const t = strings.decide;
 
 export default function Decide() {
+  const theme = useTheme();
   const due = useRead('decisions.reviews.due', decisionsReviewsDue);
   // A review recorded here leaves the due list when it is read again; it stays
   // on the page, said as recorded, until the person leaves.
@@ -24,14 +24,21 @@ export default function Decide() {
     <Page ai="decide" title={t.title} onRefresh={() => due.refetch()}>
       {due.data ? (
         shown.length ? (
-          shown.map((review) => (
-            <Review
-              key={review.id}
-              review={review}
-              done={recorded.some((d) => d.id === review.id)}
-              onRecorded={() => setRecorded((r) => [...r, review])}
-            />
-          ))
+          <>
+            <View style={styles.sectionRow}>
+              <SectionLabel>{t.due}</SectionLabel>
+              <Text style={[styles.count, { color: theme.muted }]}>{shown.length}</Text>
+            </View>
+            {shown.map((review) => (
+              <Review
+                key={review.id}
+                review={review}
+                done={recorded.some((d) => d.id === review.id)}
+                onRecorded={() => setRecorded((r) => [...r, review])}
+              />
+            ))}
+            <StartCard />
+          </>
         ) : (
           <>
             <Notice tone="neutral" icon="check">
@@ -44,6 +51,36 @@ export default function Decide() {
         <Waiting query={due} what="decisions" />
       )}
     </Page>
+  );
+}
+
+/** Start a decision (design Decide): one card; the console is where one is started. */
+function StartCard() {
+  const theme = useTheme();
+  const { session } = useSession();
+  const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
+  return (
+    <Surface style={styles.startCard}>
+      <Press
+        accessibilityRole="link"
+        accessibilityLabel={`${t.start}. ${t.startHelp} ${t.inConsole}`}
+        disabled={!consoleUrl}
+        onPress={() => consoleUrl && void Linking.openURL(`${consoleUrl}/decide`)}
+        style={styles.startRow}
+      >
+        <View style={[styles.startIcon, shape(radii.field), { backgroundColor: theme.greenTint }]}>
+          <Icon name="decide" size={20} colour={theme.green} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[styles.startTitle, { color: theme.text }]}>{t.start}</Text>
+          <Text style={[styles.startHelp, { color: theme.muted }]}>{t.startHelp}</Text>
+          <View style={styles.startHint}>
+            <Text style={[styles.startNote, { color: theme.muted }]}>{t.inConsole.replace(/\.$/, '')}</Text>
+            <Icon name="external" size={13} colour={theme.muted} />
+          </View>
+        </View>
+      </Press>
+    </Surface>
   );
 }
 
@@ -97,38 +134,42 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
 
   return (
     <Card style={{ gap: 12 }}>
-      <Tag tone="green">{t.due}</Tag>
+      <View style={{ alignSelf: 'flex-start' }}>
+        <Tag>{t.dueOn(displayDay(review.review_on))}</Tag>
+      </View>
       <Text accessibilityRole="header" style={[styles.question, { color: theme.text }]}>
         {review.question}
       </Text>
       <Text accessibilityLabel={`${t.chose(review.chosen, review.reasons ?? '')} ${t.recorded(displayDate(review.recorded_at), displayDate(review.review_on))}`} style={[styles.chose, { color: theme.muted }]}>
-        {t.choseShort(review.chosen, displayDay(review.review_on))}
+        {t.choseRecorded(review.chosen, displayDay(review.recorded_at))}
       </Text>
+      {review.reasons ? (
+        <View style={[styles.quote, shape(radii.field), { backgroundColor: theme.fill }]}>
+          <Text style={[styles.quoteText, { color: theme.text }]}>{`“${review.reasons}”`}</Text>
+        </View>
+      ) : null}
 
       {comparison ? (
-        <View accessibilityLabel={t.against(displayDate(comparison.at))} style={{ gap: 2, marginTop: 4 }}>
-          <View style={styles.key} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <View style={[styles.swatch, shape(radii.pill), { backgroundColor: theme.muted }]} />
-            <Text style={[styles.keyText, { color: theme.muted }]}>{t.projected}</Text>
-            <View style={[styles.swatch, shape(radii.pill), { backgroundColor: theme.green, marginLeft: 12 }]} />
-            <Text style={[styles.keyText, { color: theme.muted }]}>{t.actual}</Text>
-            <Text style={[styles.keyText, { color: theme.muted, marginLeft: 'auto' }]}>{comparison.currency}</Text>
+        <View accessibilityLabel={t.against(displayDate(comparison.at))} style={{ marginTop: 4 }}>
+          <View style={styles.pair} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Text style={[styles.hdr, { color: theme.muted, flex: 1, textAlign: 'left' }]}>{comparison.currency}</Text>
+            <Text style={[styles.hdr, styles.col, { color: theme.muted }]}>{t.projected}</Text>
+            <Text style={[styles.hdr, styles.col, { color: theme.muted }]}>{t.actual}</Text>
           </View>
           {comparison.figures.map((row) => {
-            const [projected, actual] = shares([row.projected ?? '0', row.actual ?? '0']);
             const name = t.figures[row.figure] ?? row.figure;
             const spoken = (a: string | null | undefined) => (a ? amountParts(a, comparison.currency).spoken : '—');
+            const digits = (a: string | null | undefined) => (a ? amountParts(a, comparison.currency).digits : '—');
+            const total = row.figure === 'net_worth';
             return (
-              <View key={row.figure} accessible accessibilityLabel={t.figureSpoken(name, spoken(row.projected), spoken(row.actual))} style={[styles.pair, { borderBottomColor: theme.line }]}>
-                <View style={styles.pairHead}>
-                  <Body style={{ flex: 1 }}>{name}</Body>
-                  {row.actual ? <Money amount={row.actual} currency={comparison.currency} /> : null}
-                </View>
-                <ProgressBar ratio={projected ?? 0} height={6} />
-                <ProgressBar ratio={actual ?? 0} height={6} />
+              <View key={row.figure} accessible accessibilityLabel={t.figureSpoken(name, spoken(row.projected), spoken(row.actual))} style={[styles.pair, styles.line, { borderTopColor: theme.line }]}>
+                <Text style={[styles.cell, { color: theme.text, flex: 1, minWidth: 0, fontSize: size.body, fontFamily: total ? font.medium : font.regular }]}>{name}</Text>
+                <Text numberOfLines={1} style={[styles.cell, styles.col, { color: theme.muted }]}>{digits(row.projected)}</Text>
+                <Text numberOfLines={1} style={[styles.cell, styles.col, { color: theme.text, fontFamily: total ? font.medium : font.regular }]}>{digits(row.actual)}</Text>
               </View>
             );
           })}
+          <Text style={[styles.caption, { color: theme.muted }]}>{t.against(displayDate(comparison.at))}</Text>
           {comparison.notes.map((note) => (
             <Body key={note} small muted>
               {note}
@@ -165,11 +206,23 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
 }
 
 const styles = StyleSheet.create({
-  question: { fontFamily: font.medium, fontSize: size.title, lineHeight: size.title * 1.25 },
+  question: { fontFamily: font.semibold, fontSize: size.title, lineHeight: size.title * 1.25, letterSpacing: -0.02 * size.title },
   chose: { fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.45 },
-  key: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 6 },
-  keyText: { fontFamily: font.regular, fontSize: size.caption },
-  swatch: { width: 10, height: 10 },
-  pair: { gap: 4, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-  pairHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
+  count: { fontFamily: font.regular, fontSize: size.small, fontVariant: ['tabular-nums'] },
+  quote: { paddingHorizontal: 14, paddingVertical: 12 },
+  quoteText: { fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.45 },
+  pair: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  line: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 10 },
+  hdr: { fontFamily: font.medium, fontSize: size.caption },
+  col: { flexShrink: 0, minWidth: 84, textAlign: 'right' },
+  cell: { fontFamily: font.regular, fontSize: size.small, fontVariant: ['tabular-nums'] },
+  caption: { fontFamily: font.regular, fontSize: size.label, marginTop: 8 },
+  startCard: { paddingVertical: 18 },
+  startRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  startIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  startTitle: { fontFamily: font.semibold, fontSize: size.headline },
+  startHelp: { fontFamily: font.regular, fontSize: size.small, lineHeight: size.small * 1.4 },
+  startHint: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  startNote: { fontFamily: font.regular, fontSize: size.label },
 });

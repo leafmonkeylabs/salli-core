@@ -292,6 +292,8 @@ export const strings = {
     noneDue: 'No decision is due for review.',
     chose: (option: string, reasons: string) => `You chose ${option}: “${reasons}”`,
     choseShort: (option: string, due: string) => `Chose ${option} · due ${due}`,
+    choseRecorded: (option: string, on: string) => `Chose ${option} · recorded ${on}`,
+    dueOn: (day: string) => `Review due ${day}`,
     figureSpoken: (name: string, projected: string, actual: string) => `${name}: projected ${projected}, actual ${actual}`,
     reflectionPlaceholder: 'How did it turn out?',
     recorded: (on: string, due: string) => `Recorded ${on} · Review due ${due}`,

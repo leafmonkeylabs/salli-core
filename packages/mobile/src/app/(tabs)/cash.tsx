@@ -5,7 +5,7 @@ import { Modal, ScrollView, StyleSheet, Text, View, useWindowDimensions } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
 import { useRead } from '../../api';
-import { AmountRow, Body, Button, LedgerRow, Row, Section, Skeleton, Surface, Waiting, radii, useLargeText } from '../../kit';
+import { AmountRow, Body, Button, LedgerRow, Row, Section, SectionLabel, Skeleton, Surface, Waiting, radii, shape, useLargeText } from '../../kit';
 import { placeLabels, stepChart } from '../../lib/chart';
 import { amountParts, displayDate, displayDay, wholeDigits } from '../../lib/display';
 import { Page } from '../../shell';
@@ -31,34 +31,43 @@ export default function Cash() {
 
   return (
     <Page ai="cash" title={t.title} onRefresh={() => Promise.all([forecast.refetch(), budget.refetch()])}>
-      <Section title={data ? t.forecast(String(data.daily.length - 1)) : t.forecast('60')}>
-        <Surface style={{ gap: 12 }}>
+      <Surface style={{ gap: 12 }}>
+        <View style={styles.cardHead}>
+          <Text accessibilityRole="header" maxFontSizeMultiplier={1.7} style={[styles.heading, { color: theme.text }]}>
+            {data ? t.forecast(String(data.daily.length - 1)) : t.forecast('60')}
+          </Text>
           {data ? (
-            <>
-              <Text maxFontSizeMultiplier={1.7} style={[styles.lowLine, { color: theme.muted }]}>
-                {t.low(wholeDigits(data.lowest, data.currency), displayDay(data.lowest_date))}
-              </Text>
-              <Chart data={data} width={chartWidth} height={chartHeight} />
-              <View style={{ alignSelf: 'flex-start' }}>
-                <Button small kind="secondary" icon="chevron" label={t.dayByDay} onPress={() => setDays(true)} />
-              </View>
-            </>
-          ) : (
-            <View style={{ gap: 12 }}>
-              <Skeleton width="50%" height={14} />
-              <Skeleton height={chartHeight} radius={radii.card} />
-              <Waiting query={forecast} what="the forecast" />
+            <Text maxFontSizeMultiplier={1.7} style={[styles.lowLine, { color: theme.muted, flexShrink: 1, textAlign: 'right' }]}>
+              {t.low(wholeDigits(data.lowest, data.currency), displayDay(data.lowest_date))}
+            </Text>
+          ) : null}
+        </View>
+        {data ? (
+          <>
+            <Chart data={data} width={chartWidth} height={chartHeight} />
+            <View style={{ alignSelf: 'flex-start' }}>
+              <Button small kind="secondary" icon="more" label={t.dayByDay} onPress={() => setDays(true)} />
             </View>
-          )}
-        </Surface>
-      </Section>
+          </>
+        ) : (
+          <View style={{ gap: 12 }}>
+            <Skeleton width="50%" height={14} />
+            <Skeleton height={chartHeight} radius={radii.card} />
+            <Waiting query={forecast} what="the forecast" />
+          </View>
+        )}
+      </Surface>
 
       <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
         <Row icon="independence" title={strings.budget.title} detail={budget.data ? t.budgetDetail(lines.length, over) : undefined} onPress={() => router.push('/budget')} last />
       </Surface>
 
       <View style={{ marginTop: size.section - size.gap }}>
-        <Section title={t.comingUp}>
+        <View style={{ gap: size.heading }}>
+          <View style={styles.cardHead}>
+            <SectionLabel>{t.comingUp}</SectionLabel>
+            {data ? <Text maxFontSizeMultiplier={1.4} style={[styles.code, { color: theme.muted }]}>{data.currency}</Text> : null}
+          </View>
           <Surface pad={false} style={{ paddingHorizontal: size.pad, paddingVertical: 4 }}>
             {data ? (
               data.flows.length ? (
@@ -96,7 +105,7 @@ export default function Cash() {
               </View>
             )}
           </Surface>
-        </Section>
+        </View>
       </View>
 
       {data?.accounts.length ? (
@@ -235,7 +244,7 @@ function Flow({ date, title, detail, amount, currency, label, last }: { date: st
   const [month, day] = displayDay(date).split(' ');
   return (
     <View accessible accessibilityLabel={label} style={[styles.flow, last ? null : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line }]}>
-      <View style={styles.when}>
+      <View style={[styles.when, shape(radii.tile), { backgroundColor: theme.fill }]}>
         <Text style={[styles.month, { color: theme.muted }]}>{(month ?? '').toUpperCase()}</Text>
         <Text style={[styles.day, { color: theme.text }]}>{day}</Text>
       </View>
@@ -256,11 +265,14 @@ function Flow({ date, title, detail, amount, currency, label, last }: { date: st
 
 const styles = StyleSheet.create({
   flow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingVertical: 8 },
-  when: { width: 36, alignItems: 'center' },
+  when: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   month: { fontFamily: font.medium, fontSize: size.caption, letterSpacing: 0.4 },
   day: { fontFamily: font.medium, fontSize: size.headline, fontVariant: ['tabular-nums'] },
   flowTitle: { fontFamily: font.regular, fontSize: size.body },
   flowAmount: { fontFamily: font.regular, fontSize: size.body, fontVariant: ['tabular-nums'] },
+  cardHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
+  heading: { fontFamily: font.semibold, fontSize: size.headline, letterSpacing: -0.01 * size.headline },
+  code: { fontFamily: font.mono, fontSize: size.label },
   lowLine: { fontFamily: font.regular, fontSize: size.small },
   axis: { flexDirection: 'row', justifyContent: 'space-between' },
   axisText: { fontFamily: font.regular, fontSize: size.caption },
