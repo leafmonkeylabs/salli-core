@@ -219,18 +219,22 @@ export function Money({ amount, currency, figure, tone, style }: { amount: strin
   return (
     <View accessible accessibilityLabel={parts.spoken} style={styles.figureRow}>
       <Text style={[styles.code, { color: theme.muted }]}>{currency}</Text>
-      {/* Never shrunk to fit: the hero grows to 1.4 times at most, and any figure wraps rather than shrinks. */}
-      <Text maxFontSizeMultiplier={figure === 'hero' ? 1.4 : undefined} style={[styles.figures, figure === 'hero' ? styles.hero : styles.keyFigure, { color: colour }, style]}>
-        {figure === 'hero' && cut ? (
-          <>
+      {/* Never shrunk to fit: the hero grows to 1.4 times at most, and any figure wraps rather than shrinks. The decimals are a word of their own, so they move down whole and never split. */}
+      {figure === 'hero' && cut ? (
+        <View style={styles.heroRow}>
+          <Text maxFontSizeMultiplier={1.4} style={[styles.figures, styles.hero, { color: colour }, style]}>
             {cut[1]}
-            <Text style={{ fontSize: size.keyFigure / 2, color: theme.muted, letterSpacing: 0 }}>{cut[2]}</Text>
+          </Text>
+          <Text maxFontSizeMultiplier={1.4} style={[styles.figures, { fontFamily: font.medium, fontSize: size.keyFigure / 2, color: theme.muted, letterSpacing: 0 }]}>
+            {cut[2]}
             {cut[3]}
-          </>
-        ) : (
-          shown
-        )}
-      </Text>
+          </Text>
+        </View>
+      ) : (
+        <Text maxFontSizeMultiplier={figure === 'hero' ? 1.4 : undefined} style={[styles.figures, figure === 'hero' ? styles.hero : styles.keyFigure, { color: colour }, style]}>
+          {shown}
+        </Text>
+      )}
     </View>
   );
 }
@@ -997,6 +1001,7 @@ const styles = StyleSheet.create({
   buttonText: { fontFamily: font.medium, fontSize: size.body },
   round: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   figureRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
+  heroRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', flexShrink: 1 },
   code: { fontFamily: font.mono, fontSize: size.label },
   figures: { fontVariant: ['tabular-nums'] },
   hero: { fontFamily: font.medium, fontSize: size.keyFigure, letterSpacing: -0.03 * size.keyFigure, flexShrink: 1 },
