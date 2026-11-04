@@ -156,7 +156,7 @@ export function Press({ style, onPressIn, onPressOut, highlight, ...rest }: Omit
   );
 }
 
-type ButtonKind = 'primary' | 'secondary' | 'tertiary';
+type ButtonKind = 'primary' | 'secondary' | 'tertiary' | 'danger';
 
 /**
  * A capsule, 52 tall (or `sm`, 40 with a 48 target): the main one in ink, a
@@ -166,8 +166,8 @@ type ButtonKind = 'primary' | 'secondary' | 'tertiary';
 export function Button({ label, kind = 'primary', busy, icon, small, ...rest }: { label: string; kind?: ButtonKind; busy?: boolean; icon?: IconName; small?: boolean } & Omit<PressableProps, 'children' | 'style'>) {
   const theme = useTheme();
   const unavailable = !!rest.disabled && !busy;
-  const fill = kind === 'tertiary' ? 'transparent' : unavailable ? theme.fill : kind === 'primary' ? theme.button : theme.fill;
-  const colour = unavailable ? theme.muted : kind === 'primary' ? theme.buttonText : kind === 'secondary' ? theme.text : theme.green;
+  const fill = kind === 'tertiary' ? 'transparent' : unavailable ? theme.fill : kind === 'primary' ? theme.button : kind === 'danger' ? theme.red : theme.fill;
+  const colour = unavailable ? theme.muted : kind === 'primary' ? theme.buttonText : kind === 'danger' ? (theme.dark ? '#1A0F0C' : '#FFFFFF') : kind === 'secondary' ? theme.text : theme.green;
   return (
     <Press
       accessibilityRole="button"
@@ -987,6 +987,8 @@ const ICONS = {
   down: 'M6 9.5l6 6 6-6',
   back: 'M14.5 5.5L8 12l6.5 6.5',
   external: 'M14 4.5h5.5V10M19.5 4.5l-9 9M17.5 14v4a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8A1.5 1.5 0 0 1 6 6.5h4',
+  download: 'M12 5v11M7.5 11.5L12 16l4.5-4.5M5 15v3a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 18v-3',
+  trash: 'M5 7h14M9.5 7V5h5v2M7 7l.8 12h8.4L17 7M10 11v5M14 11v5',
   upload: 'M12 16V5M7.5 9.5L12 5l4.5 4.5M5 15v3a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 18v-3',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   up: 'M12 19V5M6.5 10.5L12 5l5.5 5.5',

@@ -3,7 +3,8 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRead } from '../api';
-import { Body, Button, Field, Icon, Press, Section, Surface, Toggle, radii, shape } from '../kit';
+import { Linking } from 'react-native';
+import { Body, Button, Field, Icon, IconTile, Press, Section, Surface, Toggle, radii, shape } from '../kit';
 import { displayDateTime } from '../lib/display';
 import { labelOf } from '../lib/servers';
 import { usePhone } from '../phone';
@@ -98,6 +99,14 @@ export default function SignIns() {
           </Surface>
         </Section>
       </View>
+      <View style={{ marginTop: space.s16 }}>
+        <Section title={t.account}>
+          <Surface pad={false} style={{ paddingHorizontal: size.pad }}>
+            {session.consoleUrl ? <AccountRow icon="download" title={t.export} detail={t.exportHelp} external onPress={() => void Linking.openURL(`${session.consoleUrl}/settings`)} /> : null}
+            <AccountRow icon="trash" tone="red" title={t.deleteRow} detail={t.deleteRowHelp} first={!session.consoleUrl} onPress={() => router.push('/delete-account')} />
+          </Surface>
+        </Section>
+      </View>
       <NameSheet
         // Opened afresh each time, with the name as it is now.
         key={naming ? 'open' : 'closed'}
@@ -108,6 +117,20 @@ export default function SignIns() {
         onSave={(next) => void rename(session.server, next).then(() => setNaming(false))}
       />
     </Page>
+  );
+}
+
+function AccountRow({ icon, tone, title, detail, external, first, onPress }: { icon: 'download' | 'trash'; tone?: 'red'; title: string; detail: string; external?: boolean; first?: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <Press highlight accessibilityRole="button" accessibilityLabel={`${title}, ${detail}`} onPress={onPress} style={[styles.accountRow, first ? null : { borderTopColor: theme.line, borderTopWidth: StyleSheet.hairlineWidth }]}>
+      <IconTile name={icon} tone={tone ?? 'fill'} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[styles.accountTitle, { color: tone === 'red' ? theme.red : theme.text }]}>{title}</Text>
+        <Body small muted>{detail}</Body>
+      </View>
+      <Icon name={external ? 'external' : 'chevron'} size={16} colour={theme.muted} />
+    </Press>
   );
 }
 
@@ -186,6 +209,8 @@ function ServerRow({ known, onScreen, last, onSwitch, onSignIn, onForget }: { kn
 }
 
 const styles = StyleSheet.create({
+  accountRow: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 64, paddingVertical: 9 },
+  accountTitle: { fontFamily: font.regular, fontSize: size.body },
   named: { fontFamily: font.medium },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: size.target },
   nameLabel: { fontFamily: font.regular, fontSize: size.body },
