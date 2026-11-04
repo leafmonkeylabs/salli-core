@@ -38,3 +38,4 @@ htmlcov/
 # Claude Code worktrees
 .claude/worktrees/
 benchmark/.judge-cache.json
+play-service-account*.json
