@@ -24,7 +24,7 @@
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "SET_AFTER_CREATING_THE_APP_IN_APP_STORE_CONNECT"
+        "ascAppId": "6830608717"
       },
       "android": {
         "serviceAccountKeyPath": "./play-service-account.json",
