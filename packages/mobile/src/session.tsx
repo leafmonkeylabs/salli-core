@@ -67,7 +67,7 @@ export type Session =
 interface SessionApi {
   session: Session;
   /** Signs in to a server and puts it on screen; the others stay signed in. */
-  signIn(server: string, signIn: AppSignIn, consoleUrl: string | null, entry?: 'signup'): Promise<SignInResult>;
+  signIn(server: string, signIn: AppSignIn, consoleUrl: string | null, entry?: 'signup' | 'again'): Promise<SignInResult>;
   /** Puts another signed-in server on screen. */
   switchTo(server: string): Promise<void>;
   /** Signs out of the server on screen, on the server too; the next one left comes on screen. */
@@ -222,7 +222,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [show]);
 
   const signIn = useCallback(
-    async (server: string, signIn: AppSignIn, consoleUrl: string | null, entry?: 'signup'): Promise<SignInResult> => {
+    async (server: string, signIn: AppSignIn, consoleUrl: string | null, entry?: 'signup' | 'again'): Promise<SignInResult> => {
       const verifier = tokenOf(Crypto.getRandomBytes(32));
       const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, {
         encoding: Crypto.CryptoEncoding.BASE64,
@@ -236,6 +236,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         challenge: base64UrlOf(digest),
         state,
         resource: signIn.resource,
+        // Again: the server asks for the password anew, which erasing an account needs.
+        ...(entry === 'again' ? { prompt: 'login' as const } : {}),
       });
       // Ephemeral: the sheet shares no cookies with the phone's browser, and
       // Salli's sign-in page uses none anyway.

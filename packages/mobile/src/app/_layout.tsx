@@ -63,6 +63,7 @@ function Navigator() {
           <Stack.Screen name="review/[id]" />
           <Stack.Screen name="entries" />
           <Stack.Screen name="sign-ins" />
+          <Stack.Screen name="delete-account" />
           <Stack.Screen name="automations" />
           <Stack.Screen name="automation/[id]" />
           <Stack.Screen name="ai" />
@@ -82,6 +83,7 @@ function Navigator() {
           <Stack.Screen name="first-run" options={{ gestureEnabled: false }} />
         </Stack.Protected>
         {/* Signed out, the way in; signed in, the way to add another server. */}
+        <Stack.Screen name="account-deleted" options={{ gestureEnabled: false }} />
         <Stack.Screen name="welcome" />
         <Stack.Screen name="address" />
         <Stack.Screen name="join" />

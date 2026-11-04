@@ -44,10 +44,7 @@ API takes over after it.
   chooses (their own, or Salli's hosted one). Give App Review a demo server
   address and a demo account (the seeded sample household:
   `packages/mobile/scripts/seed-sample-household.py`) in the review notes.
-- **Account deletion** (Apple 5.1.1(v), Play's data-deletion form): the
-  hosted sign-up lives on the web; the app has no Delete account yet. Add
-  one under More, Servers and sign-ins before submitting, going to the
-  server's erasure (`salli.erase_user`). Needs a canvas board first.
+- **Account deletion** (Apple 5.1.1(v), Play's data-deletion form): More, Servers and sign-in, Your account, Delete account erases the account on the server through its erasure (after a recent-password check, and the authenticator code when two-step is on) and forgets the server on the phone. Give Play that in-app path in its deletion form, and the console's Settings as the web path.
 - **Encryption:** `usesNonExemptEncryption: false` (HTTPS and standard
   platform crypto only).
 - **Privacy labels / Data safety:** data is the person's own financial
