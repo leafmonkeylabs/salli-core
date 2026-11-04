@@ -134,11 +134,9 @@ export default function Review() {
         <View style={{ gap: 12 }}>
           <Title>{t.title}</Title>
           {facts.length ? (
-            <View style={styles.facts}>
-              {facts.map((fact) => (
-                <Tag key={fact}>{fact}</Tag>
-              ))}
-            </View>
+            <Text maxFontSizeMultiplier={1.7} style={[styles.factLine, { color: theme.muted }]}>
+              {facts.join(' · ')}
+            </Text>
           ) : null}
         </View>
 
@@ -280,6 +278,7 @@ function Row({
           </>
         ) : other ? (
           <View style={styles.chosen}>
+            <Text maxFontSizeMultiplier={1.7} style={[styles.where, { color: theme.muted }]}>{txn.credit_flag ? t.cameFrom : t.wentTo}</Text>
             <Press
               accessibilityRole="button"
               accessibilityLabel={t.change(accountName(other), how)}
@@ -295,6 +294,8 @@ function Row({
             </View>
           </View>
         ) : (
+          <View style={styles.chosen}>
+            <Text maxFontSizeMultiplier={1.7} style={[styles.where, { color: theme.muted }]}>{txn.credit_flag ? t.cameFrom : t.wentTo}</Text>
           <Press
             accessibilityRole="button"
             accessibilityLabel={`${t.chooseAccount}: ${shown(txn)}, ${txn.credit_flag ? t.cameFrom : t.wentTo}`}
@@ -304,6 +305,7 @@ function Row({
           >
             <Text style={[styles.chooseText, { color: theme.green }]}>{t.chooseAccount}</Text>
           </Press>
+          </View>
         )}
       </View>
     </View>
@@ -313,7 +315,8 @@ function Row({
 const styles = StyleSheet.create({
   page: { padding: size.gutter, gap: size.gap },
   action: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 12 },
-  facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  factLine: { fontFamily: font.regular, fontSize: size.small, lineHeight: size.small * 1.45 },
+  where: { fontFamily: font.medium, fontSize: size.label },
   row: { paddingVertical: 14, gap: 10 },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   day: { width: 52, fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.45 },
