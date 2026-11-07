@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.6.0 — 2026-11-07
+
+The server, the console, the SDK and the CLI, all at 0.6.0. 0.5.0 was versioned in the repository but never tagged or published; its notes are below, and everything since is here.
+
 ### Changed
 
 - **The rounded design, in the console and the sign-in pages.** One radius
