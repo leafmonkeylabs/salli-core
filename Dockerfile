@@ -76,10 +76,11 @@ LABEL org.opencontainers.image.title="Salli" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.version="${VERSION}"
 
-# The base image's security fixes published since its digest (OpenSSL's,
-# which the image scan holds it to).
+# The base image's security fixes published since its digest (OpenSSL's and
+# apt's, which the image scan holds it to).
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libssl3=3.0.22-1~deb12u2 openssl=3.0.22-1~deb12u2 \
+      apt=2.6.2 libapt-pkg6.0=2.6.2 \
  && rm -rf /var/lib/apt/lists/*
 
 # An unprivileged user, and the two places it writes: uploaded files, and the
