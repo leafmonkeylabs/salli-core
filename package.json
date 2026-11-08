@@ -1,5 +1,6 @@
 {
   "name": "salli-core-js",
+  "version": "0.0.0",
   "private": true,
   "description": "Salli's TypeScript packages: the SDK and the salli command-line tool",
   "license": "AGPL-3.0-only",
