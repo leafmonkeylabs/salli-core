@@ -2,9 +2,14 @@
 
 ## Unreleased
 
-## 0.6.0 — 2026-11-07
+## 0.6.1 — 2026-11-08
 
-The server, the console, the SDK and the CLI, all at 0.6.0. 0.5.0 was versioned in the repository but never tagged or published; its notes are below, and everything since is here.
+The server, the console, the SDK and the CLI, all at 0.6.1. 0.5.0 and 0.6.0 were versioned in the repository but never published (0.6.0's release runs stopped at the image scan and the npm SBOM, both fixed here); their notes are below and above, and everything since 0.4 is here.
+
+### Fixed
+
+- **The image holds apt 2.6.2**, the fix for a Debian apt remote-code-execution flaw (CVE-2026-109518), which the image scan flagged in the base layer.
+- **The npm packages' SBOMs generate**: a consistent lockfile for the phone package's dependencies and a version on the private workspace root.
 
 ### Changed
 
