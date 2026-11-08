@@ -21,7 +21,7 @@ services:
   secrets:
     # A release, never :latest, so an upgrade is a choice (RELEASING.md bumps
     # it with the version; docs/self-host.md#upgrades).
-    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.6.0}
+    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.6.1}
     command: ["salli-server", "secrets", "init", "--dir", "/var/lib/salli/secrets"]
     volumes:
       - secrets:/var/lib/salli/secrets
@@ -89,7 +89,7 @@ services:
     networks: [database]
 
   salli:
-    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.6.0}
+    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.6.1}
     # A checkout builds the image from source (`docker compose build`); with
     # just this file, the published image is pulled.
     build: .
@@ -121,7 +121,7 @@ services:
   # Push alerts to phones, every 15 minutes (docs/self-host.md#scheduled-jobs).
   # Without a relay configured the job sends nothing.
   push:
-    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.6.0}
+    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.6.1}
     restart: unless-stopped
     depends_on:
       salli:

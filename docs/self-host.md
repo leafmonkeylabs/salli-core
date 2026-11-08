@@ -204,7 +204,7 @@ is needed to start.
 | `SALLI_BIND` | `127.0.0.1` | The interface the port is published on. `0.0.0.0` publishes it to your network: see [Security](#security). |
 | `SALLI_PORT` | `8000` | The port on that interface. |
 | `SALLI_DOMAIN` | none | The domain Caddy serves with HTTPS (the `tls` profile). |
-| `SALLI_IMAGE` | `ghcr.io/leafmonkeylabs/salli:0.6.0` | The image to run: the release this `compose.yaml` names, never `latest`. See [Upgrades](#upgrades). |
+| `SALLI_IMAGE` | `ghcr.io/leafmonkeylabs/salli:0.6.1` | The image to run: the release this `compose.yaml` names, never `latest`. See [Upgrades](#upgrades). |
 | `FORWARDED_ALLOW_IPS` | `10.248.53.2` (Caddy) | Whose `X-Forwarded-For` to believe: only the bundled proxy. See [Security](#security). |
 
 ### The server
@@ -350,7 +350,7 @@ from cron (or `salli-server stats --send`), POSTs this JSON and nothing else:
 {
   "schema": "salli.usage/1",
   "install_id": "the value you set",
-  "salli_version": "0.6.0",
+  "salli_version": "0.6.1",
   "week_ending": "2026-10-25",
   "active_members": 3,
   "entries_imported": 120,
