@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.6.2 — 2026-11-10
+
+The console's Cash flow by month draws the twelve months Home averages over, and the console is leaner on a phone.
+
+### Fixed
+
+- **Cash flow by month** asks for the same twelve months as Home and says so when there is nothing to draw.
+- **Amounts in signal text are rounded**, not printed with every decimal.
+- **Phone touch targets are at least 44 px**, and a layout guard fails the build if any console page scrolls sideways.
+
 ## 0.6.1 — 2026-11-08
 
 The server, the console, the SDK and the CLI, all at 0.6.1. 0.5.0 and 0.6.0 were versioned in the repository but never published (0.6.0's release runs stopped at the image scan and the npm SBOM, both fixed here); their notes are below and above, and everything since 0.4 is here.
