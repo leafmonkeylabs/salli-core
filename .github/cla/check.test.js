@@ -191,8 +191,8 @@ test('an unsigned contributor gets a failing status and one explanatory comment'
   const body = gh.comments[0].body;
   assert.ok(body.includes(MARKER));
   assert.ok(body.includes(PHRASE));
-  assert.ok(body.includes('https://github.com/leafmonkeylabs/salli-core/blob/main/CLA.md'));
-  assert.ok(body.includes('https://github.com/leafmonkeylabs/salli-core/blob/main/CLA-ENTITY.md'));
+  assert.ok(body.includes('https://github.com/leafmonkeylabs/salli-core/blob/main/docs/legal/CLA.md'));
+  assert.ok(body.includes('https://github.com/leafmonkeylabs/salli-core/blob/main/docs/legal/CLA-ENTITY.md'));
 });
 
 test('signing by comment records the signature and turns the check green', async () => {

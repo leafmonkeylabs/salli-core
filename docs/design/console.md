@@ -427,7 +427,7 @@ CLI's `salli login --device`.
 | **For someone who modifies it and serves it** | Must offer their changes' source to their users, as for the server. | May keep their changes closed. |
 | **For a firm or OEM that wants a branded console** | Takes a commercial licence, or publishes its changes. White-labelling stays a closed feature. | May rebrand and extend it freely; white-labelling is given away. |
 | **For an OEM building its own UI** | Uses the Apache SDK, as today; the console is only a reference. | The same. |
-| **For the closed edition** | Leaf Monkey Labs holds the rights through the CLA ([CLA.md](../../CLA.md)), so its own closed build is not bound by the AGPL. Third parties' extensions are. | No difference. |
+| **For the closed edition** | Leaf Monkey Labs holds the rights through the CLA ([CLA.md](../legal/CLA.md)), so its own closed build is not bound by the AGPL. Third parties' extensions are. | No difference. |
 | **Consistency** | The console is part of the product and ships in the AGPL image. | Matches the npm packages beside it. |
 
 **Recommendation: AGPL-3.0-only.** The console is part of the product the

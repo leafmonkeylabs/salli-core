@@ -5,7 +5,7 @@
 # end to end: up, set up an owner, sign in, health, the console in a browser
 # (packages/console/e2e/compose.spec.ts), down.
 #
-# On a `server-v<version>` tag (see RELEASING.md): build both platforms and
+# On a `server-v<version>` tag (see docs/releasing.md): build both platforms and
 # push them to GHCR as <version>, <major>.<minor> and, unless it is a
 # pre-release, `latest`, with SBOM and provenance attestations, and sign the
 # pushed digest with cosign, keyless (GitHub's OIDC identity, logged in

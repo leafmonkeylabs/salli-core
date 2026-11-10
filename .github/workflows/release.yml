@@ -1,7 +1,7 @@
 # Releases the TypeScript packages: the `salli` CLI, @leafmonkeylabs/salli-sdk
 # and @leafmonkeylabs/salli-console.
 #
-# Push a tag to release one package (see RELEASING.md):
+# Push a tag to release one package (see docs/releasing.md):
 #   cli-v0.2.0     →  salli 0.2.0 on npm, plus standalone binaries
 #   sdk-v0.2.0     →  @leafmonkeylabs/salli-sdk 0.2.0 on npm
 #   server-v0.4.0  →  @leafmonkeylabs/salli-console 0.4.0 on npm: the console
@@ -231,7 +231,7 @@ jobs:
       - name: First release only — a stage-only bootstrap token
         # Trusted publishing can only be set up for a package that exists.
         # Until then, an environment secret holds a stage-only token (see
-        # RELEASING.md); delete it once the trusted publisher is configured.
+        # docs/releasing.md); delete it once the trusted publisher is configured.
         env:
           NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
         run: |
@@ -311,7 +311,7 @@ jobs:
             --title "$NAME $VERSION" --notes-file notes.md
       - name: The console's files, on the server's release
         # A tag holds one GitHub release, and server-v<version> is the
-        # server's (RELEASING.md). The console's package and its checksums
+        # server's (docs/releasing.md). The console's package and its checksums
         # join that release, with a section saying how to install it; when
         # the release isn't there yet, this makes it as a draft, for the
         # maintainer to write the server's notes into.

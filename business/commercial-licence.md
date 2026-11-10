@@ -27,8 +27,8 @@ Anyone may run, modify and offer Salli under the AGPL-3.0, including for
 money, provided they give the people using it over a network the source of
 their modified version. A client, agent or benchmark written against the
 Apache-2.0 parts takes on none of the AGPL. Leaf Monkey Labs can offer other
-terms because every contribution comes under the CLA (CLA.md,
-CLA-ENTITY.md).
+terms because every contribution comes under the CLA (docs/legal/CLA.md,
+docs/legal/CLA-ENTITY.md).
 
 ## Who it is for
 

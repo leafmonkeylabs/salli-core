@@ -238,7 +238,7 @@ async function run({ github, context, core, root = process.cwd() }) {
   const defaultBranch = context.payload.repository.default_branch;
   const serverUrl = context.serverUrl || 'https://github.com';
   const base = `${serverUrl}/${repo.owner}/${repo.repo}/blob/${defaultBranch}`;
-  const urls = { document: `${base}/${config.document}`, entity: `${base}/CLA-ENTITY.md` };
+  const urls = { document: `${base}/${config.document}`, entity: `${base}/docs/legal/CLA-ENTITY.md` };
 
   let pull;
   let trigger = null;

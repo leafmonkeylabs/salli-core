@@ -58,11 +58,11 @@ builds the image from this checkout ([docs/self-host.md](docs/self-host.md)).
 Salli is open source under the AGPL-3.0; its TypeScript SDK and CLI
 (`packages/`) are under Apache-2.0. Leaf Monkey Labs, which maintains it,
 also runs Salli as a hosted service that is not open source. The
-[Contributor License Agreement](CLA.md) lets Leaf Monkey Labs use your
+[Contributor License Agreement](docs/legal/CLA.md) lets Leaf Monkey Labs use your
 contribution in both: you keep the copyright and can use your work however you
 like, and you give Leaf Monkey Labs a broad, permanent, non-exclusive license
 to it (including the right to license it under other terms) and a patent
-license. Read [CLA.md](CLA.md) itself — the summary isn't the agreement.
+license. Read [CLA.md](docs/legal/CLA.md) itself — the summary isn't the agreement.
 
 **To accept it**, read the agreement and reply to your pull request with
 exactly:
@@ -78,7 +78,7 @@ version changes.
   belongs to your GitHub account (https://github.com/settings/emails), or the
   bot can't match them to you — fix the email and comment `recheck`.
 - **Contributing for your employer or another company?** The company accepts
-  the [entity version](CLA-ENTITY.md) through someone who can sign for it:
+  the [entity version](docs/legal/CLA-ENTITY.md) through someone who can sign for it:
   open an issue and we'll arrange it.
 - **What's recorded, publicly:** your GitHub account and its id, the date, the
   pull request, and the version of the agreement, on the
