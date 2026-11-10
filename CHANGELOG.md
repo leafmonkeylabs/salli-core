@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`salli-server` runs with Typer 0.29.** Where Typer 0.29 was installed, as a pip install of the package gets it, every command failed with a `TypeError`: the `--json` flag was built by calling Typer's option class, whose arguments 0.29 changed. Typer now builds the flag from a declaration, as it builds every other option; tested with Typer 0.26.7 to 0.29.0.
+
 ## 0.6.2 — 2026-11-10
 
 The console's Cash flow by month draws the twelve months Home averages over, and the console is leaner on a phone.
