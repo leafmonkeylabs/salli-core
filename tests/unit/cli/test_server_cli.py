@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -104,7 +105,9 @@ def test_the_json_flag_is_eager_unexposed_and_in_the_help(monkeypatch, capsys):
         assert flag.help == "Print the result as JSON on stdout (messages go to stderr).", path
     helped = _run(monkeypatch, capsys, "db", "current", "--help")
     assert helped.exit_code == 0, helped.output
-    assert "--json" in helped.output and "Print the result as JSON" in helped.output
+    # Typer colours the help where GITHUB_ACTIONS or FORCE_COLOR is set.
+    shown = re.sub(r"\x1b\[[0-9;]*m", "", helped.output)
+    assert "--json" in shown and "Print the result as JSON" in shown
 
 
 def test_the_names_extensions_import_stay_put():
