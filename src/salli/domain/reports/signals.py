@@ -57,6 +57,12 @@ Action = Literal[
 #: country's figure.
 EXPENSIVE_DEBT_RATE = PLACEHOLDERS["real_return"].value + Decimal("0.04")
 
+
+def _q(amount: Decimal, currency: str) -> Decimal:
+    """`amount` to the decimals its currency has, for the words of a detail."""
+    return quantize(amount, currency, strict=False)
+
+
 _ORDER: dict[Severity, int] = {"high": 0, "medium": 1, "low": 2, "info": 3}
 
 
@@ -94,7 +100,7 @@ def low_balance_ahead(
                 "low_balance_ahead",
                 "high",
                 "Cash runs out before it comes back",
-                f"Your cash is forecast to reach {lowest} {currency} on {lowest_date}.",
+                f"Your cash is forecast to reach {_q(lowest, currency)} {currency} on {lowest_date}.",
                 "see_forecast",
                 lowest,
                 currency,
@@ -112,8 +118,8 @@ def low_balance_ahead(
                 "low_balance_ahead",
                 "medium",
                 "Cash gets thin",
-                f"Your cash is forecast to fall to {lowest} {currency} on {lowest_date}, "
-                f"under a tenth of a usual month's spending ({monthly_spending} {currency}).",
+                f"Your cash is forecast to fall to {_q(lowest, currency)} {currency} on {lowest_date}, "
+                f"under a tenth of a usual month's spending ({_q(monthly_spending, currency)} {currency}).",
                 "see_forecast",
                 lowest,
                 currency,
@@ -138,8 +144,8 @@ def price_changes(found: Sequence[Recurring]) -> list[Signal]:
                 "price_change",
                 "medium" if up else "info",
                 f"{r.payee} {'went up' if up else 'went down'}",
-                f"{r.payee} charged {latest} {r.currency} on {r.last_date}, after "
-                f"{before} {r.currency} before ({change:+.0%}).",
+                f"{r.payee} charged {_q(latest, r.currency)} {r.currency} on {r.last_date}, after "
+                f"{_q(before, r.currency)} {r.currency} before ({change:+.0%}).",
                 "see_recurring",
                 latest,
                 r.currency,
@@ -170,7 +176,7 @@ def new_recurring(
                 "new_recurring",
                 "info",
                 f"New recurring payment: {r.payee}",
-                f"{r.payee} has charged {r.typical_amount} {r.currency} {r.cadence} "
+                f"{r.payee} has charged {_q(r.typical_amount, r.currency)} {r.currency} {r.cadence} "
                 f"{r.occurrences} times since {first.isoformat()}; next expected "
                 f"{r.next_expected}.",
                 "see_recurring",
@@ -205,8 +211,8 @@ def spending_spikes(
                 "spending_spike",
                 "medium",
                 f"{line.key} was well above usual",
-                f"You spent {spent} {currency} on {line.key} in {last}, against a usual "
-                f"{usual} {currency} a month.",
+                f"You spent {_q(spent, currency)} {currency} on {line.key} in {last}, against a usual "
+                f"{_q(usual, currency)} {currency} a month.",
                 "see_spending",
                 spent,
                 currency,
@@ -345,9 +351,9 @@ def emergency_fund_low(
             "emergency_fund_low",
             severity,
             "Your savings would not last long",
-            f"If your income stopped, your cash and savings ({liquid} {currency}) would pay "
+            f"If your income stopped, your cash and savings ({_q(liquid, currency)} {currency}) would pay "
             f"for about {max(covered, Decimal(0)):.1f} months of your usual spending "
-            f"({monthly_spending} {currency} a month).",
+            f"({_q(monthly_spending, currency)} {currency} a month).",
             "see_cash_flow",
             liquid,
             currency,
@@ -369,7 +375,7 @@ def expensive_debts(
             "expensive_debt",
             "medium",
             f"{name} costs a lot to borrow",
-            f"You owe {balance} {currency} on {name}, and it adds {rate:.1%} of that in "
+            f"You owe {_q(balance, currency)} {currency} on {name}, and it adds {rate:.1%} of that in "
             "interest each year.",
             "see_debts",
             balance,
