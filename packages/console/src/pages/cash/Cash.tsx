@@ -40,8 +40,11 @@ import { accountPath } from '../books/ledger';
 const c = whereStrings.cash;
 /** The forecast's reach, as `salli insights forecast` asks by default. */
 const DAYS = 60;
-/** Full months of cash flow before this one. */
-const MONTHS = 6;
+/** Full months of cash flow before this one: the twelve the monthly average
+ *  is taken over, so the chart and Home's figures cover the same months. */
+const MONTHS = 12;
+/** An amount the server wrote as nothing ("0.00", "0"). */
+const NOTHING = /^-?0+(\.0+)?$/;
 
 function Rates({ fx }: { fx: readonly ExchangeRate[] | undefined }) {
   const locale = useLocale();
@@ -237,9 +240,18 @@ function ComingUp() {
   );
 }
 
-function FlowChart({ data }: { data: CashFlow }) {
+/** From the first month money moved: the empty months before a household's
+ *  record begins are not shown. This month is always the last. */
+function shownMonths(months: readonly MonthCashFlow[]): MonthCashFlow[] {
+  const from = months.findIndex((m) => m.observed);
+  return months.slice(from < 0 ? Math.max(months.length - 1, 0) : from);
+}
+
+function FlowChart({ data: all }: { data: CashFlow }) {
   const locale = useLocale();
-  const code = data.currency.toUpperCase();
+  const code = all.currency.toUpperCase();
+  const data = { ...all, months: shownMonths(all.months) };
+  if (data.months.every((m) => NOTHING.test(m.income) && NOTHING.test(m.expenses))) return <Empty>{c.noFlow}</Empty>;
   const first = data.months[0];
   const last = data.months[data.months.length - 1];
   const observed = data.average.months_observed.length;

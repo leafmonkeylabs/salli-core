@@ -5714,11 +5714,66 @@ export const FORECAST: CashForecast = {
 };
 
 /**
- * Six full months and this one so far.
+ * Twelve full months and this one so far, as the console asks (the months
+ * Home's monthly average is taken over).
  */
 export const CASH_FLOW: CashFlow = {
   "currency": "EUR",
   "months": [
+    {
+      "month": "2025-10",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": false
+    },
+    {
+      "month": "2025-11",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": false
+    },
+    {
+      "month": "2025-12",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": false
+    },
+    {
+      "month": "2026-01",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": false
+    },
+    {
+      "month": "2026-02",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": false
+    },
+    {
+      "month": "2026-03",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": false
+    },
     {
       "month": "2026-04",
       "income": "4000.00",
@@ -5796,6 +5851,152 @@ export const CASH_FLOW: CashFlow = {
     "expenses": "2037.09",
     "net": "1962.91",
     "savings_rate": "0.4907"
+  }
+};
+
+/**
+ * The household's cash flow when its entries are older than the twelve months.
+ */
+export const CASH_FLOW_OLD: CashFlow = {
+  "currency": "EUR",
+  "months": [
+    {
+      "month": "2027-04",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2027-05",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2027-06",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2027-07",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2027-08",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2027-09",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2027-10",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2027-11",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2027-12",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2028-01",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2028-02",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2028-03",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": true,
+      "observed": true
+    },
+    {
+      "month": "2028-04",
+      "income": "0.00",
+      "expenses": "0.00",
+      "net": "0.00",
+      "savings_rate": null,
+      "complete": false,
+      "observed": false
+    }
+  ],
+  "average": {
+    "months_observed": [
+      "2027-04",
+      "2027-05",
+      "2027-06",
+      "2027-07",
+      "2027-08",
+      "2027-09",
+      "2027-10",
+      "2027-11",
+      "2027-12",
+      "2028-01",
+      "2028-02",
+      "2028-03"
+    ],
+    "income": "0.00",
+    "expenses": "0.00",
+    "net": "0.00",
+    "savings_rate": null
   }
 };
 
@@ -6243,14 +6444,14 @@ export const SCORE_HISTORY: FiScoreHistory = {
  * The answer to posting lunch from checking.
  */
 export const POSTED: Ref = {
-  "id": "0000239d-5a11-4000-8000-000000009117"
+  "id": "0000239e-5a11-4000-8000-000000009118"
 };
 
 /**
  * Lunch, as posted.
  */
 export const LUNCH: JournalEntry = {
-  "id": "0000239d-5a11-4000-8000-000000009117",
+  "id": "0000239e-5a11-4000-8000-000000009118",
   "entry_date": "2026-10-11",
   "description": "Lunch with a friend",
   "source": "manual",
@@ -6264,7 +6465,7 @@ export const LUNCH: JournalEntry = {
   "hash": null,
   "postings": [
     {
-      "id": "0000239e-5a11-4000-8000-000000009118",
+      "id": "0000239f-5a11-4000-8000-000000009119",
       "tags": {},
       "account_id": "out",
       "direction": 1,
@@ -6273,7 +6474,7 @@ export const LUNCH: JournalEntry = {
       "fx_rate": "1"
     },
     {
-      "id": "0000239f-5a11-4000-8000-000000009119",
+      "id": "000023a0-5a11-4000-8000-000000009120",
       "tags": {},
       "account_id": "chk",
       "direction": -1,
@@ -6285,7 +6486,7 @@ export const LUNCH: JournalEntry = {
 };
 
 export const LUNCH_PROVENANCE: EntryProvenance = {
-  "entry_id": "0000239d-5a11-4000-8000-000000009117",
+  "entry_id": "0000239e-5a11-4000-8000-000000009118",
   "entry_date": "2026-10-11",
   "description": "Lunch with a friend",
   "source": "manual",
@@ -6686,7 +6887,7 @@ export const CHECKING_POSTED: AccountOverview = {
       "running_balance_native": "6543.15"
     },
     {
-      "entry_id": "0000239d-5a11-4000-8000-000000009117",
+      "entry_id": "0000239e-5a11-4000-8000-000000009118",
       "entry_date": "2026-10-11",
       "description": "Lunch with a friend",
       "source": "manual",
@@ -6726,19 +6927,19 @@ export const TRIAL_BALANCE_POSTED: TrialBalance = {
  * The answer to reversing lunch.
  */
 export const REVERSED: Ref = {
-  "id": "000023a5-5a11-4000-8000-000000009125"
+  "id": "000023a6-5a11-4000-8000-000000009126"
 };
 
 /**
  * Lunch, reversed.
  */
 export const LUNCH_REVERSED: JournalEntry = {
-  "id": "0000239d-5a11-4000-8000-000000009117",
+  "id": "0000239e-5a11-4000-8000-000000009118",
   "entry_date": "2026-10-11",
   "description": "Lunch with a friend",
   "source": "manual",
   "external_ref": null,
-  "reversed_by": "000023a5-5a11-4000-8000-000000009125",
+  "reversed_by": "000023a6-5a11-4000-8000-000000009126",
   "reverses": null,
   "corrects": null,
   "created_by": null,
@@ -6747,7 +6948,7 @@ export const LUNCH_REVERSED: JournalEntry = {
   "hash": null,
   "postings": [
     {
-      "id": "0000239e-5a11-4000-8000-000000009118",
+      "id": "0000239f-5a11-4000-8000-000000009119",
       "tags": {},
       "account_id": "out",
       "direction": 1,
@@ -6756,7 +6957,7 @@ export const LUNCH_REVERSED: JournalEntry = {
       "fx_rate": "1"
     },
     {
-      "id": "0000239f-5a11-4000-8000-000000009119",
+      "id": "000023a0-5a11-4000-8000-000000009120",
       "tags": {},
       "account_id": "chk",
       "direction": -1,
@@ -6768,13 +6969,13 @@ export const LUNCH_REVERSED: JournalEntry = {
 };
 
 export const REVERSAL: JournalEntry = {
-  "id": "000023a5-5a11-4000-8000-000000009125",
+  "id": "000023a6-5a11-4000-8000-000000009126",
   "entry_date": "2026-10-11",
   "description": "Reversal of Lunch with a friend: Paid twice",
   "source": "reversal",
   "external_ref": null,
   "reversed_by": null,
-  "reverses": "0000239d-5a11-4000-8000-000000009117",
+  "reverses": "0000239e-5a11-4000-8000-000000009118",
   "corrects": null,
   "created_by": null,
   "created_via": null,
@@ -6782,7 +6983,7 @@ export const REVERSAL: JournalEntry = {
   "hash": null,
   "postings": [
     {
-      "id": "000023a6-5a11-4000-8000-000000009126",
+      "id": "000023a7-5a11-4000-8000-000000009127",
       "tags": {},
       "account_id": "out",
       "direction": -1,
@@ -6791,7 +6992,7 @@ export const REVERSAL: JournalEntry = {
       "fx_rate": "1"
     },
     {
-      "id": "000023a7-5a11-4000-8000-000000009127",
+      "id": "000023a8-5a11-4000-8000-000000009128",
       "tags": {},
       "account_id": "chk",
       "direction": 1,
@@ -6803,7 +7004,7 @@ export const REVERSAL: JournalEntry = {
 };
 
 export const REVERSAL_PROVENANCE: EntryProvenance = {
-  "entry_id": "000023a5-5a11-4000-8000-000000009125",
+  "entry_id": "000023a6-5a11-4000-8000-000000009126",
   "entry_date": "2026-10-11",
   "description": "Reversal of Lunch with a friend: Paid twice",
   "source": "reversal",
@@ -7204,7 +7405,7 @@ export const CHECKING_REVERSED: AccountOverview = {
       "running_balance_native": "6543.15"
     },
     {
-      "entry_id": "0000239d-5a11-4000-8000-000000009117",
+      "entry_id": "0000239e-5a11-4000-8000-000000009118",
       "entry_date": "2026-10-11",
       "description": "Lunch with a friend",
       "source": "manual",
@@ -7213,7 +7414,7 @@ export const CHECKING_REVERSED: AccountOverview = {
       "running_balance_native": "6530.65"
     },
     {
-      "entry_id": "000023a5-5a11-4000-8000-000000009125",
+      "entry_id": "000023a6-5a11-4000-8000-000000009126",
       "entry_date": "2026-10-11",
       "description": "Reversal of Lunch with a friend: Paid twice",
       "source": "reversal",
@@ -7260,14 +7461,14 @@ export const REVERSE_REFUSED: ProblemDetails = {
 };
 
 export const DOLLARS_POSTED: Ref = {
-  "id": "000023af-5a11-4000-8000-000000009135"
+  "id": "000023b0-5a11-4000-8000-000000009136"
 };
 
 /**
  * 100.00 USD from checking, at the published rate for the day.
  */
 export const DOLLARS: JournalEntry = {
-  "id": "000023af-5a11-4000-8000-000000009135",
+  "id": "000023b0-5a11-4000-8000-000000009136",
   "entry_date": "2026-10-11",
   "description": "Dollars for the trip",
   "source": "manual",
@@ -7281,7 +7482,7 @@ export const DOLLARS: JournalEntry = {
   "hash": null,
   "postings": [
     {
-      "id": "000023b0-5a11-4000-8000-000000009136",
+      "id": "000023b1-5a11-4000-8000-000000009137",
       "tags": {},
       "account_id": "usd",
       "direction": 1,
@@ -7290,7 +7491,7 @@ export const DOLLARS: JournalEntry = {
       "fx_rate": "0.86"
     },
     {
-      "id": "000023b1-5a11-4000-8000-000000009137",
+      "id": "000023b2-5a11-4000-8000-000000009138",
       "tags": {},
       "account_id": "chk",
       "direction": -1,

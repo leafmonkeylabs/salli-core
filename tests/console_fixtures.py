@@ -629,6 +629,14 @@ async def where_fixtures(home: list[Fixture]) -> list[Fixture]:
         if await get(path) != shared[name]:
             raise RuntimeError(f"Where you stand reads another {name} than Home's")
 
+    # The same household read a year and a half on: its entries are older than
+    # any month the chart can show, so every month is empty.
+    insights = books.services.insights
+    today = insights._today
+    insights._today = lambda: today() + dt.timedelta(days=550)
+    cash_flow_old = await get("/v1/insights/cash-flow?months=12")
+    insights._today = today
+
     reads = [
         Fixture("TRIAL_BALANCE", "TrialBalance", None, await get("/v1/ledger/trial-balance")),
         Fixture(
@@ -651,8 +659,15 @@ async def where_fixtures(home: list[Fixture]) -> list[Fixture]:
         Fixture(
             "CASH_FLOW",
             "CashFlow",
-            "Six full months and this one so far.",
-            await get("/v1/insights/cash-flow?months=6"),
+            "Twelve full months and this one so far, as the console asks (the months\n"
+            "Home's monthly average is taken over).",
+            await get("/v1/insights/cash-flow?months=12"),
+        ),
+        Fixture(
+            "CASH_FLOW_OLD",
+            "CashFlow",
+            "The household's cash flow when its entries are older than the twelve months.",
+            cash_flow_old,
         ),
         Fixture(
             "SPENDING",

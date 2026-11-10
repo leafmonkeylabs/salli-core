@@ -304,6 +304,7 @@ export const whereStrings = {
     month: 'Month',
     monthSoFar: (month: string) => `${month} (so far)`,
     average: (months: string) => `Monthly average over ${months}`,
+    noFlow: 'No income or spending in these months.',
     months: (n: number) => (n === 1 ? '1 full month' : `${n} full months`),
     noAverage: 'No full month of income and spending yet, so no monthly average.',
     byCategory: 'Spending by category',

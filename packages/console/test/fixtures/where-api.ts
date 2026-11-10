@@ -68,7 +68,12 @@ export class WhereState {
     }
 
     if (method === 'GET' && path === '/v1/insights/forecast') return { status: 200, body: where.FORECAST };
-    if (method === 'GET' && path === '/v1/insights/cash-flow') return { status: 200, body: this.cashFlow };
+    if (method === 'GET' && path === '/v1/insights/cash-flow') {
+      // The fixture is the twelve months the console asks for; any other
+      // window is not what a real server was recorded answering.
+      if (params.get('months') !== '12') return { status: 422, body: { ...NOT_FOUND, detail: 'The fixture is twelve months' } };
+      return { status: 200, body: this.cashFlow };
+    }
     if (method === 'GET' && path === '/v1/insights/spending') return { status: 200, body: where.SPENDING };
 
     if (method === 'GET' && path === '/v1/reminders/') {
