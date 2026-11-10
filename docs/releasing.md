@@ -11,8 +11,8 @@ own version and tag; the console shares the server's:
 | `packages/console` | [`@leafmonkeylabs/salli-console`](https://www.npmjs.com/package/@leafmonkeylabs/salli-console) on npm, for editions that build on it | `server-v<version>` (the same tag) |
 
 The CLI, the SDK and the console's npm package are released by
-[`release.yml`](.github/workflows/release.yml), the image by
-[`image.yml`](.github/workflows/image.yml) ([below](#the-server-image)).
+[`release.yml`](../.github/workflows/release.yml), the image by
+[`image.yml`](../.github/workflows/image.yml) ([below](#the-server-image)).
 
 ## Breaking changes
 

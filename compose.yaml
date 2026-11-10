@@ -19,7 +19,7 @@ services:
   # the encryption key for users' own AI keys, the MCP signing secret, the
   # cron secret), one file each, and never replaces one. Then exits.
   secrets:
-    # A release, never :latest, so an upgrade is a choice (RELEASING.md bumps
+    # A release, never :latest, so an upgrade is a choice (docs/releasing.md bumps
     # it with the version; docs/self-host.md#upgrades).
     image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.6.2}
     command: ["salli-server", "secrets", "init", "--dir", "/var/lib/salli/secrets"]

@@ -307,7 +307,7 @@ uv run salli-server setup
 uv run salli-server serve       # http://localhost:8000; API docs at /docs
 ```
 
-Contributors accept the [Contributor License Agreement](CLA.md) once, by
+Contributors accept the [Contributor License Agreement](docs/legal/CLA.md) once, by
 commenting on their first pull request. For security issues, see
 [SECURITY.md](SECURITY.md). For how Salli looks and sounds, see the
 [design direction](docs/brand/README.md).
