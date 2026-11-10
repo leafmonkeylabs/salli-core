@@ -158,3 +158,21 @@ def test_a_debt_at_or_above_the_methods_line_is_described_with_its_source():
     assert "not any country's figure" in (found[0].rationale or "")
     assert "%" in found[0].detail and "placeholder" not in found[0].detail
     assert_never_urges([found[0].title, found[0].detail])
+
+
+def test_a_signals_words_show_amounts_to_the_decimals_their_currency_has():
+    """Long divisions (a usual month is a sum over months) reached the words as
+    2000257.70149091 and 343281.8116666…; amounts in a detail are rounded as
+    everywhere else."""
+    [signal] = emergency_fund_low(
+        Decimal("2000257.70149091"), Decimal("343281.81166666666666666667"), 6, 12, "LKR"
+    )
+    assert "(2000257.70 LKR)" in signal.detail
+    assert "(343281.81 LKR a month)" in signal.detail
+    assert "about 5.8 months" in signal.detail
+    [thin] = low_balance_ahead(
+        Decimal("1000.123456"), "2026-11-20", Decimal("5000"), Decimal("343281.8116666"), "LKR"
+    )
+    assert "1000.12 LKR" in thin.detail and "343281.81 LKR" in thin.detail
+    [yen] = emergency_fund_low(Decimal("1000.7"), Decimal("500.3333"), 6, 12, "JPY")
+    assert "(1001 JPY)" in yen.detail and "(500 JPY a month)" in yen.detail
