@@ -312,6 +312,26 @@ describe('cash', () => {
     expect(within(recurring).getByText('Bistro Novo').closest('tr')?.textContent).toContain('varies');
   });
 
+  it('draws the twelve months Home averages over, from the first month money moved', async () => {
+    await setup({ path: '/console/cash' });
+    const flow = await screen.findByRole('region', { name: 'Cash flow by month' });
+    expect(await within(flow).findByText('EUR 1,962.91')).toBeTruthy();
+    await click(within(flow).getByRole('button', { name: 'Show the figures' }));
+    const first = where.CASH_FLOW.months.find((m) => m.observed);
+    expect(first).toBeTruthy();
+    expect(within(flow).queryByText('No income or spending in these months.')).toBeNull();
+    expect(within(flow).getAllByRole('row').length - 1).toBe(where.CASH_FLOW.months.length - where.CASH_FLOW.months.findIndex((m) => m.observed));
+  });
+
+  it('says so, instead of drawing empty months, when every entry is older than the window', async () => {
+    const api = new MockApi();
+    api.where.cashFlow = where.CASH_FLOW_OLD;
+    await setup({ api, path: '/console/cash' });
+    const flow = await screen.findByRole('region', { name: 'Cash flow by month' });
+    expect(await within(flow).findByText('No income or spending in these months.')).toBeTruthy();
+    expect(within(flow).queryByRole('button', { name: 'Show the figures' })).toBeNull();
+  });
+
   it('says so when there is no full month to average', async () => {
     const api = new MockApi();
     api.where.cashFlow = { ...where.CASH_FLOW, average: { ...where.CASH_FLOW.average, months_observed: [] } };
