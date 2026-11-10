@@ -23,7 +23,6 @@ from typing import Any, cast
 
 import typer
 from rich.console import Console
-from typer.core import TyperOption
 
 console = Console()
 
@@ -103,21 +102,39 @@ def leaf_commands(group: Any, path: tuple[str, ...] = ()) -> Iterator[tuple[tupl
         yield path, group
 
 
+def _json_flag() -> Any:
+    """A new --json option for one command. Typer builds it from a declaration,
+    as it builds every other option, so nothing here depends on the arguments
+    of Typer's option class (0.29 added a required one to TyperOption)."""
+
+    def declare(
+        json: bool | None = typer.Option(
+            None,
+            "--json",
+            is_eager=True,
+            expose_value=False,
+            # typer.Option shows both by default; --json shows neither.
+            show_default=False,
+            show_envvar=False,
+            help="Print the result as JSON on stdout (messages go to stderr).",
+        ),
+    ) -> None:
+        """Never run: only its option is used."""
+
+    probe = typer.Typer(add_completion=False)
+    probe.command()(declare)
+    [flag] = typer.main.get_command(probe).params
+    # Set here rather than passed to typer.Option, which would wrap it.
+    flag.callback = _enable_json
+    return flag
+
+
 def with_json_option(root: Any) -> Any:
     """Give every non-interactive command a --json flag."""
     for path, command in leaf_commands(root):
         if path in INTERACTIVE_COMMANDS or any(p.name == "json" for p in command.params):
             continue
-        command.params.append(
-            TyperOption(
-                param_decls=["--json"],
-                is_flag=True,
-                expose_value=False,
-                is_eager=True,
-                callback=_enable_json,
-                help="Print the result as JSON on stdout (messages go to stderr).",
-            )
-        )
+        command.params.append(_json_flag())
     return root
 
 

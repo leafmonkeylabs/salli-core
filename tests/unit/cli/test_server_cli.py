@@ -93,6 +93,20 @@ def test_every_command_takes_json():
         ), path
 
 
+def test_the_json_flag_is_eager_unexposed_and_in_the_help(monkeypatch, capsys):
+    # Typer builds it from a declaration (support._json_flag): constructing
+    # TyperOption directly broke with typer 0.29, which added an argument.
+    for path, command in leaf_commands(main.cli()):
+        [flag] = [p for p in command.params if p.name == "json"]
+        assert (flag.opts, flag.secondary_opts) == (["--json"], []), path
+        assert flag.is_flag and flag.is_eager and not flag.expose_value, path
+        assert flag.callback is support._enable_json, path
+        assert flag.help == "Print the result as JSON on stdout (messages go to stderr).", path
+    helped = _run(monkeypatch, capsys, "db", "current", "--help")
+    assert helped.exit_code == 0, helped.output
+    assert "--json" in helped.output and "Print the result as JSON" in helped.output
+
+
 def test_the_names_extensions_import_stay_put():
     # A deployment's own commands and tests import these; renaming one breaks it.
     for name in ("console", "emit", "json_mode", "require_user", "services", "leaf_commands"):
