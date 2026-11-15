@@ -21,7 +21,7 @@ FROM ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b98
 # ── Build: the console ────────────────────────────────────────────────────────
 # Static files, the same on every platform: built once, on the builder's own
 # platform, and copied into each image (docs/design/console.md, section 9).
-FROM --platform=$BUILDPLATFORM node:26.13.0-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9 AS console
+FROM --platform=$BUILDPLATFORM node:26.13.1-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS console
 
 WORKDIR /src
 # The workspace's manifests and lock first: npm ci installs exactly the
